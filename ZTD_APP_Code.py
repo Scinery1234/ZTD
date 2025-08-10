@@ -1,6 +1,7 @@
 # ZTD APP - a Zen to Done Command Line Interface app
 # Before running, pip install rich schedule dateparser
 # run python from virtual environment where packages are installed
+import os
 import json
 import re
 from collections import defaultdict
@@ -19,6 +20,19 @@ DONE_FILE = "done_tasks.json"
 tasks = []
 completed_tasks = []
 console = Console()
+
+# === CLEAR TERMINAL ===
+def clear_terminal():
+	"""
+	Clears the terminal.
+
+    This function clears all prior output displayed in the terminal, providing a clean space to load the CLI Task manager.
+
+    On windows, the function runs 'cls' command.
+    On MacOS/Linux/WSL, the function runs 'clear' command.
+    """
+	os.system('cls' if os.name == 'nt' else 'clear')
+clear_terminal()
 
 # === LOAD AND SAVE TASKS ===
 def load_tasks():
@@ -274,7 +288,62 @@ def start_scheduler():
 # Start scheduler in background
 threading.Thread(target=start_scheduler, daemon=True).start()
 
+# === HELP MENU CLASS ===
+
+class HelpMenu:
+    """
+    This class stores the name of the app and displays the CLI help menu for the ZTD Task Manager 
+    when requested(by entering `help` into the command line).
+    """
+    def __init__(self, app_name="Zen To Done (ZTD) CLI Task Manager"):
+        self.app_name = app_name
+        """
+        Initialises HelpMenu class with custom application name
+        """
+
+    def show(self):
+        """
+        Print's help command text in the terminal. Help commands are listed with an explanation
+        """
+        print(f"""
+Welcome to the {self.app_name}!
+        
+Commands:
+---------
+Task Management:
+- add <task description>                  : Add a new task. Add multiple with commas. Example: add email boss @work !urgent ~daily ^tomorrow
+- list                                    : Show all tasks.
+- done <task_id#>                         : Mark a task as completed.
+- delete <task_id#> <task_id#> ...        : Delete one or more tasks.
+- move <from> <to>                        : Move task from one position to another.
+
+Task Details:
+- priority <task_id#> <priority>          : Set priority (urgent, today, tomorrow, later).
+- category <task_id#> <category>          : Set category.
+- recur <task_id#> <frequency>            : Set recurrence (daily, weekly, monthly).
+- duedate <task_id#> <due date>           : Set or update due date (e.g., duedate 2 next Friday)
+
+Filtering & Views:
+- showdone                                : View completed tasks.
+- categories                              : View tasks grouped by category
+- later <task_id# ...>                    : Move task to Later list.
+- showlater                               : View tasks saved for later.
+
+Other:
+- save                                    : Save tasks manually.
+- help                                    : Show this help message.
+- exit                                    : Save and exit the program.
+
+Notes:
+- Tasks are saved to tasks.json, done_tasks.json, and later_tasks.json
+- Recurring tasks reappear based on last completed date
+- Supports natural language due dates using ^tomorrow, ^next Friday, etc.
+- Sends periodic reminders to review your task list
+""")
+
 # === RUN MAIN LOOP ===
+help_menu = HelpMenu()
+
 def run_cli():
     load_tasks()
     print("[bold cyan]ZTD CLI Task Manager (type 'help' for options)[/bold cyan]")
@@ -308,7 +377,7 @@ def run_cli():
         elif user_input.lower() == "categories":
             show_tasks_by_category()
         elif user_input.lower() == "help":
-            show_help()
+            help_menu.show()   # Uses the HelpMenu class method
         else:
             print("[yellow]Unknown command. Try: add, list, delete, done, move, priority, category, recur, categories, showdone, help, exit[/yellow]")
 
@@ -327,42 +396,6 @@ def move_task(input_str):
             print("[red]Invalid indices. Use valid task numbers.[/red]")
     except ValueError:
         print("[red]Usage: move <from> <to>. Example: move 3 1[/red]")
-
-# === HELP MENU ===
-def show_help():
-    print("""
-Welcome to the Zen To Done (ZTD) CLI Task Manager!
-
-Commands:
----------
-Task Management:
-- add <task description>                  : Add a new task. Add multiple with commas. Example: add email boss @work !urgent ~daily ^tomorrow
-- list                                    : Show all tasks.
-- done <task_id#>                         : Mark a task as completed.
-- delete <task_id#> <task_id#> ...        : Delete one or more tasks.
-- move <from> <to>                        : Move task from one position to another.
-
-Task Details:
-- priority <task_id#> <priority>          : Set priority (urgent, today, tomorrow, later).
-- category <task_id#> <category>          : Set category.
-- recur <task_id#> <frequency>            : Set recurrence (daily, weekly, monthly).
-- duedate <task_id#> <due date>           : Set or update due date (e.g., duedate 2 4/9/25)
-
-Filtering & Views:
-- showdone                                : View completed tasks.
-- categories                              : View tasks grouped by category
-
-Other:
-- save                                    : Save tasks manually.
-- help                                    : Show this help message.
-- exit                                    : Save and exit the program.
-
-Notes:
-- Tasks are saved to tasks.json, done_tasks.json
-- Recurring tasks reappear based on last completed date
-- Supports natural language due dates using ^tomorrow, ^06/10/25, etc.
-- Sends periodic reminders to review your task list
-""")
 
 if __name__ == "__main__":
     run_cli()

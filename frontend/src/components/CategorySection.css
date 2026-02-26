@@ -1,0 +1,53 @@
+.category-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
+}
+
+.category-section.dragging {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.category-drag-handle {
+  cursor: grab;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  color: #9ca3af;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+.category-drag-handle:hover {
+  color: #667eea;
+}
+
+.category-drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.category-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #667eea;
+  margin: 0;
+  flex: 1;
+}

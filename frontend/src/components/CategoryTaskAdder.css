@@ -1,0 +1,108 @@
+.category-add-btn {
+  margin-top: 16px;
+  padding: 8px 16px;
+  background: #f3f4f6;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.category-add-btn:hover {
+  background: #e5e7eb;
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.category-add-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.category-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.category-task-input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.category-task-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.category-form-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.category-form-select,
+.category-form-input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.category-form-select:focus,
+.category-form-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.category-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.category-save-btn,
+.category-cancel-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.category-save-btn {
+  background: #667eea;
+  color: white;
+}
+
+.category-save-btn:hover {
+  background: #5568d3;
+}
+
+.category-cancel-btn {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.category-cancel-btn:hover {
+  background: #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .category-form-options {
+    grid-template-columns: 1fr;
+  }
+}

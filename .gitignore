@@ -32,3 +32,6 @@ Thumbs.db
 # Logs
 backend.log
 frontend.log
+# SQLite database
+backend/ztd.db
+backend/.env

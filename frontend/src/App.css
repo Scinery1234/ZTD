@@ -77,6 +77,34 @@
   border-bottom: 2px solid #f0f0f0;
 }
 
+.limit-banner {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.2), rgba(245, 87, 108, 0.2));
+  border: 1.5px solid rgba(240, 147, 251, 0.5);
+  color: white;
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.limit-upgrade-btn {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  border: none;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: opacity 0.2s;
+}
+
+.limit-upgrade-btn:hover {
+  opacity: 0.85;
+}
+
 @media (max-width: 768px) {
   .app {
     padding: 10px;

@@ -1,7 +1,7 @@
 .header {
   text-align: center;
   margin-bottom: 40px;
-  padding: 30px 20px;
+  padding: 30px 20px 20px;
 }
 
 .header-content {
@@ -22,6 +22,80 @@
   font-size: 18px;
   color: rgba(255, 255, 255, 0.9);
   font-weight: 300;
+  margin-bottom: 16px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.user-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.tier-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+.upgrade-nudge {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  border: none;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  animation: pulse-nudge 2s infinite;
+}
+
+@keyframes pulse-nudge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.header-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.header-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 @media (max-width: 768px) {

@@ -1,0 +1,245 @@
+.pricing-page {
+  min-height: 100vh;
+  padding: 40px 20px;
+  color: white;
+}
+
+.pricing-loading {
+  text-align: center;
+  font-size: 18px;
+  padding: 80px;
+  color: rgba(255,255,255,0.8);
+}
+
+.pricing-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.pricing-back {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 24px;
+  transition: background 0.2s;
+}
+
+.pricing-back:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.pricing-header h1 {
+  font-size: 36px;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+}
+
+.pricing-header p {
+  font-size: 16px;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.pricing-error {
+  background: rgba(255, 0, 0, 0.15);
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  color: #ffcccc;
+  border-radius: 10px;
+  padding: 14px 20px;
+  max-width: 600px;
+  margin: 0 auto 28px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.pricing-grid {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.pricing-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pricing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.pricing-card.popular {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.pricing-card.current {
+  border-color: rgba(255, 220, 100, 0.6);
+  background: rgba(255, 220, 100, 0.08);
+}
+
+.popular-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.current-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ffd700, #ffa500);
+  color: #333;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tier-name {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.tier-price {
+  margin-bottom: 24px;
+}
+
+.price-currency {
+  font-size: 20px;
+  font-weight: 600;
+  vertical-align: top;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.price-amount {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.price-period {
+  font-size: 16px;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tier-features li {
+  font-size: 14px;
+  opacity: 0.9;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.feature-check {
+  color: #7bed9f;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tier-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  margin-top: auto;
+}
+
+.tier-btn.free {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.tier-btn.pro {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.tier-btn.premium {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  color: white;
+}
+
+.tier-btn:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.tier-btn:disabled,
+.tier-btn.current-btn {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.pricing-footer {
+  text-align: center;
+  margin-top: 48px;
+  opacity: 0.7;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.manage-sub a {
+  color: #b3d4ff;
+}
+
+@media (max-width: 680px) {
+  .pricing-grid {
+    flex-direction: column;
+    align-items: center;
+  }
+  .pricing-card {
+    width: 100%;
+    max-width: 340px;
+  }
+}

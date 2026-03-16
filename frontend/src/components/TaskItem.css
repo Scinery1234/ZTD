@@ -358,6 +358,184 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* ---- Subtask button ---- */
+.btn-subtask {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 16px;
+  font-weight: 300;
+  cursor: pointer;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.5);
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.btn-subtask:hover {
+  background: rgba(102, 126, 234, 0.2);
+  color: #b4c4ff;
+  border-color: rgba(102,126,234,0.35);
+}
+
+/* ---- Subtask checklist (view mode) ---- */
+.subtask-progress-bar {
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin: 8px 0 6px;
+  overflow: hidden;
+}
+.subtask-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #34d399);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.subtask-progress-pill {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  color: #6ee7b7;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.subtask-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.subtask-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #667eea;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.subtask-text {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.4;
+  transition: color 0.15s, text-decoration 0.15s;
+}
+.subtask-item.done .subtask-text {
+  text-decoration: line-through;
+  color: rgba(255,255,255,0.3);
+}
+
+/* Inline add subtask (view mode) */
+.subtask-add-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+.subtask-add-input {
+  flex: 1;
+  padding: 5px 9px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(102,126,234,0.4);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: white;
+  outline: none;
+}
+.subtask-add-input::placeholder { color: rgba(255,255,255,0.25); }
+.subtask-add-confirm, .subtask-add-cancel {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.subtask-add-confirm {
+  background: rgba(52,211,153,0.2);
+  color: #34d399;
+  border: 1px solid rgba(52,211,153,0.3);
+}
+.subtask-add-cancel {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ---- Edit-mode subtasks ---- */
+.edit-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.edit-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.edit-subtask-bullet {
+  color: rgba(255,255,255,0.3);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.edit-subtask-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  color: white;
+  outline: none;
+}
+.edit-subtask-input::placeholder { color: rgba(255,255,255,0.25); }
+.edit-subtask-input:focus { border-color: rgba(102,126,234,0.45); }
+.edit-subtask-remove {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(248,113,113,0.12);
+  color: #f87171;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.edit-subtask-remove:hover { background: rgba(248,113,113,0.22); }
+.edit-subtask-add {
+  background: none;
+  border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: 7px;
+  color: rgba(255,255,255,0.35);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.edit-subtask-add:hover {
+  border-color: rgba(102,126,234,0.4);
+  color: rgba(180,195,255,0.8);
+}
+
 @media (max-width: 600px) {
   .task-actions { opacity: 1; }
   .edit-fields { grid-template-columns: 1fr; }

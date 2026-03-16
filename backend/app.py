@@ -7,6 +7,7 @@ from flask_jwt_extended import (
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
+import json
 from datetime import datetime, timedelta
 import dateparser
 import stripe
@@ -56,6 +57,7 @@ class User(db.Model):
 
     tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
     done_tasks = db.relationship('DoneTask', backref='user', lazy=True, cascade='all, delete-orphan')
+    hats = db.relationship('Hat', backref='user', lazy=True, cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -68,49 +70,91 @@ class User(db.Model):
         }
 
 
+class Hat(db.Model):
+    """A workspace / area of life that groups tasks."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    emoji = db.Column(db.String(10), default='🎩')
+    color = db.Column(db.String(20), default='#667eea')
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    tasks = db.relationship('Task', backref='hat', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'emoji': self.emoji,
+            'color': self.color,
+            'position': self.position,
+        }
+
+
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    hat_id = db.Column(db.Integer, db.ForeignKey('hat.id'), nullable=True)
     description = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(100), default='')
     priority = db.Column(db.String(50), default='')
     recurring = db.Column(db.String(50), default='')
     due = db.Column(db.String(20), nullable=True)
     position = db.Column(db.Integer, default=0)
+    subtasks = db.Column(db.Text, default='[]')   # JSON: [{id, text, done}]
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def subtasks_list(self):
+        try:
+            return json.loads(self.subtasks or '[]')
+        except Exception:
+            return []
 
     def to_dict(self):
         return {
             'id': self.id,
+            'hat_id': self.hat_id,
             'description': self.description,
             'category': self.category or '',
             'priority': self.priority or '',
             'recurring': self.recurring or '',
             'due': self.due,
             'position': self.position,
+            'subtasks': self.subtasks_list(),
         }
 
 
 class DoneTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    hat_id = db.Column(db.Integer, db.ForeignKey('hat.id'), nullable=True)
     description = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(100), default='')
     priority = db.Column(db.String(50), default='')
     recurring = db.Column(db.String(50), default='')
     due = db.Column(db.String(20), nullable=True)
     last_done = db.Column(db.String(20), nullable=True)
+    subtasks = db.Column(db.Text, default='[]')
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def subtasks_list(self):
+        try:
+            return json.loads(self.subtasks or '[]')
+        except Exception:
+            return []
 
     def to_dict(self):
         return {
             'id': self.id,
+            'hat_id': self.hat_id,
             'description': self.description,
             'category': self.category or '',
             'priority': self.priority or '',
             'recurring': self.recurring or '',
             'due': self.due,
             'last_done': self.last_done,
+            'subtasks': self.subtasks_list(),
             'completed_at': self.completed_at.isoformat(),
         }
 
@@ -203,13 +247,100 @@ def get_me():
     return jsonify(user.to_dict())
 
 
+# === Hat Endpoints ===
+
+@app.route('/api/hats', methods=['GET'])
+@jwt_required()
+def get_hats():
+    user_id = get_jwt_identity()
+    hats = Hat.query.filter_by(user_id=user_id).order_by(Hat.position, Hat.id).all()
+    return jsonify([h.to_dict() for h in hats])
+
+
+@app.route('/api/hats', methods=['POST'])
+@jwt_required()
+def create_hat():
+    user_id = get_jwt_identity()
+    data = request.json
+    if not data or not data.get('name', '').strip():
+        return jsonify({'error': 'Hat name is required'}), 400
+
+    max_pos = db.session.query(db.func.max(Hat.position)).filter_by(user_id=user_id).scalar() or 0
+    hat = Hat(
+        user_id=user_id,
+        name=data['name'].strip(),
+        emoji=data.get('emoji', '🎩'),
+        color=data.get('color', '#667eea'),
+        position=max_pos + 1,
+    )
+    db.session.add(hat)
+    db.session.commit()
+    return jsonify(hat.to_dict()), 201
+
+
+@app.route('/api/hats/<int:hat_id>', methods=['PUT'])
+@jwt_required()
+def update_hat(hat_id):
+    user_id = get_jwt_identity()
+    hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+    if not hat:
+        return jsonify({'error': 'Hat not found'}), 404
+
+    data = request.json
+    if 'name' in data:
+        hat.name = data['name'].strip()
+    if 'emoji' in data:
+        hat.emoji = data['emoji']
+    if 'color' in data:
+        hat.color = data['color']
+
+    db.session.commit()
+    return jsonify(hat.to_dict())
+
+
+@app.route('/api/hats/<int:hat_id>', methods=['DELETE'])
+@jwt_required()
+def delete_hat(hat_id):
+    user_id = get_jwt_identity()
+    hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+    if not hat:
+        return jsonify({'error': 'Hat not found'}), 404
+
+    # Move tasks in this hat to null (no hat) rather than deleting them
+    Task.query.filter_by(hat_id=hat_id, user_id=user_id).update({'hat_id': None})
+    DoneTask.query.filter_by(hat_id=hat_id, user_id=user_id).update({'hat_id': None})
+
+    db.session.delete(hat)
+    db.session.commit()
+    return jsonify({'message': 'Hat deleted'})
+
+
+@app.route('/api/hats/reorder', methods=['POST'])
+@jwt_required()
+def reorder_hats():
+    user_id = get_jwt_identity()
+    data = request.json
+    hat_ids = data.get('hat_ids', [])
+    for position, hat_id in enumerate(hat_ids):
+        hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+        if hat:
+            hat.position = position
+    db.session.commit()
+    hats = Hat.query.filter_by(user_id=user_id).order_by(Hat.position, Hat.id).all()
+    return jsonify([h.to_dict() for h in hats])
+
+
 # === Task Endpoints ===
 
 @app.route('/api/tasks', methods=['GET'])
 @jwt_required()
 def get_tasks():
     user_id = get_jwt_identity()
-    tasks = Task.query.filter_by(user_id=user_id).order_by(Task.position, Task.id).all()
+    hat_id = request.args.get('hat_id', type=int)
+    q = Task.query.filter_by(user_id=user_id)
+    if hat_id is not None:
+        q = q.filter_by(hat_id=hat_id)
+    tasks = q.order_by(Task.position, Task.id).all()
     return jsonify([t.to_dict() for t in tasks])
 
 
@@ -228,6 +359,16 @@ def add_task():
         if limit_error:
             return jsonify(limit_error), 403
 
+        hat_id = data.get('hat_id') or None
+        # Validate hat belongs to user
+        if hat_id:
+            hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+            if not hat:
+                hat_id = None
+
+        max_pos_q = Task.query.filter_by(user_id=user_id)
+        if hat_id:
+            max_pos_q = max_pos_q.filter_by(hat_id=hat_id)
         max_pos = db.session.query(db.func.max(Task.position)).filter_by(user_id=user_id).scalar() or 0
         next_pos = max_pos + 1
 
@@ -240,7 +381,7 @@ def add_task():
                 desc, cat, prio, recur, due = parse_task_input(task_raw)
                 if not desc:
                     continue
-                task = Task(user_id=user_id, description=desc, category=cat,
+                task = Task(user_id=user_id, hat_id=hat_id, description=desc, category=cat,
                             priority=prio, recurring=recur, due=due, position=next_pos)
                 db.session.add(task)
                 all_tasks.append(task)
@@ -251,6 +392,7 @@ def add_task():
                 return jsonify({'error': 'Task description is required'}), 400
             task = Task(
                 user_id=user_id,
+                hat_id=hat_id,
                 description=description,
                 category=data.get('category', '').strip(),
                 priority=data.get('priority', '').strip(),
@@ -296,6 +438,15 @@ def update_task(task_id):
             task.due = parsed.strftime("%Y-%m-%d") if parsed else due_text
         else:
             task.due = None
+    if 'hat_id' in data:
+        hat_id = data['hat_id']
+        if hat_id:
+            hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+            task.hat_id = hat.id if hat else None
+        else:
+            task.hat_id = None
+    if 'subtasks' in data:
+        task.subtasks = json.dumps(data['subtasks'])
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -325,11 +476,13 @@ def mark_task_done(task_id):
 
     done_task = DoneTask(
         user_id=user_id,
+        hat_id=task.hat_id,
         description=task.description,
         category=task.category,
         priority=task.priority,
         recurring=task.recurring,
         due=task.due,
+        subtasks=task.subtasks,
         last_done=datetime.today().strftime("%Y-%m-%d") if task.recurring else None,
     )
     db.session.add(done_task)
@@ -342,7 +495,11 @@ def mark_task_done(task_id):
 @jwt_required()
 def get_done_tasks():
     user_id = get_jwt_identity()
-    done_tasks = DoneTask.query.filter_by(user_id=user_id).order_by(DoneTask.completed_at.desc()).all()
+    hat_id = request.args.get('hat_id', type=int)
+    q = DoneTask.query.filter_by(user_id=user_id)
+    if hat_id is not None:
+        q = q.filter_by(hat_id=hat_id)
+    done_tasks = q.order_by(DoneTask.completed_at.desc()).all()
     return jsonify([t.to_dict() for t in done_tasks])
 
 
@@ -350,7 +507,11 @@ def get_done_tasks():
 @jwt_required()
 def get_tasks_by_category():
     user_id = get_jwt_identity()
-    tasks = Task.query.filter_by(user_id=user_id).order_by(Task.position, Task.id).all()
+    hat_id = request.args.get('hat_id', type=int)
+    q = Task.query.filter_by(user_id=user_id)
+    if hat_id is not None:
+        q = q.filter_by(hat_id=hat_id)
+    tasks = q.order_by(Task.position, Task.id).all()
     from collections import defaultdict
     grouped = defaultdict(list)
     for task in tasks:
@@ -388,7 +549,6 @@ def reorder_tasks():
 
 @app.route('/api/stripe/tiers', methods=['GET'])
 def get_tiers():
-    """Return tier definitions (public endpoint for pricing page)."""
     return jsonify({
         tier: {
             'name': TIERS[tier]['name'],

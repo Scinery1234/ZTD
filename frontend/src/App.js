@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { api } from './api';
@@ -7,6 +7,7 @@ import TaskForm from './components/TaskForm';
 import TaskFilters from './components/TaskFilters';
 import Header from './components/Header';
 import Stats from './components/Stats';
+import HatBar from './components/HatBar';
 import CategorySection from './components/CategorySection';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -26,13 +27,31 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
-// ---- Categories drag-drop view (defined outside App to avoid recreation) ----
+// ---- Completed tasks collapsible section ----
+function CompletedSection({ doneTasks }) {
+  const [open, setOpen] = useState(false);
+  if (doneTasks.length === 0) return null;
+  return (
+    <div className="completed-section">
+      <button className="completed-toggle" onClick={() => setOpen((o) => !o)}>
+        <span className="completed-toggle-icon">{open ? '▾' : '▸'}</span>
+        Completed
+        <span className="completed-count">{doneTasks.length}</span>
+      </button>
+      {open && (
+        <div className="completed-list">
+          <TaskList tasks={doneTasks} viewMode="done" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Categories drag-drop view ----
 const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onAddTask, onReorderCategories }) => {
   const [items, setItems] = useState(categories);
 
-  useEffect(() => {
-    setItems(categories);
-  }, [categories]);
+  useEffect(() => { setItems(categories); }, [categories]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -42,8 +61,8 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item) => `category-${item}` === active.id);
-      const newIndex = items.findIndex((item) => `category-${item}` === over.id);
+      const oldIndex = items.findIndex((i) => `category-${i}` === active.id);
+      const newIndex = items.findIndex((i) => `category-${i}` === over.id);
       const newOrder = arrayMove(items, oldIndex, newIndex);
       setItems(newOrder);
       onReorderCategories(newOrder);
@@ -69,14 +88,9 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
                 const el = document.querySelector(`[data-category="${cat}"]`);
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
-              onAddTask={(taskData) => {
-                const taskWithCategory = {
-                  ...taskData,
-                  input: taskData.input ? `${taskData.input} @${category}`.trim() : taskData.input,
-                  category,
-                };
-                onAddTask(taskWithCategory);
-              }}
+              onAddTask={(taskData) =>
+                onAddTask({ ...taskData, input: taskData.input ? `${taskData.input} @${category}`.trim() : taskData.input, category })
+              }
             />
           ))}
         </div>
@@ -85,11 +99,13 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
   );
 };
 
-// ---- Main app (authenticated) ----
+// ---- Main authenticated app ----
 function TaskApp() {
-  const { user, subscription, refreshSubscription } = useAuth();
+  const { subscription, refreshSubscription } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
+  const [hats, setHats] = useState([]);
+  const [currentHatId, setCurrentHatId] = useState(null); // null = All
   const [filter, setFilter] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
@@ -99,7 +115,7 @@ function TaskApp() {
   const [showPricing, setShowPricing] = useState(false);
   const [limitError, setLimitError] = useState('');
 
-  // Show pricing page if returning from successful upgrade
+  // Upgrade redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('upgrade') === 'success') {
@@ -108,39 +124,57 @@ function TaskApp() {
     }
   }, [refreshSubscription]);
 
+  // Load category order from localStorage
   useEffect(() => {
-    fetchTasks();
-    fetchDoneTasks();
-    const savedOrder = localStorage.getItem('ztd_category_order');
-    if (savedOrder) {
-      try { setCategoryOrder(JSON.parse(savedOrder)); } catch {}
-    }
+    const saved = localStorage.getItem('ztd_category_order');
+    if (saved) try { setCategoryOrder(JSON.parse(saved)); } catch {}
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
-      const data = await api.getTasks();
+      const data = await api.getTasks(currentHatId);
       setTasks(data);
     } catch (err) {
       console.error('Error fetching tasks:', err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [currentHatId]);
 
-  const fetchDoneTasks = async () => {
+  const fetchDoneTasks = useCallback(async () => {
     try {
-      const data = await api.getDoneTasks();
+      const data = await api.getDoneTasks(currentHatId);
       setDoneTasks(data);
     } catch (err) {
       console.error('Error fetching done tasks:', err);
     }
+  }, [currentHatId]);
+
+  const fetchHats = async () => {
+    try {
+      const data = await api.getHats();
+      setHats(data);
+    } catch (err) {
+      console.error('Error fetching hats:', err);
+    }
   };
+
+  useEffect(() => {
+    const init = async () => {
+      await Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()]);
+      setLoading(false);
+    };
+    init();
+  }, []); // eslint-disable-line
+
+  // Re-fetch tasks when hat changes
+  useEffect(() => {
+    fetchTasks();
+    fetchDoneTasks();
+  }, [fetchTasks, fetchDoneTasks]);
 
   const addTask = async (taskData) => {
     try {
       setLimitError('');
-      await api.addTask(taskData);
+      await api.addTask({ ...taskData, hat_id: currentHatId });
       await fetchTasks();
       await refreshSubscription();
     } catch (err) {
@@ -217,14 +251,12 @@ function TaskApp() {
     localStorage.setItem('ztd_category_order', JSON.stringify(newOrder));
   };
 
-  if (showPricing) {
-    return <PricingPage onBack={() => setShowPricing(false)} />;
-  }
+  if (showPricing) return <PricingPage onBack={() => setShowPricing(false)} />;
 
   if (loading) {
     return (
       <div className="app">
-        <div className="loading">Loading your tasks...</div>
+        <div className="loading">Loading your tasks…</div>
       </div>
     );
   }
@@ -238,18 +270,22 @@ function TaskApp() {
         {limitError && (
           <div className="limit-banner">
             {limitError}{' '}
-            <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>
-              Upgrade now
-            </button>
+            <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade now</button>
           </div>
         )}
 
+        {/* Hat bar */}
+        <HatBar
+          hats={hats}
+          currentHatId={currentHatId}
+          onSelectHat={(id) => { setCurrentHatId(id); }}
+          onHatsChange={setHats}
+        />
+
+        {/* View tabs */}
         <div className="view-controls">
           <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>
-            Active Tasks
-          </button>
-          <button className={`view-btn ${viewMode === 'done' ? 'active' : ''}`} onClick={() => setViewMode('done')}>
-            Completed ({doneTasks.length})
+            Tasks
           </button>
           <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
             By Category
@@ -260,14 +296,21 @@ function TaskApp() {
           <>
             {atLimit ? (
               <div className="limit-banner">
-                You've reached your task limit.{' '}
-                <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>
-                  Upgrade to add more
-                </button>
+                Task limit reached.{' '}
+                <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
               </div>
             ) : (
               <TaskForm onAdd={addTask} categories={getCategories()} />
             )}
+            <TaskFilters
+              filter={filter}
+              setFilter={setFilter}
+              categories={getCategories()}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              selectedPriority={selectedPriority}
+              setSelectedPriority={setSelectedPriority}
+            />
             <TaskList
               tasks={getFilteredTasks()}
               onUpdate={updateTask}
@@ -283,20 +326,10 @@ function TaskApp() {
               }}
               viewMode="active"
             />
-            <TaskFilters
-              filter={filter}
-              setFilter={setFilter}
-              categories={getCategories()}
-              selectedCategory={selectedCategory}
-              setSelectedCategory={setSelectedCategory}
-              selectedPriority={selectedPriority}
-              setSelectedPriority={setSelectedPriority}
-            />
             <Stats tasks={tasks} doneTasks={doneTasks} />
+            <CompletedSection doneTasks={doneTasks} />
           </>
         )}
-
-        {viewMode === 'done' && <TaskList tasks={doneTasks} viewMode="done" />}
 
         {viewMode === 'categories' && (
           <CategoriesView
@@ -323,7 +356,7 @@ function AppRoot() {
   if (loading) {
     return (
       <div className="app">
-        <div className="loading">Loading...</div>
+        <div className="loading">Loading…</div>
       </div>
     );
   }

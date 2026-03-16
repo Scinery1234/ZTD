@@ -3,6 +3,9 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import './TaskItem.css';
 
+let subtaskIdCounter = Date.now();
+const newSubtaskId = () => `st-${++subtaskIdCounter}`;
+
 const TaskItem = ({
   id,
   task,
@@ -30,51 +33,90 @@ const TaskItem = ({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
   const [editData, setEditData] = useState({
     description: task.description,
     category: task.category || '',
     priority: task.priority || '',
     recurring: task.recurring || '',
     due: task.due || '',
+    subtasks: task.subtasks ? [...task.subtasks] : [],
   });
 
-  const getPriorityClass = (priority) => {
-    const classes = {
-      urgent: 'priority-urgent',
-      today: 'priority-today',
-      tomorrow: 'priority-tomorrow',
-      later: 'priority-later',
-    };
-    return classes[priority] || '';
-  };
+  // Local subtask state for view-mode toggling (without a full save)
+  const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [newSubtaskText, setNewSubtaskText] = useState('');
 
-  const getPriorityLabel = (priority) => {
-    if (!priority) return '';
-    return priority.charAt(0).toUpperCase() + priority.slice(1);
-  };
+  // Sync local subtasks if task prop changes
+  React.useEffect(() => {
+    setLocalSubtasks(task.subtasks || []);
+  }, [task.subtasks]);
+
+  const getPriorityClass = (priority) => ({
+    urgent: 'priority-urgent',
+    today: 'priority-today',
+    tomorrow: 'priority-tomorrow',
+    later: 'priority-later',
+  }[priority] || '');
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const isOverdue = () => {
     if (!task.due) return false;
-    const dueDate = new Date(task.due);
+    const dueDate = new Date(task.due + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return dueDate < today;
+  };
+
+  // ---- Subtask helpers ----
+  const toggleSubtaskInView = (stId) => {
+    const updated = localSubtasks.map((s) => s.id === stId ? { ...s, done: !s.done } : s);
+    setLocalSubtasks(updated);
+    onUpdate({ subtasks: updated });
+  };
+
+  const addSubtaskInView = () => {
+    if (!newSubtaskText.trim()) return;
+    const updated = [...localSubtasks, { id: newSubtaskId(), text: newSubtaskText.trim(), done: false }];
+    setLocalSubtasks(updated);
+    setNewSubtaskText('');
+    setAddingSubtask(false);
+    onUpdate({ subtasks: updated });
   };
 
   const handleSave = () => {
     onUpdate(editData);
   };
 
+  // ---- Edit subtask management ----
+  const addEditSubtask = () => {
+    setEditData((d) => ({
+      ...d,
+      subtasks: [...d.subtasks, { id: newSubtaskId(), text: '', done: false }],
+    }));
+  };
+
+  const updateEditSubtask = (stId, text) => {
+    setEditData((d) => ({
+      ...d,
+      subtasks: d.subtasks.map((s) => s.id === stId ? { ...s, text } : s),
+    }));
+  };
+
+  const removeEditSubtask = (stId) => {
+    setEditData((d) => ({
+      ...d,
+      subtasks: d.subtasks.filter((s) => s.id !== stId),
+    }));
+  };
+
+  // ---- Edit mode ----
   if (isEditing) {
     return (
       <div className="task-item editing">
@@ -89,17 +131,14 @@ const TaskItem = ({
               placeholder="Task description"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  handleSave();
-                } else if (e.key === 'Escape') {
-                  onCancelEdit();
-                }
+                if (e.key === 'Enter') handleSave();
+                else if (e.key === 'Escape') onCancelEdit();
               }}
             />
           </div>
-          
+
           <div className="edit-section">
-            <label className="edit-label">Advanced Options</label>
+            <label className="edit-label">Details</label>
             <div className="edit-fields">
               <div className="edit-field-group">
                 <label className="edit-field-label">Category</label>
@@ -108,16 +147,10 @@ const TaskItem = ({
                   value={editData.category}
                   onChange={(e) => setEditData({ ...editData, category: e.target.value })}
                   className="edit-field"
-                  placeholder="e.g., @work"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSave();
-                    }
-                  }}
+                  placeholder="e.g. work"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                 />
               </div>
-              
               <div className="edit-field-group">
                 <label className="edit-field-label">Priority</label>
                 <select
@@ -132,7 +165,6 @@ const TaskItem = ({
                   <option value="later">Later</option>
                 </select>
               </div>
-              
               <div className="edit-field-group">
                 <label className="edit-field-label">Recurring</label>
                 <select
@@ -146,7 +178,6 @@ const TaskItem = ({
                   <option value="monthly">Monthly</option>
                 </select>
               </div>
-              
               <div className="edit-field-group">
                 <label className="edit-field-label">Due Date</label>
                 <input
@@ -154,90 +185,164 @@ const TaskItem = ({
                   value={editData.due}
                   onChange={(e) => setEditData({ ...editData, due: e.target.value })}
                   className="edit-field"
-                  placeholder="e.g., tomorrow, next Friday"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSave();
-                    }
-                  }}
+                  placeholder="tomorrow, next Friday…"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                 />
               </div>
             </div>
           </div>
-          
+
+          {/* Subtasks editor */}
+          <div className="edit-section">
+            <label className="edit-label">Subtasks</label>
+            <div className="edit-subtasks">
+              {editData.subtasks.map((st, i) => (
+                <div key={st.id} className="edit-subtask-row">
+                  <span className="edit-subtask-bullet">·</span>
+                  <input
+                    className="edit-subtask-input"
+                    value={st.text}
+                    placeholder="Subtask…"
+                    onChange={(e) => updateEditSubtask(st.id, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); addEditSubtask(); }
+                      if (e.key === 'Backspace' && st.text === '') removeEditSubtask(st.id);
+                    }}
+                    autoFocus={i === editData.subtasks.length - 1 && st.text === ''}
+                  />
+                  <button
+                    className="edit-subtask-remove"
+                    onClick={() => removeEditSubtask(st.id)}
+                    type="button"
+                  >✕</button>
+                </div>
+              ))}
+              <button className="edit-subtask-add" onClick={addEditSubtask} type="button">
+                + Add subtask
+              </button>
+            </div>
+          </div>
+
           <div className="edit-actions">
-            <button onClick={handleSave} className="btn-save">Save</button>
+            <span className="edit-hint">Enter to save · Esc to cancel</span>
             <button onClick={onCancelEdit} className="btn-cancel">Cancel</button>
-            <span className="edit-hint">Press Ctrl+Enter to save, Esc to cancel</span>
+            <button onClick={handleSave} className="btn-save">Save</button>
           </div>
         </div>
       </div>
     );
   }
 
-  const handleDoubleClick = () => {
-    if (viewMode === 'active' && !isEditing) {
-      onEdit();
-    }
-  };
+  // ---- View mode ----
+  const doneCount = localSubtasks.filter((s) => s.done).length;
+  const totalCount = localSubtasks.length;
+  const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={`task-item ${getPriorityClass(task.priority)} ${isOverdue() ? 'overdue' : ''} ${isDragging ? 'dragging' : ''}`}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={() => {
+        if (viewMode === 'active') onEdit();
+      }}
     >
       <div className="task-content">
         {viewMode === 'active' && (
           <div className="drag-handle" {...attributes} {...listeners}>
-            <span className="drag-icon">☰</span>
+            <span className="drag-icon">⠿</span>
           </div>
         )}
+
         <div className="task-main">
           <div className="task-description">{task.description}</div>
+
           <div className="task-meta">
             {task.category && (
-              <span 
+              <span
                 className="task-category clickable-category"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  if (onCategoryClick && viewMode === 'active') {
-                    onCategoryClick(task.category);
-                  }
+                  if (onCategoryClick && viewMode === 'active') onCategoryClick(task.category);
                 }}
-                title="Double-click to view this category"
+                title="Double-click to filter by category"
               >
-                @{task.category}
+                {task.category}
               </span>
             )}
             {task.priority && (
               <span className={`task-priority ${getPriorityClass(task.priority)}`}>
-                {getPriorityLabel(task.priority)}
+                {task.priority}
               </span>
             )}
             {task.recurring && (
-              <span className="task-recurring">~{task.recurring}</span>
+              <span className="task-recurring">↺ {task.recurring}</span>
             )}
             {task.due && (
               <span className={`task-due ${isOverdue() ? 'overdue' : ''}`}>
-                📅 {formatDate(task.due)}
+                {isOverdue() ? '⚠ ' : ''}
+                {formatDate(task.due)}
+              </span>
+            )}
+            {totalCount > 0 && (
+              <span className="subtask-progress-pill">
+                {doneCount}/{totalCount}
               </span>
             )}
           </div>
+
+          {/* Subtask checklist */}
+          {localSubtasks.length > 0 && (
+            <div className="subtask-list">
+              {totalCount > 1 && (
+                <div className="subtask-progress-bar">
+                  <div className="subtask-progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+              )}
+              {localSubtasks.map((st) => (
+                <label key={st.id} className={`subtask-item ${st.done ? 'done' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={st.done}
+                    onChange={() => viewMode === 'active' && toggleSubtaskInView(st.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={viewMode !== 'active'}
+                  />
+                  <span className="subtask-text">{st.text}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* Inline add-subtask (active mode only) */}
+          {viewMode === 'active' && addingSubtask && (
+            <div className="subtask-add-row" onClick={(e) => e.stopPropagation()}>
+              <input
+                className="subtask-add-input"
+                autoFocus
+                value={newSubtaskText}
+                onChange={(e) => setNewSubtaskText(e.target.value)}
+                placeholder="Subtask…"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addSubtaskInView();
+                  if (e.key === 'Escape') { setAddingSubtask(false); setNewSubtaskText(''); }
+                }}
+              />
+              <button className="subtask-add-confirm" onClick={addSubtaskInView}>✓</button>
+              <button className="subtask-add-cancel" onClick={() => { setAddingSubtask(false); setNewSubtaskText(''); }}>✕</button>
+            </div>
+          )}
         </div>
+
         {viewMode === 'active' && (
           <div className="task-actions">
-            <button onClick={onEdit} className="btn-edit" title="Edit">
-              ✏️
-            </button>
-            <button onClick={onMarkDone} className="btn-done" title="Mark as done">
-              ✓
-            </button>
-            <button onClick={onDelete} className="btn-delete" title="Delete">
-              🗑️
-            </button>
+            <button
+              className="btn-subtask"
+              onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); }}
+              title="Add subtask"
+            >+</button>
+            <button onClick={(e) => { e.stopPropagation(); onMarkDone(); }} className="btn-done" title="Mark done">✓</button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn-delete" title="Delete">✕</button>
           </div>
         )}
       </div>

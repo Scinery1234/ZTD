@@ -29,9 +29,16 @@ export const api = {
     apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => apiFetch('/auth/me'),
 
-  // Tasks
-  getTasks: () => apiFetch('/tasks'),
-  getDoneTasks: () => apiFetch('/tasks/done'),
+  // Hats
+  getHats: () => apiFetch('/hats'),
+  createHat: (data) => apiFetch('/hats', { method: 'POST', body: JSON.stringify(data) }),
+  updateHat: (id, data) => apiFetch(`/hats/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteHat: (id) => apiFetch(`/hats/${id}`, { method: 'DELETE' }),
+  reorderHats: (hat_ids) => apiFetch('/hats/reorder', { method: 'POST', body: JSON.stringify({ hat_ids }) }),
+
+  // Tasks (hat_id is optional query param)
+  getTasks: (hat_id) => apiFetch(hat_id != null ? `/tasks?hat_id=${hat_id}` : '/tasks'),
+  getDoneTasks: (hat_id) => apiFetch(hat_id != null ? `/tasks/done?hat_id=${hat_id}` : '/tasks/done'),
   addTask: (data) => apiFetch('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) => apiFetch(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTask: (id) => apiFetch(`/tasks/${id}`, { method: 'DELETE' }),

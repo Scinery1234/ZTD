@@ -6,7 +6,7 @@ import './PricingPage.css';
 const TIER_ORDER = ['free', 'pro', 'premium'];
 
 function PricingPage({ onBack }) {
-  const { user, subscription, refreshSubscription } = useAuth();
+  const { user, subscription } = useAuth();
   const [tiers, setTiers] = useState({});
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState('');

@@ -1,0 +1,236 @@
+.hat-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Base pill */
+.hat-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.hat-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.hat-pill.active {
+  font-weight: 600;
+  color: white;
+}
+
+.all-pill.active {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.hat-pill-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.hat-pill-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inline edit row */
+.hat-edit-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+
+.hat-emoji-trigger {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.hat-emoji-trigger:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.hat-edit-input {
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: white;
+  width: 140px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.hat-edit-input::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+
+.hat-edit-input:focus {
+  background: rgba(255,255,255,0.1);
+}
+
+.hat-save-btn,
+.hat-cancel-btn,
+.hat-delete-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.hat-save-btn {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+.hat-save-btn:hover { background: rgba(52, 211, 153, 0.3); }
+
+.hat-cancel-btn {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.hat-cancel-btn:hover { background: rgba(255,255,255,0.13); }
+
+.hat-delete-btn {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  font-size: 11px;
+}
+.hat-delete-btn:hover { background: rgba(248, 113, 113, 0.25); }
+
+/* Emoji/color picker popup */
+.hat-picker-popup {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  z-index: 200;
+  background: #1e1b3a;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+
+.hat-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hat-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.hat-emoji-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  border: 1.5px solid transparent;
+  background: rgba(255,255,255,0.05);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+
+.hat-emoji-btn:hover { background: rgba(255,255,255,0.12); }
+.hat-emoji-btn.selected { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); }
+
+.hat-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.hat-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.hat-color-btn:hover { transform: scale(1.15); }
+.hat-color-btn.selected {
+  border-color: white;
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+}
+
+/* Add button */
+.hat-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.hat-add-btn:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  color: rgba(180, 195, 255, 0.85);
+  background: rgba(102, 126, 234, 0.08);
+}
+
+@media (max-width: 580px) {
+  .hat-bar { padding: 10px; gap: 5px; }
+  .hat-edit-input { width: 110px; }
+}

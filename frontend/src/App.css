@@ -65,6 +65,49 @@
   gap: 20px;
 }
 
+/* Guest banner */
+.guest-banner {
+  background: linear-gradient(135deg, rgba(100, 160, 255, 0.12), rgba(80, 200, 180, 0.10));
+  border-bottom: 1px solid rgba(100, 160, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  text-align: center;
+}
+
+.guest-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.guest-banner-btn {
+  background: rgba(100, 160, 255, 0.8);
+  border: none;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  font-family: inherit;
+}
+
+.guest-banner-btn--outline {
+  background: transparent;
+  border: 1px solid rgba(100, 160, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.guest-banner-btn:hover {
+  opacity: 0.85;
+}
+
 /* Limit banner */
 .limit-banner {
   background: linear-gradient(135deg, rgba(240, 147, 251, 0.12), rgba(245, 87, 108, 0.12));

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './AuthPages.css';
 
-function RegisterPage({ onSwitch }) {
+function RegisterPage({ onSwitch, onGuest }) {
   const { register } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [error, setError] = useState('');
@@ -101,6 +101,11 @@ function RegisterPage({ onSwitch }) {
             Sign in
           </button>
         </p>
+
+        <div className="auth-divider">or</div>
+        <button className="auth-guest-btn" onClick={onGuest}>
+          Continue without account
+        </button>
       </div>
     </div>
   );

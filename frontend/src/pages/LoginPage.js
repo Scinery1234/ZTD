@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './AuthPages.css';
 
-function LoginPage({ onSwitch }) {
+function LoginPage({ onSwitch, onGuest }) {
   const { login } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -69,6 +69,11 @@ function LoginPage({ onSwitch }) {
             Create one for free
           </button>
         </p>
+
+        <div className="auth-divider">or</div>
+        <button className="auth-guest-btn" onClick={onGuest}>
+          Continue without account
+        </button>
       </div>
     </div>
   );

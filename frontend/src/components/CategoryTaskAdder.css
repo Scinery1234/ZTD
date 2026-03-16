@@ -1,108 +1,128 @@
 .category-add-btn {
-  margin-top: 16px;
-  padding: 8px 16px;
-  background: #f3f4f6;
-  border: 1px dashed #d1d5db;
-  border-radius: 6px;
-  color: #6b7280;
-  font-size: 14px;
+  margin-top: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
   font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
   width: 100%;
 }
 
 .category-add-btn:hover {
-  background: #e5e7eb;
-  border-color: #667eea;
-  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  border-color: rgba(102, 126, 234, 0.35);
+  color: rgba(180, 195, 255, 0.85);
 }
 
 .category-add-form {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px dashed #e5e7eb;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .category-task-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .category-task-input {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  padding: 10px 13px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
   font-size: 14px;
   font-family: inherit;
+  color: white;
   width: 100%;
+}
+
+.category-task-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
 }
 
 .category-task-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  border-color: rgba(102, 126, 234, 0.5);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .category-form-options {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 7px;
 }
 
 .category-form-select,
 .category-form-input {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  font-size: 12px;
   font-family: inherit;
+  color: white;
+}
+
+.category-form-select option {
+  background: #302b63;
+}
+
+.category-form-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
 }
 
 .category-form-select:focus,
 .category-form-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: rgba(102, 126, 234, 0.45);
 }
 
 .category-form-actions {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   justify-content: flex-end;
 }
 
 .category-save-btn,
 .category-cancel-btn {
-  padding: 8px 16px;
+  padding: 7px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s;
+  font-family: inherit;
 }
 
 .category-save-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .category-save-btn:hover {
-  background: #5568d3;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.45);
+  transform: translateY(-1px);
 }
 
 .category-cancel-btn {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.09);
 }
 
 .category-cancel-btn:hover {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
 }
 
-@media (max-width: 768px) {
-  .category-form-options {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 500px) {
+  .category-form-options { grid-template-columns: 1fr; }
 }

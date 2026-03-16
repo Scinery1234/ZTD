@@ -20,7 +20,6 @@ const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategory
   const [editingId, setEditingId] = useState(null);
   const [items, setItems] = useState(tasks);
 
-  // Update items when tasks prop changes
   React.useEffect(() => {
     setItems(tasks);
   }, [tasks]);
@@ -32,20 +31,16 @@ const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategory
     })
   );
 
+  const getDragId = (task, index) => task.id ? `task-${task.id}` : `task-idx-${index}`;
+
   const handleDragEnd = (event) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item, idx) => `task-${idx}` === active.id);
-      const newIndex = items.findIndex((item, idx) => `task-${idx}` === over.id);
-
+      const oldIndex = items.findIndex((item, idx) => getDragId(item, idx) === active.id);
+      const newIndex = items.findIndex((item, idx) => getDragId(item, idx) === over.id);
       const newItems = arrayMove(items, oldIndex, newIndex);
       setItems(newItems);
-      
-      // Call the reorder callback with the new order
-      if (onReorder) {
-        onReorder(newItems);
-      }
+      if (onReorder) onReorder(newItems);
     }
   };
 
@@ -58,22 +53,19 @@ const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategory
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext
-        items={items.map((_, index) => `task-${index}`)}
+        items={items.map((task, idx) => getDragId(task, idx))}
         strategy={verticalListSortingStrategy}
       >
         <div className="task-list">
           {items.map((task, index) => {
-            const taskId = index + 1;
+            const dragId = getDragId(task, index);
+            const taskId = task.id || index + 1;
             return (
               <TaskItem
-                key={`task-${index}`}
-                id={`task-${index}`}
+                key={dragId}
+                id={dragId}
                 task={task}
                 taskId={taskId}
                 isEditing={editingId === taskId}

@@ -3,9 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import './Header.css';
 
 const TIER_COLORS = {
-  free: '#94a3b8',
-  pro: '#667eea',
-  premium: '#f093fb',
+  free:    'rgba(148, 163, 184, 0.8)',
+  pro:     'linear-gradient(135deg, #667eea, #764ba2)',
+  premium: 'linear-gradient(135deg, #f093fb, #f5576c)',
 };
 
 const Header = ({ onShowPricing }) => {
@@ -16,22 +16,24 @@ const Header = ({ onShowPricing }) => {
   return (
     <header className="header">
       <div className="header-content">
-        <h1 className="header-title">FocusFlow</h1>
-        <p className="header-subtitle">Zen To Done Task Manager</p>
+        <div className="header-brand">
+          <h1 className="header-title">FocusFlow</h1>
+          <p className="header-subtitle">Zen To Done</p>
+        </div>
 
         {user && (
           <div className="header-user">
             <div className="user-info">
-              <span className="user-name">Hi, {user.name}</span>
+              <span className="user-name">{user.name}</span>
               <span
                 className="tier-badge"
                 style={{ background: TIER_COLORS[tier] }}
               >
-                {tier.toUpperCase()}
+                {tier}
               </span>
               {atLimit && (
                 <button className="upgrade-nudge" onClick={onShowPricing}>
-                  Task limit reached — Upgrade
+                  Upgrade for more tasks
                 </button>
               )}
             </div>
@@ -40,7 +42,7 @@ const Header = ({ onShowPricing }) => {
                 Plans
               </button>
               <button className="header-btn logout-btn" onClick={logout}>
-                Sign Out
+                Sign out
               </button>
             </div>
           </div>

@@ -1,98 +1,108 @@
 .pricing-page {
   min-height: 100vh;
-  padding: 40px 20px;
-  color: white;
+  padding: 40px 20px 80px;
 }
 
 .pricing-loading {
   text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   padding: 80px;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .pricing-header {
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: 52px;
 }
 
 .pricing-back {
-  background: rgba(255,255,255,0.2);
-  border: none;
-  color: white;
-  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 8px 18px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
-  margin-bottom: 24px;
-  transition: background 0.2s;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  margin-bottom: 28px;
+  transition: all 0.2s;
 }
 
 .pricing-back:hover {
-  background: rgba(255,255,255,0.3);
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
 }
 
 .pricing-header h1 {
-  font-size: 36px;
+  font-size: 40px;
   font-weight: 800;
-  margin: 0 0 8px 0;
+  color: white;
+  margin: 0 0 10px;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #fff 30%, rgba(200, 180, 255, 0.85));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .pricing-header p {
-  font-size: 16px;
-  opacity: 0.8;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.45);
   margin: 0;
 }
 
 .pricing-error {
-  background: rgba(255, 0, 0, 0.15);
-  border: 1px solid rgba(255, 100, 100, 0.4);
-  color: #ffcccc;
-  border-radius: 10px;
-  padding: 14px 20px;
-  max-width: 600px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #fca5a5;
+  border-radius: 12px;
+  padding: 13px 18px;
+  max-width: 700px;
   margin: 0 auto 28px;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .pricing-grid {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   justify-content: center;
   flex-wrap: wrap;
-  max-width: 1000px;
+  max-width: 980px;
   margin: 0 auto;
+  align-items: flex-start;
 }
 
 .pricing-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(12px);
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  padding: 32px 28px;
-  width: 280px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px 26px 28px;
+  width: 290px;
   display: flex;
   flex-direction: column;
-  gap: 0;
   position: relative;
   transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 }
 
 .pricing-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  transform: translateY(-5px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
 .pricing-card.popular {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-color: rgba(102, 126, 234, 0.4);
+  background: rgba(102, 126, 234, 0.1);
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
 }
 
 .pricing-card.current {
-  border-color: rgba(255, 220, 100, 0.6);
-  background: rgba(255, 220, 100, 0.08);
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.05);
 }
 
 .popular-badge {
@@ -100,15 +110,16 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #f093fb, #f5576c);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   padding: 4px 14px;
   border-radius: 20px;
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
 }
 
 .current-badge {
@@ -116,130 +127,145 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #ffd700, #ffa500);
-  color: #333;
-  font-size: 11px;
+  background: linear-gradient(135deg, #34d399, #10b981);
+  color: white;
+  font-size: 10px;
   font-weight: 700;
   padding: 4px 14px;
   border-radius: 20px;
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  box-shadow: 0 2px 10px rgba(52, 211, 153, 0.35);
 }
 
 .tier-name {
-  font-size: 20px;
+  font-size: 14px;
   font-weight: 700;
-  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 14px;
 }
 
 .tier-price {
   margin-bottom: 24px;
+  line-height: 1;
 }
 
 .price-currency {
   font-size: 20px;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
   vertical-align: top;
-  line-height: 1.6;
-  opacity: 0.9;
+  line-height: 1.5;
 }
 
 .price-amount {
-  font-size: 48px;
-  font-weight: 800;
-  line-height: 1;
+  font-size: 52px;
+  font-weight: 900;
+  color: white;
+  letter-spacing: -2px;
 }
 
 .price-period {
-  font-size: 16px;
-  opacity: 0.7;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.4);
   margin-left: 2px;
 }
 
 .tier-features {
   list-style: none;
   padding: 0;
-  margin: 0 0 28px 0;
+  margin: 0 0 28px;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 }
 
 .tier-features li {
-  font-size: 14px;
-  opacity: 0.9;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.7);
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  line-height: 1.4;
+  gap: 9px;
+  line-height: 1.45;
 }
 
 .feature-check {
-  color: #7bed9f;
+  color: #34d399;
   font-weight: 700;
   flex-shrink: 0;
+  font-size: 13px;
 }
 
 .tier-btn {
   width: 100%;
   padding: 13px;
   border: none;
-  border-radius: 10px;
-  font-size: 15px;
+  border-radius: 11px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-  margin-top: auto;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.15s;
+  font-family: inherit;
 }
 
 .tier-btn.free {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tier-btn.pro {
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+}
+
+.tier-btn.pro:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
 
 .tier-btn.premium {
   background: linear-gradient(135deg, #f093fb, #f5576c);
   color: white;
+  box-shadow: 0 4px 14px rgba(240, 147, 251, 0.3);
+}
+
+.tier-btn.premium:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(240, 147, 251, 0.45);
 }
 
 .tier-btn:hover:not(:disabled) {
-  opacity: 0.88;
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 
 .tier-btn:disabled,
 .tier-btn.current-btn {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
   transform: none;
+  box-shadow: none;
 }
 
 .pricing-footer {
   text-align: center;
-  margin-top: 48px;
-  opacity: 0.7;
-  font-size: 13px;
+  margin-top: 52px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12.5px;
   line-height: 1.8;
 }
 
 .manage-sub a {
-  color: #b3d4ff;
+  color: rgba(180, 195, 255, 0.7);
+  text-decoration: underline;
 }
 
 @media (max-width: 680px) {
-  .pricing-grid {
-    flex-direction: column;
-    align-items: center;
-  }
-  .pricing-card {
-    width: 100%;
-    max-width: 340px;
-  }
+  .pricing-header h1 { font-size: 30px; }
+  .pricing-grid { flex-direction: column; align-items: center; }
+  .pricing-card { width: 100%; max-width: 360px; }
 }

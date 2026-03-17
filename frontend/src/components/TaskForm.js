@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './TaskForm.css';
 
-const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
+const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory, isPremium }) => {
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(defaultCategory || '');
   const [priority, setPriority] = useState('');
   const [recurring, setRecurring] = useState('');
   const [due, setDue] = useState('');
+  const [reminderAt, setReminderAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Update category when defaultCategory changes
@@ -37,6 +38,7 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
       priority: priority,
       recurring: recurring,
       due: due.trim() || null,
+      reminder_at: reminderAt || null,
     });
 
     // Reset form
@@ -45,6 +47,7 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
     setPriority('');
     setRecurring('');
     setDue('');
+    setReminderAt('');
     setShowAdvanced(false);
   };
 
@@ -177,6 +180,17 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
                 className="form-input"
               />
             </div>
+            {isPremium && (
+              <div className="form-group">
+                <label>Remind me at</label>
+                <input
+                  type="datetime-local"
+                  value={reminderAt}
+                  onChange={(e) => setReminderAt(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+            )}
           </div>
         )}
       </form>

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import './PricingPage.css';
 
-const TIER_ORDER = ['free', 'pro', 'premium'];
+const TIER_ORDER = ['free', 'premium'];
 
 function PricingPage({ onBack }) {
   const { user, subscription } = useAuth();
@@ -64,7 +64,7 @@ function PricingPage({ onBack }) {
           const tier = tiers[tierKey];
           if (!tier) return null;
           const isCurrent = currentTier === tierKey;
-          const isPopular = tierKey === 'pro';
+          const isPopular = tierKey === 'premium';
 
           return (
             <div key={tierKey} className={`pricing-card ${isPopular ? 'popular' : ''} ${isCurrent ? 'current' : ''}`}>

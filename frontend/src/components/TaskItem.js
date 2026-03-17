@@ -6,6 +6,8 @@ import './TaskItem.css';
 let subtaskIdCounter = Date.now();
 const newSubtaskId = () => `st-${++subtaskIdCounter}`;
 
+const SUBTASK_PRIORITIES = ['', 'urgent', 'today', 'tomorrow', 'later'];
+
 const TaskItem = ({
   id,
   task,
@@ -17,7 +19,9 @@ const TaskItem = ({
   onDelete,
   onMarkDone,
   onCategoryClick,
+  onToggleKeyTask,
   viewMode,
+  isPremium,
 }) => {
   const {
     attributes,
@@ -41,17 +45,25 @@ const TaskItem = ({
     recurring: task.recurring || '',
     due: task.due || '',
     subtasks: task.subtasks ? [...task.subtasks] : [],
+    notes: task.notes || '',
+    reminder_at: task.reminder_at ? task.reminder_at.slice(0, 16) : '',
   });
 
   // Local subtask state for view-mode toggling (without a full save)
   const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [showNotes, setShowNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(task.notes || '');
 
-  // Sync local subtasks if task prop changes
+  // Sync local state if task prop changes
   React.useEffect(() => {
     setLocalSubtasks(task.subtasks || []);
   }, [task.subtasks]);
+
+  React.useEffect(() => {
+    setNotesValue(task.notes || '');
+  }, [task.notes]);
 
   const getPriorityClass = (priority) => ({
     urgent: 'priority-urgent',
@@ -94,18 +106,24 @@ const TaskItem = ({
     onUpdate(editData);
   };
 
+  const handleNotesBlur = () => {
+    if (notesValue !== task.notes) {
+      onUpdate({ notes: notesValue });
+    }
+  };
+
   // ---- Edit subtask management ----
   const addEditSubtask = () => {
     setEditData((d) => ({
       ...d,
-      subtasks: [...d.subtasks, { id: newSubtaskId(), text: '', done: false }],
+      subtasks: [...d.subtasks, { id: newSubtaskId(), text: '', done: false, priority: '', category: '' }],
     }));
   };
 
-  const updateEditSubtask = (stId, text) => {
+  const updateEditSubtask = (stId, field, value) => {
     setEditData((d) => ({
       ...d,
-      subtasks: d.subtasks.map((s) => s.id === stId ? { ...s, text } : s),
+      subtasks: d.subtasks.map((s) => s.id === stId ? { ...s, [field]: value } : s),
     }));
   };
 
@@ -189,8 +207,32 @@ const TaskItem = ({
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                 />
               </div>
+              {isPremium && (
+                <div className="edit-field-group">
+                  <label className="edit-field-label">Remind me at</label>
+                  <input
+                    type="datetime-local"
+                    value={editData.reminder_at}
+                    onChange={(e) => setEditData({ ...editData, reminder_at: e.target.value })}
+                    className="edit-field"
+                  />
+                </div>
+              )}
             </div>
           </div>
+
+          {isPremium && (
+            <div className="edit-section">
+              <label className="edit-label">Notes</label>
+              <textarea
+                className="edit-notes"
+                value={editData.notes}
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                placeholder="Add notes, links, context…"
+                rows={3}
+              />
+            </div>
+          )}
 
           {/* Subtasks editor */}
           <div className="edit-section">
@@ -203,13 +245,34 @@ const TaskItem = ({
                     className="edit-subtask-input"
                     value={st.text}
                     placeholder="Subtask…"
-                    onChange={(e) => updateEditSubtask(st.id, e.target.value)}
+                    onChange={(e) => updateEditSubtask(st.id, 'text', e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { e.preventDefault(); addEditSubtask(); }
                       if (e.key === 'Backspace' && st.text === '') removeEditSubtask(st.id);
                     }}
                     autoFocus={i === editData.subtasks.length - 1 && st.text === ''}
                   />
+                  {isPremium && (
+                    <>
+                      <select
+                        className="edit-subtask-priority"
+                        value={st.priority || ''}
+                        onChange={(e) => updateEditSubtask(st.id, 'priority', e.target.value)}
+                        title="Subtask priority"
+                      >
+                        {SUBTASK_PRIORITIES.map((p) => (
+                          <option key={p} value={p}>{p || 'No priority'}</option>
+                        ))}
+                      </select>
+                      <input
+                        className="edit-subtask-category"
+                        value={st.category || ''}
+                        onChange={(e) => updateEditSubtask(st.id, 'category', e.target.value)}
+                        placeholder="category"
+                        title="Subtask category"
+                      />
+                    </>
+                  )}
                   <button
                     className="edit-subtask-remove"
                     onClick={() => removeEditSubtask(st.id)}
@@ -242,7 +305,7 @@ const TaskItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item ${getPriorityClass(task.priority)} ${isOverdue() ? 'overdue' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`task-item ${getPriorityClass(task.priority)} ${isOverdue() ? 'overdue' : ''} ${isDragging ? 'dragging' : ''} ${task.is_key_task ? 'key-task' : ''}`}
       onDoubleClick={() => {
         if (viewMode === 'active') onEdit();
       }}
@@ -284,6 +347,11 @@ const TaskItem = ({
                 {formatDate(task.due)}
               </span>
             )}
+            {task.reminder_at && (
+              <span className="task-reminder" title={`Reminder: ${new Date(task.reminder_at).toLocaleString()}`}>
+                🔔
+              </span>
+            )}
             {totalCount > 0 && (
               <span className="subtask-progress-pill">
                 {doneCount}/{totalCount}
@@ -309,6 +377,12 @@ const TaskItem = ({
                     disabled={viewMode !== 'active'}
                   />
                   <span className="subtask-text">{st.text}</span>
+                  {st.priority && (
+                    <span className={`subtask-priority-badge ${getPriorityClass(st.priority)}`}>{st.priority}</span>
+                  )}
+                  {st.category && (
+                    <span className="subtask-category-badge">{st.category}</span>
+                  )}
                 </label>
               ))}
             </div>
@@ -332,10 +406,41 @@ const TaskItem = ({
               <button className="subtask-add-cancel" onClick={() => { setAddingSubtask(false); setNewSubtaskText(''); }}>✕</button>
             </div>
           )}
+
+          {/* Notes panel (Premium) */}
+          {isPremium && viewMode === 'active' && (
+            <div className="notes-section">
+              <button
+                className="notes-toggle"
+                onClick={(e) => { e.stopPropagation(); setShowNotes((v) => !v); }}
+                title="Toggle notes"
+              >
+                {showNotes ? '▾' : '▸'} Notes{notesValue ? ' ●' : ''}
+              </button>
+              {showNotes && (
+                <textarea
+                  className="notes-textarea"
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Add notes, links, context…"
+                  rows={3}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {viewMode === 'active' && (
           <div className="task-actions">
+            {isPremium && onToggleKeyTask && (
+              <button
+                className={`btn-key-task ${task.is_key_task ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); onToggleKeyTask(); }}
+                title={task.is_key_task ? 'Remove from Key Tasks' : 'Add to Key Tasks'}
+              >★</button>
+            )}
             <button
               className="btn-subtask"
               onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); }}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { api } from './api';
@@ -12,6 +12,7 @@ import CategorySection from './components/CategorySection';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
+import PomodoroTimer from './components/PomodoroTimer';
 import {
   DndContext,
   closestCenter,
@@ -170,8 +171,24 @@ function CompletedSection({ doneTasks }) {
   );
 }
 
+// ---- Undo Toast ----
+function UndoToast({ message, onUndo, onDismiss }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className="undo-toast">
+      <span>{message}</span>
+      <button className="undo-toast-btn" onClick={onUndo}>Undo</button>
+      <button className="undo-toast-close" onClick={onDismiss}>✕</button>
+    </div>
+  );
+}
+
 // ---- Categories drag-drop view ----
-const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onAddTask, onReorderCategories }) => {
+const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onAddTask, onReorderCategories, onToggleKeyTask, isPremium }) => {
   const [items, setItems] = useState(categories);
 
   useEffect(() => { setItems(categories); }, [categories]);
@@ -214,6 +231,8 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
               onAddTask={(taskData) =>
                 onAddTask({ ...taskData, input: taskData.input ? `${taskData.input} @${category}`.trim() : taskData.input, category })
               }
+              onToggleKeyTask={onToggleKeyTask}
+              isPremium={isPremium}
             />
           ))}
         </div>
@@ -221,6 +240,138 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
     </DndContext>
   );
 };
+
+// ---- Key Tasks view (My Day) ----
+function KeyTasksView({ tasks, onUpdate, onDelete, onMarkDone, onToggleKeyTask, isPremium }) {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const keyTasks = tasks.filter((t) => t.is_key_task);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const dueTodayTasks = tasks.filter((t) => !t.is_key_task && t.due === todayStr);
+
+  return (
+    <div className="key-tasks-view">
+      <div className="key-tasks-header">
+        <h2 className="key-tasks-title">My Day</h2>
+        <p className="key-tasks-date">{today}</p>
+      </div>
+
+      <div className="key-tasks-section">
+        <div className="key-tasks-section-label">
+          <span>★ Key Tasks</span>
+          <span className="key-tasks-count">{keyTasks.length}/3</span>
+        </div>
+        {keyTasks.length === 0 ? (
+          <p className="key-tasks-empty">
+            No Key Tasks yet. Star up to 3 tasks to focus on them today.
+          </p>
+        ) : (
+          <TaskList
+            tasks={keyTasks}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onMarkDone={onMarkDone}
+            onReorder={() => {}}
+            onToggleKeyTask={onToggleKeyTask}
+            viewMode="active"
+            isPremium={isPremium}
+          />
+        )}
+      </div>
+
+      {dueTodayTasks.length > 0 && (
+        <div className="key-tasks-section">
+          <div className="key-tasks-section-label">Due today</div>
+          <TaskList
+            tasks={dueTodayTasks}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onMarkDone={onMarkDone}
+            onReorder={() => {}}
+            onToggleKeyTask={onToggleKeyTask}
+            viewMode="active"
+            isPremium={isPremium}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Trash view ----
+function TrashView({ onRestored }) {
+  const [trashTasks, setTrashTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchTrash = useCallback(async () => {
+    try {
+      const data = await api.getTrash();
+      setTrashTasks(data);
+    } catch (err) {
+      console.error('Error fetching trash:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTrash(); }, [fetchTrash]);
+
+  const handleRestore = async (taskId) => {
+    try {
+      await api.restoreTask(taskId);
+      setTrashTasks((prev) => prev.filter((t) => t.id !== taskId));
+      onRestored();
+    } catch (err) {
+      console.error('Error restoring task:', err);
+    }
+  };
+
+  const handlePermanentDelete = async (taskId) => {
+    if (!window.confirm('Permanently delete this task? This cannot be undone.')) return;
+    try {
+      await api.permanentDelete(taskId);
+      setTrashTasks((prev) => prev.filter((t) => t.id !== taskId));
+    } catch (err) {
+      console.error('Error permanently deleting task:', err);
+    }
+  };
+
+  const formatDeleted = (isoStr) => {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  if (loading) return <div className="key-tasks-empty">Loading trash…</div>;
+
+  return (
+    <div className="trash-view">
+      <div className="trash-header">
+        <h2 className="trash-title">Trash</h2>
+        <p className="trash-subtitle">Tasks are automatically deleted after 30 days.</p>
+      </div>
+      {trashTasks.length === 0 ? (
+        <p className="key-tasks-empty">Trash is empty.</p>
+      ) : (
+        <div className="trash-list">
+          {trashTasks.map((task) => (
+            <div key={task.id} className="trash-item">
+              <div className="trash-item-info">
+                <span className="trash-item-desc">{task.description}</span>
+                {task.deleted_at && (
+                  <span className="trash-item-date">Deleted {formatDeleted(task.deleted_at)}</span>
+                )}
+              </div>
+              <div className="trash-item-actions">
+                <button className="btn-restore" onClick={() => handleRestore(task.id)}>Restore</button>
+                <button className="btn-perm-delete" onClick={() => handlePermanentDelete(task.id)}>Delete forever</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---- Main authenticated app ----
 function TaskApp() {
@@ -237,6 +388,9 @@ function TaskApp() {
   const [categoryOrder, setCategoryOrder] = useState([]);
   const [showPricing, setShowPricing] = useState(false);
   const [limitError, setLimitError] = useState('');
+  const [undoToast, setUndoToast] = useState(null); // { message, taskId }
+
+  const isPremium = subscription?.tier === 'premium';
 
   // Upgrade redirect
   useEffect(() => {
@@ -321,12 +475,28 @@ function TaskApp() {
 
   const deleteTask = async (taskId) => {
     try {
-      await api.deleteTask(taskId);
+      const result = await api.deleteTask(taskId);
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
       await refreshSubscription();
+      // Show undo toast for premium users (soft delete)
+      if (isPremium && result?.task) {
+        setUndoToast({ message: `"${result.task.description}" moved to Trash`, taskId });
+      }
     } catch (err) {
       console.error('Error deleting task:', err);
     }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!undoToast) return;
+    try {
+      await api.restoreTask(undoToast.taskId);
+      await fetchTasks();
+      await refreshSubscription();
+    } catch (err) {
+      console.error('Error restoring task:', err);
+    }
+    setUndoToast(null);
   };
 
   const markDone = async (taskId) => {
@@ -347,6 +517,16 @@ function TaskApp() {
     } catch (err) {
       console.error('Error reordering tasks:', err);
       fetchTasks();
+    }
+  };
+
+  const toggleKeyTask = async (taskId) => {
+    try {
+      await api.toggleKeyTask(taskId);
+      await fetchTasks();
+    } catch (err) {
+      if (err.message) alert(err.message);
+      console.error('Error toggling key task:', err);
     }
   };
 
@@ -388,13 +568,22 @@ function TaskApp() {
 
   return (
     <div className="app">
-      <Header onShowPricing={() => setShowPricing(true)} />
+      <Header onShowPricing={() => setShowPricing(true)} isPremium={isPremium} currentHatId={currentHatId} />
       <div className="container">
         {limitError && (
           <div className="limit-banner">
             {limitError}{' '}
             <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade now</button>
           </div>
+        )}
+
+        {/* Undo toast */}
+        {undoToast && (
+          <UndoToast
+            message={undoToast.message}
+            onUndo={handleUndoDelete}
+            onDismiss={() => setUndoToast(null)}
+          />
         )}
 
         {/* Hat bar */}
@@ -413,6 +602,16 @@ function TaskApp() {
           <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
             By Category
           </button>
+          {isPremium && (
+            <button className={`view-btn ${viewMode === 'keytasks' ? 'active' : ''}`} onClick={() => setViewMode('keytasks')}>
+              My Day
+            </button>
+          )}
+          {isPremium && (
+            <button className={`view-btn ${viewMode === 'trash' ? 'active' : ''}`} onClick={() => setViewMode('trash')}>
+              Trash
+            </button>
+          )}
         </div>
 
         {viewMode === 'active' && (
@@ -423,7 +622,7 @@ function TaskApp() {
                 <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
               </div>
             ) : (
-              <TaskForm onAdd={addTask} categories={getCategories()} />
+              <TaskForm onAdd={addTask} categories={getCategories()} isPremium={isPremium} />
             )}
             <TaskFilters
               filter={filter}
@@ -440,6 +639,7 @@ function TaskApp() {
               onDelete={deleteTask}
               onMarkDone={markDone}
               onReorder={reorderTasks}
+              onToggleKeyTask={toggleKeyTask}
               onCategoryClick={(category) => {
                 setViewMode('categories');
                 setTimeout(() => {
@@ -448,6 +648,7 @@ function TaskApp() {
                 }, 100);
               }}
               viewMode="active"
+              isPremium={isPremium}
             />
             <Stats tasks={tasks} doneTasks={doneTasks} />
             <CompletedSection doneTasks={doneTasks} />
@@ -464,9 +665,29 @@ function TaskApp() {
             onAddTask={addTask}
             categoryOrder={categoryOrder}
             onReorderCategories={saveCategoryOrder}
+            onToggleKeyTask={toggleKeyTask}
+            isPremium={isPremium}
           />
         )}
+
+        {viewMode === 'keytasks' && isPremium && (
+          <KeyTasksView
+            tasks={tasks}
+            onUpdate={updateTask}
+            onDelete={deleteTask}
+            onMarkDone={markDone}
+            onToggleKeyTask={toggleKeyTask}
+            isPremium={isPremium}
+          />
+        )}
+
+        {viewMode === 'trash' && isPremium && (
+          <TrashView onRestored={() => { fetchTasks(); refreshSubscription(); }} />
+        )}
       </div>
+
+      {/* Pomodoro Timer (premium, floating) */}
+      {isPremium && <PomodoroTimer tasks={tasks} />}
     </div>
   );
 }

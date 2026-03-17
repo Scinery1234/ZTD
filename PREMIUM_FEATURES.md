@@ -17,9 +17,9 @@ justifies the premium over TickTick through the ZTD methodology angle.
 | Sub-task priorities & categories | — | ✓ |
 | Pomodoro timer | — | ✓ |
 | Email reminders | — | ✓ |
-| My Day / MITs view | — | ✓ |
+| My Day / Key Tasks view | — | ✓ |
 | Trash & 30-day undo | — | ✓ |
-| Completed task history | 30 days | Forever |
+| Completed task history | 30 days | Unlimited |
 | Data export (CSV / JSON) | — | ✓ |
 
 ---
@@ -32,8 +32,8 @@ justifies the premium over TickTick through the ZTD methodology angle.
 | Task notes | ✓ Rich text | Comments only | — | Comments only |
 | Sub-task priorities | ✓ | — | — | — |
 | Email reminders | ✓ | ✓ | ✓ | ✓ |
-| My Day / MITs | ✓ | — | ✓ | — |
-| Forever history | ✓ | Activity log | — | — |
+| My Day / Key Tasks | ✓ | — | ✓ | — |
+| Unlimited history | ✓ | Activity log | — | — |
 | Trash / undo | ✓ | ✓ | — | — |
 | Data export | ✓ | — | — | — |
 | ZTD methodology | ✓ | — | — | — |
@@ -93,23 +93,23 @@ Every competitor supports this; its absence is a dealbreaker for paying users.
 
 ---
 
-### 5. My Day / MITs (Most Important Tasks)
+### 5. My Day / Key Tasks
 A dedicated daily planning view — ZTD's methodology in action.
 
 **What it does:**
-- Premium users can flag up to 3 tasks per day as MITs (Most Important Tasks)
-- "My Day" view shows only MITs + tasks due today, in a clean focused layout
-- Each morning, MITs reset (yesterday's flags clear); prompts user to pick today's 3
-- MIT badge (⭐) shown on task cards throughout the app
+- Premium users can flag up to 3 tasks per day as Key Tasks
+- "My Day" view shows only Key Tasks + tasks due today, in a clean focused layout
+- Each morning, Key Tasks reset (yesterday's flags clear); prompts user to pick today's 3
+- Key Task badge (★) shown on task cards throughout the app
 
 **Why this beats competitors:** Any.do has a basic "My Day"; Todoist and TickTick don't.
 ZTD's version is tied to the ZTD methodology, making it more intentional.
 
 **Implementation:**
-- Backend: add `is_mit BOOLEAN` (default False) and `mit_date DATE` to `Task`
-- New PUT `/tasks/<id>/mit` endpoint toggles MIT status; enforces max 3 per day
-- Frontend: new "My Day" tab in navigation; MIT star button on each task card
-- Nightly APScheduler job clears `is_mit` flags from the previous day
+- Backend: add `is_key_task BOOLEAN` (default False) and `key_task_date DATE` to `Task`
+- New PUT `/tasks/<id>/key-task` endpoint toggles Key Task status; enforces max 3 per day
+- Frontend: new "My Day" tab in navigation; Key Task star button on each task card
+- Nightly APScheduler job clears `is_key_task` flags from the previous day
 
 ---
 
@@ -126,7 +126,7 @@ Deleted tasks go to Trash for 30 days instead of being permanently removed.
 
 ---
 
-### 7. Completed Task History — Forever
+### 7. Completed Task History — Unlimited
 Free users' completed tasks purged after 30 days. Premium keeps them forever.
 
 **Implementation:**
@@ -164,7 +164,7 @@ Download all tasks as a file.
 3. **Completed task retention** — one scheduler query, minimal code
 4. **Sub-task priorities** — JSON shape change + small UI additions
 5. **Data export** — two new endpoints + one button
-6. **My Day / MITs** — new view + MIT toggle
+6. **My Day / Key Tasks** — new view + Key Task toggle
 7. **Email reminders** — new column + scheduler job + email dependency
 8. **Pomodoro timer** — self-contained frontend component
 
@@ -177,8 +177,8 @@ Task:     + notes TEXT               (nullable)
           + deleted_at DATETIME      (nullable — null means active)
           + reminder_at DATETIME     (nullable)
           + reminder_sent BOOLEAN    (default False)
-          + is_mit BOOLEAN           (default False)
-          + mit_date DATE            (nullable)
+          + is_key_task BOOLEAN      (default False)
+          + key_task_date DATE       (nullable)
 
 DoneTask: + notes TEXT               (nullable)
 ```

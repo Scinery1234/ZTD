@@ -21,6 +21,18 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+async function apiFetchRaw(path, options = {}) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+  }
+  return res;
+}
+
 export const api = {
   // Auth
   register: (name, email, password) =>
@@ -44,6 +56,22 @@ export const api = {
   deleteTask: (id) => apiFetch(`/tasks/${id}`, { method: 'DELETE' }),
   markDone: (id) => apiFetch(`/tasks/${id}/done`, { method: 'POST' }),
   reorder: (tasks) => apiFetch('/tasks/reorder', { method: 'POST', body: JSON.stringify({ tasks }) }),
+
+  // Trash (Premium)
+  getTrash: () => apiFetch('/tasks/trash'),
+  restoreTask: (id) => apiFetch(`/tasks/${id}/restore`, { method: 'POST' }),
+  permanentDelete: (id) => apiFetch(`/tasks/${id}/permanent`, { method: 'DELETE' }),
+
+  // Key Tasks (Premium)
+  toggleKeyTask: (id) => apiFetch(`/tasks/${id}/key-task`, { method: 'PUT' }),
+
+  // Export (Premium)
+  exportTasks: async (format = 'json', hat_id = null) => {
+    const params = new URLSearchParams({ format });
+    if (hat_id != null) params.set('hat_id', hat_id);
+    const res = await apiFetchRaw(`/export?${params}`);
+    return res.blob();
+  },
 
   // Stripe / Tiers
   getTiers: () => apiFetch('/stripe/tiers'),

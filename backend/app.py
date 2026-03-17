@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
@@ -8,10 +8,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
 import json
-from datetime import datetime, timedelta
+import csv
+import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta, date
 import dateparser
 import stripe
 from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 load_dotenv()
 
@@ -33,15 +40,32 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 # --- Membership Tiers ---
 TIERS = {
     'free':    {'name': 'Free',    'max_tasks': 10,   'price': 0},
-    'pro':     {'name': 'Pro',     'max_tasks': None,  'price': 9},
-    'premium': {'name': 'Premium', 'max_tasks': None,  'price': 19},
+    'premium': {'name': 'Premium', 'max_tasks': None,  'price': 6},
 }
 
 TIER_FEATURES = {
-    'free':    ['Up to 10 active tasks', 'All categories & priorities', 'Drag & drop reordering'],
-    'pro':     ['Unlimited tasks', 'All Free features', 'Recurring tasks', 'Email reminders'],
-    'premium': ['Everything in Pro', 'Priority support', 'Advanced analytics', 'Team sharing (coming soon)'],
+    'free': [
+        'Up to 10 active tasks',
+        'All categories & priorities',
+        'Drag & drop reordering',
+        '30-day completed history',
+    ],
+    'premium': [
+        'Unlimited active tasks',
+        'Task notes',
+        'Sub-task priorities & categories',
+        'Pomodoro timer',
+        'Email reminders',
+        'My Day / Key Tasks view',
+        'Trash & 30-day undo',
+        'Unlimited completed history',
+        'Data export (CSV & JSON)',
+    ],
 }
+
+
+def is_premium(user):
+    return user.tier == 'premium'
 
 
 # --- Models ---
@@ -65,7 +89,7 @@ class User(db.Model):
             'email': self.email,
             'name': self.name,
             'tier': self.tier,
-            'tier_name': TIERS[self.tier]['name'],
+            'tier_name': TIERS.get(self.tier, TIERS['free'])['name'],
             'created_at': self.created_at.isoformat(),
         }
 
@@ -102,7 +126,13 @@ class Task(db.Model):
     recurring = db.Column(db.String(50), default='')
     due = db.Column(db.String(20), nullable=True)
     position = db.Column(db.Integer, default=0)
-    subtasks = db.Column(db.Text, default='[]')   # JSON: [{id, text, done}]
+    subtasks = db.Column(db.Text, default='[]')   # JSON: [{id, text, done, priority?, category?}]
+    notes = db.Column(db.Text, default='')
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    reminder_at = db.Column(db.DateTime, nullable=True)
+    reminder_sent = db.Column(db.Boolean, default=False)
+    is_key_task = db.Column(db.Boolean, default=False)
+    key_task_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def subtasks_list(self):
@@ -122,6 +152,11 @@ class Task(db.Model):
             'due': self.due,
             'position': self.position,
             'subtasks': self.subtasks_list(),
+            'notes': self.notes or '',
+            'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None,
+            'reminder_at': self.reminder_at.isoformat() if self.reminder_at else None,
+            'is_key_task': bool(self.is_key_task),
+            'key_task_date': self.key_task_date.isoformat() if self.key_task_date else None,
         }
 
 
@@ -136,6 +171,7 @@ class DoneTask(db.Model):
     due = db.Column(db.String(20), nullable=True)
     last_done = db.Column(db.String(20), nullable=True)
     subtasks = db.Column(db.Text, default='[]')
+    notes = db.Column(db.Text, default='')
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def subtasks_list(self):
@@ -155,8 +191,42 @@ class DoneTask(db.Model):
             'due': self.due,
             'last_done': self.last_done,
             'subtasks': self.subtasks_list(),
+            'notes': self.notes or '',
             'completed_at': self.completed_at.isoformat(),
         }
+
+
+# --- DB Migration ---
+def migrate_db():
+    """Add new columns to existing tables if they don't exist."""
+    import sqlite3
+    db_path = os.path.join(BASE_DIR, 'ztd.db')
+    if not os.path.exists(db_path):
+        return
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(task)")
+    task_cols = {row[1] for row in cursor.fetchall()}
+    task_additions = [
+        ("notes", "TEXT DEFAULT ''"),
+        ("deleted_at", "DATETIME"),
+        ("reminder_at", "DATETIME"),
+        ("reminder_sent", "BOOLEAN DEFAULT 0"),
+        ("is_key_task", "BOOLEAN DEFAULT 0"),
+        ("key_task_date", "DATE"),
+    ]
+    for col, col_type in task_additions:
+        if col not in task_cols:
+            cursor.execute(f"ALTER TABLE task ADD COLUMN {col} {col_type}")
+
+    cursor.execute("PRAGMA table_info(done_task)")
+    done_cols = {row[1] for row in cursor.fetchall()}
+    if 'notes' not in done_cols:
+        cursor.execute("ALTER TABLE done_task ADD COLUMN notes TEXT DEFAULT ''")
+
+    conn.commit()
+    conn.close()
 
 
 # --- Helpers ---
@@ -181,17 +251,104 @@ def parse_task_input(input_str):
 
 
 def check_task_limit(user):
-    limit = TIERS[user.tier]['max_tasks']
+    limit = TIERS.get(user.tier, TIERS['free'])['max_tasks']
     if limit is None:
         return None
-    count = Task.query.filter_by(user_id=user.id).count()
+    count = Task.query.filter_by(user_id=user.id).filter(Task.deleted_at == None).count()
     if count >= limit:
         return {
-            'error': f'Task limit reached. The Free tier allows {limit} tasks. Upgrade to Pro for unlimited tasks.',
+            'error': f'Task limit reached. The Free tier allows {limit} tasks. Upgrade to Premium for unlimited tasks.',
             'upgrade_required': True,
             'current_tier': user.tier,
         }
     return None
+
+
+def send_reminder_email(to_email, to_name, task_description):
+    smtp_host = os.getenv('SMTP_HOST')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_pass = os.getenv('SMTP_PASS')
+    smtp_from = os.getenv('SMTP_FROM', smtp_user)
+
+    if not smtp_host or not smtp_user:
+        return False
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'Reminder: {task_description}'
+        msg['From'] = smtp_from
+        msg['To'] = to_email
+
+        body_text = f"Hi {to_name},\n\nThis is your reminder for:\n\n  {task_description}\n\nLog in to FocusFlow to complete it.\n"
+        body_html = f"""<html><body>
+        <p>Hi {to_name},</p>
+        <p>This is your reminder for:</p>
+        <blockquote style="font-size:1.1em;font-weight:bold;">{task_description}</blockquote>
+        <p><a href="{os.getenv('FRONTEND_URL','http://localhost:3000')}">Open FocusFlow</a></p>
+        </body></html>"""
+
+        msg.attach(MIMEText(body_text, 'plain'))
+        msg.attach(MIMEText(body_html, 'html'))
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_from, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f'[email] Failed to send reminder: {e}')
+        return False
+
+
+# --- Scheduler Jobs ---
+def job_send_reminders():
+    with app.app_context():
+        now = datetime.utcnow()
+        window = now + timedelta(minutes=1)
+        tasks = Task.query.filter(
+            Task.reminder_at != None,
+            Task.reminder_at <= window,
+            Task.reminder_sent == False,
+            Task.deleted_at == None,
+        ).all()
+        for task in tasks:
+            user = User.query.get(task.user_id)
+            if user and is_premium(user):
+                send_reminder_email(user.email, user.name, task.description)
+            task.reminder_sent = True
+        if tasks:
+            db.session.commit()
+
+
+def job_nightly():
+    with app.app_context():
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+
+        # Clear key task flags from previous days
+        Task.query.filter(
+            Task.is_key_task == True,
+            Task.key_task_date != None,
+            Task.key_task_date < today,
+        ).update({'is_key_task': False, 'key_task_date': None})
+
+        # Purge trash older than 30 days
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        Task.query.filter(
+            Task.deleted_at != None,
+            Task.deleted_at < cutoff,
+        ).delete()
+
+        # Purge completed tasks older than 30 days for free users
+        free_users = User.query.filter_by(tier='free').all()
+        for user in free_users:
+            DoneTask.query.filter(
+                DoneTask.user_id == user.id,
+                DoneTask.completed_at < (datetime.utcnow() - timedelta(days=30)),
+            ).delete()
+
+        db.session.commit()
 
 
 # === Auth Endpoints ===
@@ -306,7 +463,6 @@ def delete_hat(hat_id):
     if not hat:
         return jsonify({'error': 'Hat not found'}), 404
 
-    # Move tasks in this hat to null (no hat) rather than deleting them
     Task.query.filter_by(hat_id=hat_id, user_id=user_id).update({'hat_id': None})
     DoneTask.query.filter_by(hat_id=hat_id, user_id=user_id).update({'hat_id': None})
 
@@ -337,7 +493,7 @@ def reorder_hats():
 def get_tasks():
     user_id = get_jwt_identity()
     hat_id = request.args.get('hat_id', type=int)
-    q = Task.query.filter_by(user_id=user_id)
+    q = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)
     if hat_id is not None:
         q = q.filter_by(hat_id=hat_id)
     tasks = q.order_by(Task.position, Task.id).all()
@@ -360,15 +516,11 @@ def add_task():
             return jsonify(limit_error), 403
 
         hat_id = data.get('hat_id') or None
-        # Validate hat belongs to user
         if hat_id:
             hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
             if not hat:
                 hat_id = None
 
-        max_pos_q = Task.query.filter_by(user_id=user_id)
-        if hat_id:
-            max_pos_q = max_pos_q.filter_by(hat_id=hat_id)
         max_pos = db.session.query(db.func.max(Task.position)).filter_by(user_id=user_id).scalar() or 0
         next_pos = max_pos + 1
 
@@ -390,6 +542,15 @@ def add_task():
             description = data.get('description', '').strip()
             if not description:
                 return jsonify({'error': 'Task description is required'}), 400
+
+            reminder_at = None
+            reminder_at_str = data.get('reminder_at', '')
+            if reminder_at_str and is_premium(user):
+                try:
+                    reminder_at = datetime.fromisoformat(reminder_at_str)
+                except Exception:
+                    pass
+
             task = Task(
                 user_id=user_id,
                 hat_id=hat_id,
@@ -398,6 +559,8 @@ def add_task():
                 priority=data.get('priority', '').strip(),
                 recurring=data.get('recurring', '').strip(),
                 due=data.get('due', '') or None,
+                notes=data.get('notes', '') if is_premium(user) else '',
+                reminder_at=reminder_at,
                 position=next_pos,
             )
             db.session.add(task)
@@ -418,7 +581,8 @@ def add_task():
 @jwt_required()
 def update_task(task_id):
     user_id = get_jwt_identity()
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    user = User.query.get(user_id)
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at == None).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
 
@@ -447,6 +611,19 @@ def update_task(task_id):
             task.hat_id = None
     if 'subtasks' in data:
         task.subtasks = json.dumps(data['subtasks'])
+    if 'notes' in data and is_premium(user):
+        task.notes = data['notes']
+    if 'reminder_at' in data and is_premium(user):
+        reminder_at_str = data.get('reminder_at', '')
+        if reminder_at_str:
+            try:
+                task.reminder_at = datetime.fromisoformat(reminder_at_str)
+                task.reminder_sent = False
+            except Exception:
+                pass
+        else:
+            task.reminder_at = None
+            task.reminder_sent = False
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -456,13 +633,19 @@ def update_task(task_id):
 @jwt_required()
 def delete_task(task_id):
     user_id = get_jwt_identity()
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    user = User.query.get(user_id)
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at == None).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
 
     task_dict = task.to_dict()
-    db.session.delete(task)
-    db.session.commit()
+    if is_premium(user):
+        # Soft delete — moves to trash
+        task.deleted_at = datetime.utcnow()
+        db.session.commit()
+    else:
+        db.session.delete(task)
+        db.session.commit()
     return jsonify({'message': 'Task deleted', 'task': task_dict})
 
 
@@ -470,7 +653,7 @@ def delete_task(task_id):
 @jwt_required()
 def mark_task_done(task_id):
     user_id = get_jwt_identity()
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at == None).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
 
@@ -483,6 +666,7 @@ def mark_task_done(task_id):
         recurring=task.recurring,
         due=task.due,
         subtasks=task.subtasks,
+        notes=task.notes or '',
         last_done=datetime.today().strftime("%Y-%m-%d") if task.recurring else None,
     )
     db.session.add(done_task)
@@ -508,7 +692,7 @@ def get_done_tasks():
 def get_tasks_by_category():
     user_id = get_jwt_identity()
     hat_id = request.args.get('hat_id', type=int)
-    q = Task.query.filter_by(user_id=user_id)
+    q = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)
     if hat_id is not None:
         q = q.filter_by(hat_id=hat_id)
     tasks = q.order_by(Task.position, Task.id).all()
@@ -538,11 +722,133 @@ def reorder_tasks():
                     task.position = position
 
         db.session.commit()
-        tasks = Task.query.filter_by(user_id=user_id).order_by(Task.position, Task.id).all()
+        tasks = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None).order_by(Task.position, Task.id).all()
         return jsonify({'message': 'Tasks reordered successfully', 'tasks': [t.to_dict() for t in tasks]}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# === Trash Endpoints (Premium) ===
+
+@app.route('/api/tasks/trash', methods=['GET'])
+@jwt_required()
+def get_trash():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not is_premium(user):
+        return jsonify({'error': 'Trash requires a Premium subscription'}), 403
+    tasks = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at != None).order_by(Task.deleted_at.desc()).all()
+    return jsonify([t.to_dict() for t in tasks])
+
+
+@app.route('/api/tasks/<int:task_id>/restore', methods=['POST'])
+@jwt_required()
+def restore_task(task_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not is_premium(user):
+        return jsonify({'error': 'Restore requires a Premium subscription'}), 403
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at != None).first()
+    if not task:
+        return jsonify({'error': 'Task not found in trash'}), 404
+    task.deleted_at = None
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+@app.route('/api/tasks/<int:task_id>/permanent', methods=['DELETE'])
+@jwt_required()
+def permanent_delete_task(task_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not is_premium(user):
+        return jsonify({'error': 'Requires a Premium subscription'}), 403
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at != None).first()
+    if not task:
+        return jsonify({'error': 'Task not found in trash'}), 404
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'message': 'Task permanently deleted'})
+
+
+# === Key Tasks Endpoint (Premium) ===
+
+@app.route('/api/tasks/<int:task_id>/key-task', methods=['PUT'])
+@jwt_required()
+def toggle_key_task(task_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not is_premium(user):
+        return jsonify({'error': 'Key Tasks requires a Premium subscription'}), 403
+
+    task = Task.query.filter_by(id=task_id, user_id=user_id).filter(Task.deleted_at == None).first()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+
+    today = date.today()
+
+    if task.is_key_task:
+        # Remove key task flag
+        task.is_key_task = False
+        task.key_task_date = None
+    else:
+        # Check max 3 key tasks per day
+        today_count = Task.query.filter_by(
+            user_id=user_id, is_key_task=True, key_task_date=today
+        ).filter(Task.deleted_at == None).count()
+        if today_count >= 3:
+            return jsonify({'error': 'You can only have 3 Key Tasks per day'}), 400
+        task.is_key_task = True
+        task.key_task_date = today
+
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+# === Export Endpoint (Premium) ===
+
+@app.route('/api/export', methods=['GET'])
+@jwt_required()
+def export_tasks():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not is_premium(user):
+        return jsonify({'error': 'Export requires a Premium subscription'}), 403
+
+    fmt = request.args.get('format', 'json').lower()
+    hat_id = request.args.get('hat_id', type=int)
+
+    active_q = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)
+    done_q = DoneTask.query.filter_by(user_id=user_id)
+    if hat_id is not None:
+        active_q = active_q.filter_by(hat_id=hat_id)
+        done_q = done_q.filter_by(hat_id=hat_id)
+
+    active_tasks = [t.to_dict() for t in active_q.order_by(Task.position).all()]
+    done_tasks = [t.to_dict() for t in done_q.order_by(DoneTask.completed_at.desc()).all()]
+
+    if fmt == 'csv':
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['status', 'description', 'category', 'priority', 'recurring', 'due', 'notes', 'completed_at'])
+        for t in active_tasks:
+            writer.writerow(['active', t['description'], t['category'], t['priority'], t['recurring'], t['due'] or '', t['notes'], ''])
+        for t in done_tasks:
+            writer.writerow(['completed', t['description'], t['category'], t['priority'], t['recurring'], t['due'] or '', t['notes'], t['completed_at']])
+        output.seek(0)
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=ztd_tasks.csv'},
+        )
+    else:
+        payload = json.dumps({'active': active_tasks, 'completed': done_tasks}, indent=2)
+        return Response(
+            payload,
+            mimetype='application/json',
+            headers={'Content-Disposition': 'attachment; filename=ztd_tasks.json'},
+        )
 
 
 # === Stripe Endpoints ===
@@ -573,7 +879,6 @@ def create_checkout_session():
         tier = data.get('tier')
 
         price_map = {
-            'pro':     os.getenv('STRIPE_PRO_PRICE_ID'),
             'premium': os.getenv('STRIPE_PREMIUM_PRICE_ID'),
         }
         price_id = price_map.get(tier)
@@ -622,7 +927,7 @@ def stripe_webhook():
         user_id = session['metadata'].get('user_id')
         tier = session['metadata'].get('tier')
         subscription_id = session.get('subscription')
-        if user_id and tier:
+        if user_id and tier and tier in TIERS:
             user = User.query.get(int(user_id))
             if user:
                 user.tier = tier
@@ -645,8 +950,8 @@ def stripe_webhook():
 def get_subscription():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    tier = user.tier
-    active_count = Task.query.filter_by(user_id=user_id).count()
+    tier = user.tier if user.tier in TIERS else 'free'
+    active_count = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None).count()
     max_tasks = TIERS[tier]['max_tasks']
 
     result = {
@@ -677,5 +982,13 @@ def health():
 
 if __name__ == '__main__':
     with app.app_context():
+        migrate_db()
         db.create_all()
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job_send_reminders, 'interval', minutes=1)
+    scheduler.add_job(job_nightly, 'cron', hour=0, minute=0)
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown())
+
     app.run(debug=True, port=5001)

@@ -16,7 +16,7 @@ import {
 import TaskItem from './TaskItem';
 import './TaskList.css';
 
-const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategoryClick, viewMode }) => {
+const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategoryClick, onToggleKeyTask, viewMode, isPremium }) => {
   const [editingId, setEditingId] = useState(null);
   const [items, setItems] = useState(tasks);
 
@@ -78,7 +78,9 @@ const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onReorder, onCategory
                 onDelete={() => onDelete(taskId)}
                 onMarkDone={() => onMarkDone(taskId)}
                 onCategoryClick={onCategoryClick}
+                onToggleKeyTask={onToggleKeyTask ? () => onToggleKeyTask(taskId) : undefined}
                 viewMode={viewMode}
+                isPremium={isPremium}
               />
             );
           })}

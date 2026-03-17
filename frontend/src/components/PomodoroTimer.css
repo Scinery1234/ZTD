@@ -1,0 +1,189 @@
+/* ---- Floating Action Button ---- */
+.pomodoro-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(30, 28, 60, 0.92);
+  border: 1.5px solid rgba(102, 126, 234, 0.35);
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 8000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: fixed;
+}
+.pomodoro-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(102,126,234,0.4);
+}
+.pomodoro-fab-indicator {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: #34d399;
+  border-radius: 50%;
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.25); }
+}
+
+/* ---- Panel ---- */
+.pomodoro-panel {
+  position: fixed;
+  bottom: 90px;
+  right: 28px;
+  width: 280px;
+  background: rgba(18, 16, 48, 0.97);
+  backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(102, 126, 234, 0.3);
+  border-radius: 20px;
+  padding: 20px 18px 18px;
+  z-index: 8000;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Mode tabs */
+.pomodoro-modes {
+  display: flex;
+  gap: 3px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 3px;
+}
+.pomodoro-mode-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pomodoro-mode-btn.active {
+  background: rgba(102,126,234,0.3);
+  color: #b4c4ff;
+}
+
+/* Ring */
+.pomodoro-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+}
+.pomodoro-ring {
+  width: 120px;
+  height: 120px;
+  transform: rotate(-90deg);
+}
+.pomodoro-ring-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.07);
+  stroke-width: 6;
+}
+.pomodoro-ring-fill {
+  fill: none;
+  stroke: url(#grad);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.8s linear;
+  stroke: #667eea;
+}
+.pomodoro-time {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 26px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls */
+.pomodoro-controls {
+  display: flex;
+  gap: 8px;
+}
+.pomodoro-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pomodoro-btn:first-child {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+.pomodoro-btn:first-child:hover {
+  box-shadow: 0 3px 14px rgba(102,126,234,0.4);
+}
+.pomodoro-btn--secondary {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.pomodoro-btn--secondary:hover {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75);
+}
+
+/* Task pin */
+.pomodoro-task-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pomodoro-task-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+.pomodoro-task-select {
+  width: 100%;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.pomodoro-task-select option { background: #1a1840; }
+.pomodoro-task-select:focus { border-color: rgba(102,126,234,0.4); }
+
+.pomodoro-sessions {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 1px;
+}

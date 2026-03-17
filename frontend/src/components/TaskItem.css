@@ -536,6 +536,160 @@
   color: rgba(180,195,255,0.8);
 }
 
+/* ---- Key Task ---- */
+.task-item.key-task {
+  border-left-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.btn-key-task {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.btn-key-task:hover {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+}
+.btn-key-task.active {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+/* ---- Notes panel ---- */
+.notes-section {
+  margin-top: 8px;
+}
+.notes-toggle {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.notes-toggle:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+.notes-textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.notes-textarea:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+.notes-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* Edit-mode notes */
+.edit-notes {
+  width: 100%;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.edit-notes:focus { border-color: rgba(102, 126, 234, 0.5); }
+.edit-notes::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+/* ---- Subtask priority/category badges ---- */
+.subtask-priority-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.subtask-priority-badge.priority-urgent {
+  background: rgba(248, 113, 113, 0.25);
+  color: #fca5a5;
+}
+.subtask-priority-badge.priority-today {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fcd34d;
+}
+.subtask-priority-badge.priority-tomorrow {
+  background: rgba(96, 165, 250, 0.2);
+  color: #93c5fd;
+}
+.subtask-priority-badge.priority-later {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.subtask-category-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: rgba(102, 126, 234, 0.15);
+  color: rgba(180, 195, 255, 0.8);
+  margin-left: 2px;
+}
+
+/* ---- Edit-mode subtask priority/category ---- */
+.edit-subtask-priority {
+  padding: 4px 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: rgba(255,255,255,0.6);
+  width: 90px;
+  flex-shrink: 0;
+}
+.edit-subtask-priority option { background: #302b63; }
+
+.edit-subtask-category {
+  padding: 4px 7px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: rgba(255,255,255,0.6);
+  width: 80px;
+  flex-shrink: 0;
+  outline: none;
+}
+.edit-subtask-category::placeholder { color: rgba(255,255,255,0.2); }
+.edit-subtask-category:focus { border-color: rgba(102,126,234,0.4); }
+
+/* ---- Reminder bell badge ---- */
+.task-reminder {
+  font-size: 11px;
+}
+
 @media (max-width: 600px) {
   .task-actions { opacity: 1; }
   .edit-fields { grid-template-columns: 1fr; }

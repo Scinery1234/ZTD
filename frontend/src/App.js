@@ -9,6 +9,7 @@ import Header from './components/Header';
 import Stats from './components/Stats';
 import HatBar from './components/HatBar';
 import CategorySection from './components/CategorySection';
+import TimeboxView from './components/TimeboxView';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
@@ -436,6 +437,9 @@ function TaskApp() {
           <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
             By Category
           </button>
+          <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
+            Timebox
+          </button>
         </div>
 
         {viewMode === 'active' && (
@@ -487,6 +491,13 @@ function TaskApp() {
             onAddTask={addTask}
             categoryOrder={categoryOrder}
             onReorderCategories={saveCategoryOrder}
+          />
+        )}
+
+        {viewMode === 'timebox' && (
+          <TimeboxView
+            tasks={getVisibleTasks()}
+            onUpdate={updateTask}
           />
         )}
       </div>

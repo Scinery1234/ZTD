@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -104,6 +105,9 @@ class Task(db.Model):
     position = db.Column(db.Integer, default=0)
     subtasks = db.Column(db.Text, default='[]')   # JSON: [{id, text, done}]
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    duration = db.Column(db.Integer, default=30)           # minutes
+    scheduled_time = db.Column(db.String(5), nullable=True)  # HH:MM
+    scheduled_date = db.Column(db.String(10), nullable=True) # YYYY-MM-DD
 
     def subtasks_list(self):
         try:
@@ -122,6 +126,9 @@ class Task(db.Model):
             'due': self.due,
             'position': self.position,
             'subtasks': self.subtasks_list(),
+            'duration': self.duration if self.duration is not None else 30,
+            'scheduled_time': self.scheduled_time,
+            'scheduled_date': self.scheduled_date,
         }
 
 
@@ -447,6 +454,12 @@ def update_task(task_id):
             task.hat_id = None
     if 'subtasks' in data:
         task.subtasks = json.dumps(data['subtasks'])
+    if 'duration' in data:
+        task.duration = int(data['duration']) if data['duration'] else 30
+    if 'scheduled_time' in data:
+        task.scheduled_time = data['scheduled_time'] or None
+    if 'scheduled_date' in data:
+        task.scheduled_date = data['scheduled_date'] or None
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -675,7 +688,23 @@ def health():
     return jsonify({'status': 'ok'})
 
 
+def migrate_db():
+    with app.app_context():
+        with db.engine.connect() as conn:
+            for stmt in [
+                'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
+                'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
+                'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
+            ]:
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    pass  # column already exists
+            conn.commit()
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+    migrate_db()
     app.run(debug=True, port=5001)

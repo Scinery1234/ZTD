@@ -40,7 +40,7 @@ function EmojiColorPicker({ emoji, color, onEmojiChange, onColorChange }) {
   );
 }
 
-function HatBar({ hats, currentHatId, onSelectHat, onHatsChange }) {
+function HatBar({ hats, selectedHatIds, onToggleHat, onHatsChange }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🎩');
@@ -70,7 +70,7 @@ function HatBar({ hats, currentHatId, onSelectHat, onHatsChange }) {
     setNewEmoji('🎩');
     setNewColor('#667eea');
     setShowPickerFor(null);
-    onSelectHat(hat.id);
+    onToggleHat(hat.id);
   };
 
   const handleUpdate = async (id) => {
@@ -84,7 +84,7 @@ function HatBar({ hats, currentHatId, onSelectHat, onHatsChange }) {
     await api.deleteHat(id);
     const next = hats.filter((h) => h.id !== id);
     onHatsChange(next);
-    if (currentHatId === id) onSelectHat(null);
+    if (selectedHatIds.has(id)) onToggleHat(id);
   };
 
   const startEdit = (hat) => {
@@ -99,8 +99,8 @@ function HatBar({ hats, currentHatId, onSelectHat, onHatsChange }) {
     <div className="hat-bar">
       {/* All tasks pill */}
       <button
-        className={`hat-pill all-pill ${currentHatId === null ? 'active' : ''}`}
-        onClick={() => onSelectHat(null)}
+        className={`hat-pill all-pill ${selectedHatIds.size === 0 ? 'active' : ''}`}
+        onClick={() => onToggleHat(null)}
       >
         <span className="hat-pill-emoji">🌐</span>
         <span className="hat-pill-name">All</span>
@@ -146,11 +146,11 @@ function HatBar({ hats, currentHatId, onSelectHat, onHatsChange }) {
         ) : (
           <button
             key={hat.id}
-            className={`hat-pill ${currentHatId === hat.id ? 'active' : ''}`}
-            style={currentHatId === hat.id
+            className={`hat-pill ${selectedHatIds.has(hat.id) ? 'active' : ''}`}
+            style={selectedHatIds.has(hat.id)
               ? { background: hat.color + '33', borderColor: hat.color + '88', color: hat.color }
               : {}}
-            onClick={() => onSelectHat(hat.id)}
+            onClick={() => onToggleHat(hat.id)}
             onDoubleClick={() => startEdit(hat)}
             title="Double-click to rename"
           >

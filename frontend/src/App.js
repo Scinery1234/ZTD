@@ -228,7 +228,7 @@ function TaskApp() {
   const [tasks, setTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
   const [hats, setHats] = useState([]);
-  const [currentHatId, setCurrentHatId] = useState(null); // null = All
+  const [selectedHatIds, setSelectedHatIds] = useState(new Set()); // empty = All
   const [filter, setFilter] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
@@ -255,21 +255,21 @@ function TaskApp() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const data = await api.getTasks(currentHatId);
+      const data = await api.getTasks();
       setTasks(data);
     } catch (err) {
       console.error('Error fetching tasks:', err);
     }
-  }, [currentHatId]);
+  }, []);
 
   const fetchDoneTasks = useCallback(async () => {
     try {
-      const data = await api.getDoneTasks(currentHatId);
+      const data = await api.getDoneTasks();
       setDoneTasks(data);
     } catch (err) {
       console.error('Error fetching done tasks:', err);
     }
-  }, [currentHatId]);
+  }, []);
 
   const fetchHats = async () => {
     try {
@@ -294,10 +294,28 @@ function TaskApp() {
     fetchDoneTasks();
   }, [fetchTasks, fetchDoneTasks]);
 
+  const toggleHat = (hatId) => {
+    if (hatId === null) {
+      // "All" clicked — clear selection
+      setSelectedHatIds(new Set());
+      return;
+    }
+    setSelectedHatIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(hatId)) {
+        next.delete(hatId);
+      } else {
+        next.add(hatId);
+      }
+      return next;
+    });
+  };
+
   const addTask = async (taskData) => {
+    const hat_id = selectedHatIds.size === 1 ? [...selectedHatIds][0] : null;
     try {
       setLimitError('');
-      await api.addTask({ ...taskData, hat_id: currentHatId });
+      await api.addTask({ ...taskData, hat_id });
       await fetchTasks();
       await refreshSubscription();
     } catch (err) {
@@ -352,6 +370,8 @@ function TaskApp() {
 
   const getFilteredTasks = () => {
     let filtered = tasks;
+    if (selectedHatIds.size > 0)
+      filtered = filtered.filter((t) => selectedHatIds.has(t.hat_id));
     if (filter === 'category' && selectedCategory)
       filtered = filtered.filter((t) => (t.category || 'Uncategorized') === selectedCategory);
     if (filter === 'priority' && selectedPriority)
@@ -359,8 +379,11 @@ function TaskApp() {
     return filtered;
   };
 
+  const getVisibleTasks = () =>
+    selectedHatIds.size > 0 ? tasks.filter((t) => selectedHatIds.has(t.hat_id)) : tasks;
+
   const getCategories = () => {
-    const all = [...new Set(tasks.map((t) => t.category || 'Uncategorized'))];
+    const all = [...new Set(getVisibleTasks().map((t) => t.category || 'Uncategorized'))];
     if (categoryOrder.length > 0) {
       const ordered = categoryOrder.filter((c) => all.includes(c));
       const unordered = all.filter((c) => !categoryOrder.includes(c)).sort();
@@ -400,8 +423,8 @@ function TaskApp() {
         {/* Hat bar */}
         <HatBar
           hats={hats}
-          currentHatId={currentHatId}
-          onSelectHat={(id) => { setCurrentHatId(id); }}
+          selectedHatIds={selectedHatIds}
+          onToggleHat={toggleHat}
           onHatsChange={setHats}
         />
 
@@ -449,7 +472,7 @@ function TaskApp() {
               }}
               viewMode="active"
             />
-            <Stats tasks={tasks} doneTasks={doneTasks} />
+            <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
             <CompletedSection doneTasks={doneTasks} />
           </>
         )}
@@ -457,7 +480,7 @@ function TaskApp() {
         {viewMode === 'categories' && (
           <CategoriesView
             categories={getCategories()}
-            tasks={tasks}
+            tasks={getVisibleTasks()}
             onUpdate={updateTask}
             onDelete={deleteTask}
             onMarkDone={markDone}

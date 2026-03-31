@@ -74,13 +74,28 @@ function formatDateLabel(dateStr) {
   return `${dayName} — ${label}`;
 }
 
-function getWeekDates() {
+function getWeekDates(startOffset = 0) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
-    d.setDate(today.getDate() + i);
+    d.setDate(today.getDate() + startOffset + i);
     return d.toISOString().split('T')[0];
   });
+}
+
+function useNowMinutes() {
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  return nowMinutes;
 }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
@@ -361,6 +376,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
   const hourLabels = Array.from({ length: 24 }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
   const isToday = date === new Date().toISOString().split('T')[0];
+  const nowMinutes = useNowMinutes();
 
   return (
     <div className={`timebox-day-column ${isWeekView ? 'week-col' : ''}`} data-date={date}>
@@ -415,6 +431,13 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
                 height: Math.abs(blockDrag.endMin - blockDrag.startMin) * PX_PER_MIN,
               }}
             />
+          )}
+
+          {/* Current time indicator */}
+          {isToday && (
+            <div className="timebox-now-line" style={{ top: nowMinutes * PX_PER_MIN }}>
+              <div className="timebox-now-dot" />
+            </div>
           )}
 
           {/* Window bars */}
@@ -527,15 +550,29 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, onUpdate, onAddTask }) {
+function TimeboxView({ tasks, onUpdate, onAddTask, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [weekStartOffset, setWeekStartOffset] = useState(0); // days from today
 
   const today = new Date().toISOString().split('T')[0];
-  const weekDates = getWeekDates();
+  const weekDates = getWeekDates(weekStartOffset);
+
+  const canGoBack = weekStartOffset > -maxHistoryDays;
+  const canGoForward = weekStartOffset < 90; // allow up to 90 days forward for everyone
+
+  const goBack = () => setWeekStartOffset(o => Math.max(o - 7, -maxHistoryDays));
+  const goForward = () => setWeekStartOffset(o => Math.min(o + 7, 90));
+  const goToToday = () => setWeekStartOffset(0);
+
+  const weekRangeLabel = (() => {
+    const first = new Date(weekDates[0] + 'T00:00:00');
+    const last = new Date(weekDates[6] + 'T00:00:00');
+    return `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  })();
 
   const getWindowForDate = (date) =>
     dayWindows[date] || { start: '09:00', end: '18:00' };
@@ -596,18 +633,28 @@ function TimeboxView({ tasks, onUpdate, onAddTask }) {
       )}
 
       {subView === 'week' && (
-        <div className="timebox-week-wrapper">
-          {weekDates.map(date => (
-            <TimeboxDayColumn
-              key={date}
-              {...sharedProps}
-              date={date}
-              dayWindow={getWindowForDate(date)}
-              onWindowChange={handleWindowChange}
-              isWeekView
-            />
-          ))}
-        </div>
+        <>
+          <div className="timebox-week-nav">
+            <button className="timebox-nav-btn" onClick={goBack} disabled={!canGoBack} title={`Go back (max ${maxHistoryDays} days)`}>‹</button>
+            <span className="timebox-week-range">{weekRangeLabel}</span>
+            {weekStartOffset !== 0 && (
+              <button className="timebox-nav-today-btn" onClick={goToToday}>Today</button>
+            )}
+            <button className="timebox-nav-btn" onClick={goForward} disabled={!canGoForward}>›</button>
+          </div>
+          <div className="timebox-week-wrapper">
+            {weekDates.map(date => (
+              <TimeboxDayColumn
+                key={date}
+                {...sharedProps}
+                date={date}
+                dayWindow={getWindowForDate(date)}
+                onWindowChange={handleWindowChange}
+                isWeekView
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

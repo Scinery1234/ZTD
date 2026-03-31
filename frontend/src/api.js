@@ -17,7 +17,14 @@ async function apiFetch(path, options = {}) {
     headers: { ...authHeaders(), ...(options.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+  if (!res.ok) {
+    if (res.status === 401 && data.token_expired) {
+      // Token expired mid-session — signal AuthContext to log out
+      localStorage.removeItem('ztd_token');
+      window.dispatchEvent(new Event('ztd-session-expired'));
+    }
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+  }
   return data;
 }
 

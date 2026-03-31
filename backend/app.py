@@ -29,6 +29,18 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({'error': 'Token has expired', 'token_expired': True}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({'error': 'Invalid token', 'token_expired': True}), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({'error': 'Authorization required', 'token_expired': True}), 401
+
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 
 # --- Membership Tiers ---
@@ -224,7 +236,7 @@ def register():
     db.session.add(user)
     db.session.commit()
 
-    token = create_access_token(identity=user.id)
+    token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()}), 201
 
 
@@ -240,14 +252,14 @@ def login():
     if not user or not check_password_hash(user.password_hash, data['password']):
         return jsonify({'error': 'Invalid email or password'}), 401
 
-    token = create_access_token(identity=user.id)
+    token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()})
 
 
 @app.route('/api/auth/me', methods=['GET'])
 @jwt_required()
 def get_me():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -259,7 +271,7 @@ def get_me():
 @app.route('/api/hats', methods=['GET'])
 @jwt_required()
 def get_hats():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hats = Hat.query.filter_by(user_id=user_id).order_by(Hat.position, Hat.id).all()
     return jsonify([h.to_dict() for h in hats])
 
@@ -267,7 +279,7 @@ def get_hats():
 @app.route('/api/hats', methods=['POST'])
 @jwt_required()
 def create_hat():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.json
     if not data or not data.get('name', '').strip():
         return jsonify({'error': 'Hat name is required'}), 400
@@ -288,7 +300,7 @@ def create_hat():
 @app.route('/api/hats/<int:hat_id>', methods=['PUT'])
 @jwt_required()
 def update_hat(hat_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
     if not hat:
         return jsonify({'error': 'Hat not found'}), 404
@@ -308,7 +320,7 @@ def update_hat(hat_id):
 @app.route('/api/hats/<int:hat_id>', methods=['DELETE'])
 @jwt_required()
 def delete_hat(hat_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
     if not hat:
         return jsonify({'error': 'Hat not found'}), 404
@@ -325,7 +337,7 @@ def delete_hat(hat_id):
 @app.route('/api/hats/reorder', methods=['POST'])
 @jwt_required()
 def reorder_hats():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.json
     hat_ids = data.get('hat_ids', [])
     for position, hat_id in enumerate(hat_ids):
@@ -342,7 +354,7 @@ def reorder_hats():
 @app.route('/api/tasks', methods=['GET'])
 @jwt_required()
 def get_tasks():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hat_id = request.args.get('hat_id', type=int)
     q = Task.query.filter_by(user_id=user_id)
     if hat_id is not None:
@@ -355,7 +367,7 @@ def get_tasks():
 @jwt_required()
 def add_task():
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         data = request.json
 
@@ -427,7 +439,7 @@ def add_task():
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @jwt_required()
 def update_task(task_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     task = Task.query.filter_by(id=task_id, user_id=user_id).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
@@ -471,7 +483,7 @@ def update_task(task_id):
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 @jwt_required()
 def delete_task(task_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     task = Task.query.filter_by(id=task_id, user_id=user_id).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
@@ -485,7 +497,7 @@ def delete_task(task_id):
 @app.route('/api/tasks/<int:task_id>/done', methods=['POST'])
 @jwt_required()
 def mark_task_done(task_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     task = Task.query.filter_by(id=task_id, user_id=user_id).first()
     if not task:
         return jsonify({'error': 'Task not found'}), 404
@@ -510,7 +522,7 @@ def mark_task_done(task_id):
 @app.route('/api/tasks/done', methods=['GET'])
 @jwt_required()
 def get_done_tasks():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hat_id = request.args.get('hat_id', type=int)
     q = DoneTask.query.filter_by(user_id=user_id)
     if hat_id is not None:
@@ -522,7 +534,7 @@ def get_done_tasks():
 @app.route('/api/tasks/categories', methods=['GET'])
 @jwt_required()
 def get_tasks_by_category():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     hat_id = request.args.get('hat_id', type=int)
     q = Task.query.filter_by(user_id=user_id)
     if hat_id is not None:
@@ -540,7 +552,7 @@ def get_tasks_by_category():
 @jwt_required()
 def reorder_tasks():
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         data = request.json
         new_tasks = data.get('tasks', [])
         if not new_tasks:
@@ -583,7 +595,7 @@ def create_checkout_session():
         return jsonify({'error': 'Stripe is not configured on the server. Contact the administrator.'}), 503
 
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         data = request.json
         tier = data.get('tier')
@@ -659,7 +671,7 @@ def stripe_webhook():
 @app.route('/api/stripe/subscription', methods=['GET'])
 @jwt_required()
 def get_subscription():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     tier = user.tier
     active_count = Task.query.filter_by(user_id=user_id).count()

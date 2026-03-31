@@ -40,6 +40,62 @@
   font-weight: 600;
 }
 
+/* ── Week navigation ───────────────────────────────────────────────────────── */
+.timebox-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+}
+
+.timebox-nav-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.timebox-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.13);
+  color: white;
+}
+
+.timebox-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.timebox-week-range {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.timebox-nav-today-btn {
+  background: rgba(102, 126, 234, 0.18);
+  border: 1px solid rgba(102, 126, 234, 0.35);
+  border-radius: 8px;
+  color: #a5b4fc;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.timebox-nav-today-btn:hover {
+  background: rgba(102, 126, 234, 0.28);
+}
+
 /* ── Week wrapper ──────────────────────────────────────────────────────────── */
 .timebox-week-wrapper {
   display: flex;
@@ -177,6 +233,29 @@
   background: rgba(255, 255, 255, 0.03);
   border-top: 1px dashed rgba(255, 255, 255, 0.04);
   pointer-events: none;
+}
+
+/* ── Now line ──────────────────────────────────────────────────────────────── */
+.timebox-now-line {
+  position: absolute;
+  left: 36px;
+  right: 0;
+  height: 2px;
+  background: #f87171;
+  z-index: 8;
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+.timebox-now-dot {
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.7);
 }
 
 /* ── Inactive overlays ─────────────────────────────────────────────────────── */

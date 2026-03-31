@@ -197,7 +197,7 @@ const TaskItem = ({
             <label className="edit-label">Subtasks</label>
             <div className="edit-subtasks">
               {editData.subtasks.map((st, i) => (
-                <div key={st.id} className="edit-subtask-row">
+                <div key={st.id ?? i} className="edit-subtask-row">
                   <span className="edit-subtask-bullet">·</span>
                   <input
                     className="edit-subtask-input"
@@ -299,8 +299,8 @@ const TaskItem = ({
                   <div className="subtask-progress-fill" style={{ width: `${progress}%` }} />
                 </div>
               )}
-              {localSubtasks.map((st) => (
-                <label key={st.id} className={`subtask-item ${st.done ? 'done' : ''}`}>
+              {localSubtasks.map((st, i) => (
+                <label key={st.id ?? i} className={`subtask-item ${st.done ? 'done' : ''}`}>
                   <input
                     type="checkbox"
                     checked={st.done}

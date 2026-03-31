@@ -74,12 +74,19 @@ function formatDateLabel(dateStr) {
   return `${dayName} — ${label}`;
 }
 
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
 function getWeekDates(startOffset = 0) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() + startOffset + i);
-    return d.toISOString().split('T')[0];
+    return toLocalDateStr(d);
   });
 }
 
@@ -201,8 +208,136 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   );
 }
 
+// ── TaskEditModal ─────────────────────────────────────────────────────────────
+let _stIdCounter = Date.now();
+const newStId = () => `st-${++_stIdCounter}`;
+
+function TaskEditModal({ task, hats, onSave, onClose }) {
+  const [editData, setEditData] = useState({
+    description: task.description,
+    category: task.category || '',
+    priority: task.priority || '',
+    hat_id: task.hat_id ?? '',
+    subtasks: task.subtasks ? task.subtasks.map(s => ({ ...s })) : [],
+  });
+
+  const handleSave = () => {
+    onSave(task.id, {
+      description: editData.description.trim() || task.description,
+      category: editData.category.trim(),
+      priority: editData.priority,
+      hat_id: editData.hat_id !== '' ? Number(editData.hat_id) : null,
+      subtasks: editData.subtasks,
+    });
+  };
+
+  const addSubtask = () =>
+    setEditData(d => ({ ...d, subtasks: [...d.subtasks, { id: newStId(), text: '', done: false }] }));
+
+  const updateSubtask = (stId, text) =>
+    setEditData(d => ({ ...d, subtasks: d.subtasks.map(s => s.id === stId ? { ...s, text } : s) }));
+
+  const removeSubtask = (stId) =>
+    setEditData(d => ({ ...d, subtasks: d.subtasks.filter(s => s.id !== stId) }));
+
+  return (
+    <>
+      <div className="tef-backdrop" onClick={onClose} />
+      <div className="tef-modal">
+        <div className="tef-header">
+          <span className="tef-title">Edit Task</span>
+          <button className="tef-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="tef-body">
+          <div className="tef-field">
+            <label className="tef-label">Description</label>
+            <input
+              className="tef-input"
+              value={editData.description}
+              onChange={e => setEditData(d => ({ ...d, description: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onClose(); }}
+              autoFocus
+            />
+          </div>
+
+          <div className="tef-row">
+            <div className="tef-field">
+              <label className="tef-label">Category</label>
+              <input
+                className="tef-input"
+                value={editData.category}
+                onChange={e => setEditData(d => ({ ...d, category: e.target.value }))}
+                placeholder="e.g. work"
+              />
+            </div>
+            <div className="tef-field">
+              <label className="tef-label">Priority</label>
+              <select
+                className="tef-select"
+                value={editData.priority}
+                onChange={e => setEditData(d => ({ ...d, priority: e.target.value }))}
+              >
+                <option value="">None</option>
+                <option value="urgent">Urgent</option>
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="later">Later</option>
+              </select>
+            </div>
+          </div>
+
+          {hats && hats.length > 0 && (
+            <div className="tef-field">
+              <label className="tef-label">Hat</label>
+              <select
+                className="tef-select"
+                value={editData.hat_id}
+                onChange={e => setEditData(d => ({ ...d, hat_id: e.target.value }))}
+              >
+                <option value="">No Hat</option>
+                {hats.map(h => (
+                  <option key={h.id} value={h.id}>{h.emoji} {h.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="tef-field">
+            <label className="tef-label">Subtasks</label>
+            <div className="tef-subtasks" onDoubleClick={e => { if (e.target === e.currentTarget) addSubtask(); }}>
+              {editData.subtasks.map((st, i) => (
+                <div key={st.id ?? i} className="tef-subtask-row" onDoubleClick={e => { if (e.target === e.currentTarget) addSubtask(); }}>
+                  <input
+                    className="tef-subtask-input"
+                    value={st.text}
+                    placeholder="Subtask…"
+                    onChange={e => updateSubtask(st.id, e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); addSubtask(); }
+                      if (e.key === 'Backspace' && st.text === '') removeSubtask(st.id);
+                    }}
+                    autoFocus={i === editData.subtasks.length - 1 && st.text === ''}
+                  />
+                  <button className="tef-subtask-remove" onClick={() => removeSubtask(st.id)}>✕</button>
+                </div>
+              ))}
+              <button className="tef-subtask-add" onClick={addSubtask}>+ Add subtask</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="tef-footer">
+          <button className="tef-btn tef-btn--cancel" onClick={onClose}>Cancel</button>
+          <button className="tef-btn tef-btn--save" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -211,9 +346,16 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
   const [blockDrag, setBlockDrag] = useState(null); // { startMin, endMin, screenX, screenY }
   const [pendingSlot, setPendingSlot] = useState(null); // shown after drag ends
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
+  const [editingTask, setEditingTask] = useState(null);
+
+  // Refs so drag handlers always read the latest state without re-registering listeners
+  const localTasksRef = useRef(localTasks);
+  const localWindowRef = useRef(localWindow);
 
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
   useEffect(() => { setLocalWindow(dayWindow); }, [dayWindow]);
+  useEffect(() => { localTasksRef.current = localTasks; }, [localTasks]);
+  useEffect(() => { localWindowRef.current = localWindow; }, [localWindow]);
 
   const columnTasks = localTasks.filter(t =>
     t.scheduled_date === date || (!t.scheduled_date && t.due === date)
@@ -268,21 +410,23 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
     const onMove = (e) => {
       const deltaY = e.clientY - dragging.startY;
       const deltaMins = yToMinutes(deltaY);
+      const wStart = parseMinutes(localWindowRef.current.start);
+      const wEnd = parseMinutes(localWindowRef.current.end);
       if (dragging.type === 'window-start') {
-        const newMin = Math.max(0, Math.min(windowEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
+        const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
         setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
       } else if (dragging.type === 'window-end') {
-        const newMin = Math.max(windowStart + 60, Math.min(1439, snapMinutes(dragging.origMin + deltaMins)));
+        const newMin = Math.max(wStart + 60, Math.min(1439, snapMinutes(dragging.origMin + deltaMins)));
         setLocalWindow(w => ({ ...w, end: formatTime(newMin) }));
       } else if (dragging.type === 'task-move') {
-        const newMin = Math.max(windowStart, Math.min(windowEnd - (dragging.duration || 30), snapMinutes(dragging.origMin + deltaMins)));
+        const newMin = Math.max(wStart, Math.min(wEnd - (dragging.duration || 30), snapMinutes(dragging.origMin + deltaMins)));
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newMin) } : t));
       } else if (dragging.type === 'task-resize-bottom') {
-        const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(windowEnd, snapMinutes(dragging.origEndMin + deltaMins)));
+        const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(wEnd, snapMinutes(dragging.origEndMin + deltaMins)));
         const newDur = newEndMin - dragging.origMin;
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, duration: newDur } : t));
       } else if (dragging.type === 'task-resize-top') {
-        const newStartMin = Math.max(windowStart, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
+        const newStartMin = Math.max(wStart, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
         const newDur = dragging.origEndMin - newStartMin;
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newStartMin), duration: newDur } : t));
       }
@@ -291,9 +435,9 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (dragging.type === 'window-start' || dragging.type === 'window-end') {
-        onWindowChange(date, localWindow);
+        onWindowChange(date, localWindowRef.current);
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
-        const updated = localTasks.find(t => t.id === dragging.taskId);
+        const updated = localTasksRef.current.find(t => t.id === dragging.taskId);
         if (updated) {
           // Detect cross-day drop by checking which day column is under the cursor
           let targetDate = date;
@@ -317,7 +461,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, localWindow, localTasks, date, windowStart, windowEnd, onWindowChange, onUpdateTask]);
+  }, [dragging, date, onWindowChange, onUpdateTask]);
 
   // ── Grid drag (task or block creation) ───────────────────────────────────
   useEffect(() => {
@@ -375,7 +519,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
   // ── Render ─────────────────────────────────────────────────────────────────
   const hourLabels = Array.from({ length: 24 }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
-  const isToday = date === new Date().toISOString().split('T')[0];
+  const isToday = date === toLocalDateStr(new Date());
   const nowMinutes = useNowMinutes();
 
   return (
@@ -466,6 +610,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
                 key={task.id}
                 className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''}`}
                 style={{ top: taskTop, height: taskHeight }}
+                onDoubleClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
                 onMouseDown={(e) => {
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
@@ -520,6 +665,20 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
         />
       )}
 
+      {/* Task edit modal */}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          hats={hats}
+          onSave={async (id, data) => {
+            setLocalTasks(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+            await onUpdateTask(id, data);
+            setEditingTask(null);
+          }}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+
       {/* Unscheduled tasks panel */}
       {unscheduled.length > 0 && (
         <div className="timebox-unscheduled">
@@ -550,7 +709,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, onUpdate, onAddTask, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
@@ -558,7 +717,7 @@ function TimeboxView({ tasks, onUpdate, onAddTask, maxHistoryDays = 14 }) {
   const [shuffleSeed, setShuffleSeed] = useState(0);
   const [weekStartOffset, setWeekStartOffset] = useState(0); // days from today
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateStr(new Date());
   const weekDates = getWeekDates(weekStartOffset);
 
   const canGoBack = weekStartOffset > -maxHistoryDays;
@@ -605,6 +764,7 @@ function TimeboxView({ tasks, onUpdate, onAddTask, maxHistoryDays = 14 }) {
 
   const sharedProps = {
     tasks,
+    hats,
     blockedTimes,
     onBlockedTimesChange: handleBlockedTimesChange,
     mitIds,

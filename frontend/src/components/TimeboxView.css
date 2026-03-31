@@ -665,3 +665,216 @@
 .slot-popup-btn--cancel:hover {
   color: rgba(255, 255, 255, 0.6);
 }
+
+/* ── Task Edit Modal (tef-*) ─────────────────────────────────────────────── */
+.tef-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 1100;
+}
+
+.tef-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1101;
+  width: min(440px, 92vw);
+  background: #1a1730;
+  border: 1px solid rgba(102, 126, 234, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tef-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tef-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.3px;
+}
+
+.tef-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tef-close:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.tef-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.tef-row {
+  display: flex;
+  gap: 12px;
+}
+
+.tef-row .tef-field {
+  flex: 1;
+}
+
+.tef-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tef-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tef-input,
+.tef-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tef-input:focus,
+.tef-select:focus {
+  border-color: rgba(102, 126, 234, 0.6);
+}
+
+.tef-select option {
+  background: #1a1730;
+}
+
+.tef-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 16px;
+  padding: 4px 0;
+}
+
+.tef-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tef-subtask-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+  outline: none;
+}
+
+.tef-subtask-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.tef-subtask-remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  transition: color 0.15s;
+}
+
+.tef-subtask-remove:hover {
+  color: #f87171;
+}
+
+.tef-subtask-add {
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 5px 8px;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.tef-subtask-add:hover {
+  border-color: rgba(102, 126, 234, 0.45);
+  color: rgba(165, 180, 252, 0.8);
+}
+
+.tef-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tef-btn {
+  padding: 7px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.tef-btn--cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tef-btn--cancel:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tef-btn--save {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.tef-btn--save:hover {
+  filter: brightness(1.1);
+}

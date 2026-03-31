@@ -234,6 +234,11 @@ def register():
         password_hash=generate_password_hash(data['password']),
     )
     db.session.add(user)
+    db.session.flush()  # get user.id before commit
+
+    # Create default "Main Hat" for new users
+    main_hat = Hat(user_id=user.id, name='Main Hat', emoji='🎩', color='#667eea', position=0)
+    db.session.add(main_hat)
     db.session.commit()
 
     token = create_access_token(identity=str(user.id))
@@ -384,6 +389,11 @@ def add_task():
             hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
             if not hat:
                 hat_id = None
+        # Default to Main Hat if no hat specified
+        if hat_id is None:
+            main_hat = Hat.query.filter_by(user_id=user_id, name='Main Hat').first()
+            if main_hat:
+                hat_id = main_hat.id
 
         max_pos_q = Task.query.filter_by(user_id=user_id)
         if hat_id:

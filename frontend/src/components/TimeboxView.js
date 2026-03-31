@@ -272,7 +272,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newStartMin), duration: newDur } : t));
       }
     };
-    const onUp = async () => {
+    const onUp = async (e) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (dragging.type === 'window-start' || dragging.type === 'window-end') {
@@ -280,9 +280,16 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
         const updated = localTasks.find(t => t.id === dragging.taskId);
         if (updated) {
+          // Detect cross-day drop by checking which day column is under the cursor
+          let targetDate = date;
+          if (dragging.type === 'task-move') {
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            const col = el?.closest('[data-date]');
+            if (col) targetDate = col.getAttribute('data-date');
+          }
           await onUpdateTask(updated.id, {
             scheduled_time: updated.scheduled_time,
-            scheduled_date: updated.scheduled_date || date,
+            scheduled_date: targetDate,
             duration: updated.duration,
           });
         }
@@ -356,7 +363,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
   const isToday = date === new Date().toISOString().split('T')[0];
 
   return (
-    <div className={`timebox-day-column ${isWeekView ? 'week-col' : ''}`}>
+    <div className={`timebox-day-column ${isWeekView ? 'week-col' : ''}`} data-date={date}>
       {/* Column header */}
       <div className={`timebox-col-header ${isToday ? 'today' : ''}`}>
         <div className="timebox-col-date">{formatDateLabel(date)}</div>

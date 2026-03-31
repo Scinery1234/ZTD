@@ -688,6 +688,31 @@ def health():
     return jsonify({'status': 'ok'})
 
 
+# === Admin endpoint (no Stripe required) ===
+@app.route('/api/admin/set-tier', methods=['POST'])
+def admin_set_tier():
+    admin_key = os.getenv('ADMIN_SECRET_KEY')
+    if not admin_key:
+        return jsonify({'error': 'Admin access not configured'}), 403
+
+    data = request.json or {}
+    if data.get('admin_key') != admin_key:
+        return jsonify({'error': 'Invalid admin key'}), 403
+
+    email = data.get('email', '').strip().lower()
+    tier = data.get('tier', 'premium')
+    if tier not in TIERS:
+        return jsonify({'error': f'Invalid tier. Choose: {list(TIERS.keys())}'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': f'No user found with email: {email}'}), 404
+
+    user.tier = tier
+    db.session.commit()
+    return jsonify({'ok': True, 'email': user.email, 'tier': user.tier})
+
+
 def migrate_db():
     with app.app_context():
         with db.engine.connect() as conn:

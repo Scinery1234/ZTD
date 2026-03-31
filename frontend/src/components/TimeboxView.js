@@ -102,14 +102,99 @@ function loadMit() {
 }
 function saveMit(ids) { localStorage.setItem('ztd_mit_tasks', JSON.stringify([...ids])); }
 
+// ── Slot popup (shown after grid drag) ───────────────────────────────────────
+function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
+  const [desc, setDesc] = useState('');
+  const [priority, setPriority] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 30);
+  }, []);
+
+  const duration = slot.endMin - slot.startMin;
+
+  const handleAddTask = async () => {
+    if (!desc.trim()) return;
+    await onAddTask({
+      description: desc.trim(),
+      priority,
+      duration,
+      scheduled_time: formatTime(slot.startMin),
+      scheduled_date: date,
+      due: date,
+    });
+    onCancel();
+  };
+
+  const handleBlockTime = () => {
+    onBlockTime(slot.startMin, slot.endMin);
+    onCancel();
+  };
+
+  // Clamp popup to viewport
+  const popupTop = Math.min(slot.screenY, window.innerHeight - 220);
+  const popupLeft = Math.min(slot.screenX + 12, window.innerWidth - 260);
+
+  return (
+    <>
+      <div className="slot-popup-backdrop" onClick={onCancel} />
+      <div className="slot-popup" style={{ top: popupTop, left: popupLeft }}>
+        <div className="slot-popup-time">
+          {formatTime(slot.startMin)} – {formatTime(slot.endMin)}
+          <span className="slot-popup-dur">{duration}m</span>
+        </div>
+        <input
+          ref={inputRef}
+          className="slot-popup-input"
+          placeholder="Task name…"
+          value={desc}
+          onChange={e => setDesc(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleAddTask();
+            if (e.key === 'Escape') onCancel();
+          }}
+        />
+        <select
+          className="slot-popup-priority"
+          value={priority}
+          onChange={e => setPriority(e.target.value)}
+        >
+          <option value="">No priority</option>
+          <option value="urgent">Urgent</option>
+          <option value="today">Today</option>
+          <option value="tomorrow">Tomorrow</option>
+          <option value="later">Later</option>
+        </select>
+        <div className="slot-popup-actions">
+          <button
+            className="slot-popup-btn slot-popup-btn--task"
+            onClick={handleAddTask}
+            disabled={!desc.trim()}
+          >
+            + Add Task
+          </button>
+          <button className="slot-popup-btn slot-popup-btn--block" onClick={handleBlockTime}>
+            Block Time
+          </button>
+          <button className="slot-popup-btn slot-popup-btn--cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, isWeekView, shuffleSeed, onShuffle }) {
+function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
-  const [dragging, setDragging] = useState(null); // { type, taskId, startY, startVal }
+  const [dragging, setDragging] = useState(null);
   const [localTasks, setLocalTasks] = useState(tasks);
   const [localWindow, setLocalWindow] = useState(dayWindow);
-  const [blockDrag, setBlockDrag] = useState(null); // { startMin, endMin }
+  const [blockDrag, setBlockDrag] = useState(null); // { startMin, endMin, screenX, screenY }
+  const [pendingSlot, setPendingSlot] = useState(null); // shown after drag ends
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
 
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
@@ -133,17 +218,14 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
 
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
-    onShuffle(); // increment seed
+    onShuffle();
     const PRIO = PRIORITY_ORDER;
     let ordered = [...columnTasks].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
-
-    // shuffle using current seed + 1 (seed was just incremented)
     const seed = shuffleSeed + 1;
     for (let i = ordered.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom(seed + i) * (i + 1));
       [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
     }
-
     let cursor = windowStart;
     const updates = [];
     for (const task of ordered) {
@@ -153,16 +235,13 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
       updates.push({ id: task.id, scheduled_time: formatTime(cursor), scheduled_date: date });
       cursor += dur;
     }
-
-    // optimistic update
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-
     await Promise.all(updates.map(u => onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })));
   }, [columnTasks, blockedTimes, date, windowStart, windowEnd, shuffleSeed, onShuffle, onUpdateTask]);
 
-  // ── Mouse drag helpers ─────────────────────────────────────────────────────
+  // ── Task / window drag ─────────────────────────────────────────────────────
   const startMouseDrag = useCallback((type, extra, e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -171,11 +250,9 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
 
   useEffect(() => {
     if (!dragging) return;
-
     const onMove = (e) => {
       const deltaY = e.clientY - dragging.startY;
       const deltaMins = yToMinutes(deltaY);
-
       if (dragging.type === 'window-start') {
         const newMin = Math.max(0, Math.min(windowEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
         setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
@@ -195,11 +272,9 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newStartMin), duration: newDur } : t));
       }
     };
-
     const onUp = async () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-
       if (dragging.type === 'window-start' || dragging.type === 'window-end') {
         onWindowChange(date, localWindow);
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
@@ -214,7 +289,6 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
       }
       setDragging(null);
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => {
@@ -223,45 +297,52 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
     };
   }, [dragging, localWindow, localTasks, date, windowStart, windowEnd, onWindowChange, onUpdateTask]);
 
-  // ── Blocked time creation ─────────────────────────────────────────────────
+  // ── Grid drag (task or block creation) ───────────────────────────────────
   useEffect(() => {
     if (!blockDrag) return;
-
     const onMove = (e) => {
       if (!wrapperRef.current) return;
       const y = getRelativeY(e, wrapperRef.current);
       const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
-      setBlockDrag(prev => ({ ...prev, endMin: mins }));
+      setBlockDrag(prev => ({ ...prev, endMin: mins, screenX: e.clientX, screenY: e.clientY }));
     };
-
-    const onUp = () => {
+    const onUp = (e) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (blockDrag && blockDrag.endMin !== blockDrag.startMin) {
+      if (blockDrag) {
         const start = Math.min(blockDrag.startMin, blockDrag.endMin);
         const end = Math.max(blockDrag.startMin, blockDrag.endMin);
         if (end - start >= SNAP) {
-          const next = [...blockedTimes, { date, start: formatTime(start), end: formatTime(end) }];
-          onBlockedTimesChange(next);
+          // Show popup to choose: add task or block time
+          setPendingSlot({
+            startMin: start,
+            endMin: end,
+            screenX: e.clientX,
+            screenY: e.clientY,
+          });
         }
       }
       setBlockDrag(null);
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [blockDrag, blockedTimes, date, onBlockedTimesChange]);
+  }, [blockDrag]);
 
   const handleGridMouseDown = (e) => {
     if (e.target !== gridRef.current) return;
     if (!wrapperRef.current) return;
     const y = getRelativeY(e, wrapperRef.current);
     const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
-    setBlockDrag({ startMin: mins, endMin: mins });
+    setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
+  };
+
+  const handleConfirmBlock = (startMin, endMin) => {
+    const next = [...blockedTimes, { date, start: formatTime(startMin), end: formatTime(endMin) }];
+    onBlockedTimesChange(next);
   };
 
   const removeBlocked = (idx) => {
@@ -318,7 +399,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
             </div>
           ))}
 
-          {/* Active block drag preview */}
+          {/* Active drag preview */}
           {blockDrag && blockDrag.endMin !== blockDrag.startMin && (
             <div
               className="timebox-blocked timebox-blocked--preview"
@@ -356,7 +437,6 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
                 className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''}`}
                 style={{ top: taskTop, height: taskHeight }}
                 onMouseDown={(e) => {
-                  // Don't initiate drag from resize handles
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
                   startMouseDrag('task-move', {
@@ -399,6 +479,17 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
         </div>
       </div>
 
+      {/* Slot popup (fixed position, rendered outside scroll container) */}
+      {pendingSlot && (
+        <SlotPopup
+          slot={pendingSlot}
+          date={date}
+          onAddTask={onAddTask}
+          onBlockTime={handleConfirmBlock}
+          onCancel={() => setPendingSlot(null)}
+        />
+      )}
+
       {/* Unscheduled tasks panel */}
       {unscheduled.length > 0 && (
         <div className="timebox-unscheduled">
@@ -429,7 +520,7 @@ function TimeboxDayColumn({ date, tasks, dayWindow, onWindowChange, blockedTimes
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, onUpdate }) {
+function TimeboxView({ tasks, onUpdate, onAddTask }) {
   const [subView, setSubView] = useState('day');
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
@@ -466,10 +557,6 @@ function TimeboxView({ tasks, onUpdate }) {
     });
   };
 
-  const handleUpdateTask = async (taskId, data) => {
-    await onUpdate(taskId, data);
-  };
-
   const handleShuffle = () => setShuffleSeed(s => s + 1);
 
   const sharedProps = {
@@ -478,14 +565,14 @@ function TimeboxView({ tasks, onUpdate }) {
     onBlockedTimesChange: handleBlockedTimesChange,
     mitIds,
     onToggleMit: handleToggleMit,
-    onUpdateTask: handleUpdateTask,
+    onUpdateTask: onUpdate,
+    onAddTask,
     shuffleSeed,
     onShuffle: handleShuffle,
   };
 
   return (
     <div className="timebox-container">
-      {/* Sub-view toggle */}
       <div className="timebox-subview-toggle">
         <button className={`timebox-sub-btn ${subView === 'day' ? 'active' : ''}`} onClick={() => setSubView('day')}>Day</button>
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>

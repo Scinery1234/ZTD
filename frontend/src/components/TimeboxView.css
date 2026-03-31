@@ -457,3 +457,132 @@
   color: rgba(255, 255, 255, 0.3);
   white-space: nowrap;
 }
+
+/* ── Slot popup ────────────────────────────────────────────────────────────── */
+.slot-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.slot-popup {
+  position: fixed;
+  z-index: 1000;
+  width: 240px;
+  background: #1e1b3a;
+  border: 1px solid rgba(102, 126, 234, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.slot-popup-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a5b4fc;
+}
+
+.slot-popup-dur {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.slot-popup-input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 8px 10px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.slot-popup-input:focus {
+  border-color: rgba(102, 126, 234, 0.6);
+}
+
+.slot-popup-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.slot-popup-priority {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  padding: 6px 8px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.slot-popup-priority option {
+  background: #1e1b3a;
+}
+
+.slot-popup-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.slot-popup-btn {
+  flex: 1;
+  padding: 7px 6px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.slot-popup-btn--task {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.slot-popup-btn--task:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.slot-popup-btn--task:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slot-popup-btn--block {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.slot-popup-btn--block:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.slot-popup-btn--cancel {
+  background: none;
+  color: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  flex: 0 0 auto;
+  padding: 7px 10px;
+}
+
+.slot-popup-btn--cancel:hover {
+  color: rgba(255, 255, 255, 0.6);
+}

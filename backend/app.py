@@ -406,6 +406,9 @@ def add_task():
                 recurring=data.get('recurring', '').strip(),
                 due=data.get('due', '') or None,
                 position=next_pos,
+                duration=int(data['duration']) if data.get('duration') else 30,
+                scheduled_time=data.get('scheduled_time') or None,
+                scheduled_date=data.get('scheduled_date') or None,
             )
             db.session.add(task)
             all_tasks.append(task)

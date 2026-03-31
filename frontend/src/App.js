@@ -498,6 +498,7 @@ function TaskApp() {
           <TimeboxView
             tasks={getVisibleTasks()}
             onUpdate={updateTask}
+            onAddTask={addTask}
           />
         )}
       </div>

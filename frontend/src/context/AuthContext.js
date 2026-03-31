@@ -34,6 +34,16 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [loadSubscription]);
 
+  // Handle token expiry mid-session
+  useEffect(() => {
+    const handleExpiry = () => {
+      setUser(null);
+      setSubscription(null);
+    };
+    window.addEventListener('ztd-session-expired', handleExpiry);
+    return () => window.removeEventListener('ztd-session-expired', handleExpiry);
+  }, []);
+
   const login = async (email, password) => {
     const { token, user: u } = await api.login(email, password);
     localStorage.setItem('ztd_token', token);

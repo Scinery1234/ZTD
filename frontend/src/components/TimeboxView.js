@@ -383,7 +383,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       const j = Math.floor(seededRandom(seed + i) * (i + 1));
       [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
     }
-    let cursor = windowStart;
+    // For today's column, never schedule before the current time
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const isToday = date === toLocalDateStr(now);
+    let cursor = isToday ? Math.max(windowStart, snapMinutes(nowMins)) : windowStart;
     const updates = [];
     for (const task of ordered) {
       const dur = task.duration || 30;

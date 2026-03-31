@@ -29,6 +29,18 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({'error': 'Token has expired', 'token_expired': True}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({'error': 'Invalid token', 'token_expired': True}), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({'error': 'Authorization required', 'token_expired': True}), 401
+
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 
 # --- Membership Tiers ---

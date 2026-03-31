@@ -17,7 +17,14 @@ async function apiFetch(path, options = {}) {
     headers: { ...authHeaders(), ...(options.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+  if (!res.ok) {
+    // Expired or invalid token — clear it so the app re-prompts login
+    if (res.status === 401 || (res.status === 422 && data.token_expired)) {
+      localStorage.removeItem('ztd_token');
+      window.location.reload();
+    }
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
+  }
   return data;
 }
 

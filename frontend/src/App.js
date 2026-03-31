@@ -499,6 +499,7 @@ function TaskApp() {
             tasks={getVisibleTasks()}
             onUpdate={updateTask}
             onAddTask={addTask}
+            maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
           />
         )}
       </div>

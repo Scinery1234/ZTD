@@ -21,7 +21,10 @@ CORS(app)
 
 # --- Configuration ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL',
+    f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)

@@ -1,8 +1,15 @@
+Flask==3.0.0
+flask-cors==4.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-JWT-Extended==4.6.0
+stripe==8.11.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
 dateparser==1.2.2
+python-dateutil==2.9.0.post0
 markdown-it-py==3.0.0
 mdurl==0.1.2
 Pygments==2.19.2
-python-dateutil==2.9.0.post0
 pytz==2025.2
 regex==2025.7.34
 rich==14.1.0

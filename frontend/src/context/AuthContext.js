@@ -91,18 +91,32 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { token, user: u } = await api.login(email, password);
+    if (!token) {
+      throw new Error('Login succeeded but no token was returned.');
+    }
     localStorage.setItem('ztd_token', token);
-    setUser(u);
+    const resolvedUser = u || (await api.me());
+    if (!resolvedUser) {
+      throw new Error('Login succeeded but account data could not be loaded.');
+    }
+    setUser(resolvedUser);
     void loadSubscription();
-    return u;
+    return resolvedUser;
   };
 
   const register = async (name, email, password) => {
     const { token, user: u } = await api.register(name, email, password);
+    if (!token) {
+      throw new Error('Account was created but no token was returned.');
+    }
     localStorage.setItem('ztd_token', token);
-    setUser(u);
+    const resolvedUser = u || (await api.me());
+    if (!resolvedUser) {
+      throw new Error('Account was created but profile loading failed.');
+    }
+    setUser(resolvedUser);
     void loadSubscription();
-    return u;
+    return resolvedUser;
   };
 
   const logout = () => {

@@ -2,6 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "serve -s build -l $PORT"
+# Bind all interfaces — plain "-l $PORT" can listen on localhost only, so Railway's healthcheck fails
+startCommand = "serve -s build -l tcp://0.0.0.0:$PORT"
 healthcheckPath = "/"
 restartPolicyType = "on_failure"

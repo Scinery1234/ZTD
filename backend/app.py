@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
@@ -789,6 +789,17 @@ def migrate_db():
                 except Exception:
                     pass  # column already exists
             conn.commit()
+
+
+_FRONTEND_BUILD = os.path.join(BASE_DIR, '..', 'frontend', 'build')
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    full = os.path.join(_FRONTEND_BUILD, path)
+    if path and os.path.isfile(full):
+        return send_from_directory(_FRONTEND_BUILD, path)
+    return send_from_directory(_FRONTEND_BUILD, 'index.html')
 
 
 if __name__ == '__main__':

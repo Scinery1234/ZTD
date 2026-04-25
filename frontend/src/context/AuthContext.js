@@ -21,21 +21,46 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('ztd_token');
     if (!token) {
       setLoading(false);
-      return;
+      return undefined;
     }
-    api.me()
-      .then(async (u) => {
+    let done = false; // set true on timeout, unmount, or after session load finishes
+    const t = window.setTimeout(() => {
+      if (done) return;
+      done = true;
+      localStorage.removeItem('ztd_token');
+      setUser(null);
+      setSubscription(null);
+      setLoading(false);
+    }, 20000);
+
+    (async () => {
+      try {
+        const u = await api.me();
+        if (done) return;
+        window.clearTimeout(t);
         setUser(u);
         try {
           await loadSubscription();
         } catch {
           setSubscription(null);
         }
-      })
-      .catch(() => {
+      } catch {
+        if (done) return;
+        window.clearTimeout(t);
         localStorage.removeItem('ztd_token');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (!done) {
+          done = true;
+          window.clearTimeout(t);
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      done = true;
+      window.clearTimeout(t);
+    };
   }, [loadSubscription]);
 
   // Handle token expiry mid-session

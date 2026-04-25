@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
 import json
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timedelta
 import dateparser
 import stripe
@@ -20,11 +21,33 @@ app = Flask(__name__)
 CORS(app)
 
 # --- Configuration ---
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    'DATABASE_URL',
-    f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
-)
+
+
+def _sqlalchemy_database_uri() -> str:
+    """Local dev uses SQLite; use DATABASE_URL (e.g. Railway Postgres) in production."""
+    default_sqlite = f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
+    url = os.getenv("DATABASE_URL", default_sqlite)
+    # Heroku / Railway: postgres:// is deprecated in SQLAlchemy; normalize to postgresql+psycopg2
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg2://" + url.removeprefix("postgres://")
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
+        url = "postgresql+psycopg2://" + url.removeprefix("postgresql://")
+    if url.startswith("postgresql+psycopg2://"):
+        parts = urlsplit(url)
+        q = dict(parse_qsl(parts.query, keep_blank_values=True))
+        ssl = os.getenv("DATABASE_SSLMODE", "require")
+        if "sslmode" not in q and ssl and ssl.lower() != "disable":
+            q["sslmode"] = ssl
+        if q and urlencode(q) != parts.query:
+            url = urlunsplit(
+                (parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment)
+            )
+    return url
+
+
+app.config["SQLALCHEMY_DATABASE_URI"] = _sqlalchemy_database_uri()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)

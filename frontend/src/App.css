@@ -67,6 +67,8 @@
 
 /* Guest banner */
 .guest-banner {
+  position: relative;
+  z-index: 100;
   background: linear-gradient(135deg, rgba(100, 160, 255, 0.12), rgba(80, 200, 180, 0.10));
   border-bottom: 1px solid rgba(100, 160, 255, 0.2);
   color: rgba(255, 255, 255, 0.8);
@@ -81,6 +83,8 @@
 }
 
 .guest-banner-actions {
+  position: relative;
+  z-index: 101;
   display: flex;
   gap: 8px;
 }

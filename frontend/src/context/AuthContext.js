@@ -24,9 +24,13 @@ export function AuthProvider({ children }) {
       return;
     }
     api.me()
-      .then((u) => {
+      .then(async (u) => {
         setUser(u);
-        return loadSubscription();
+        try {
+          await loadSubscription();
+        } catch {
+          setSubscription(null);
+        }
       })
       .catch(() => {
         localStorage.removeItem('ztd_token');
@@ -48,7 +52,12 @@ export function AuthProvider({ children }) {
     const { token, user: u } = await api.login(email, password);
     localStorage.setItem('ztd_token', token);
     setUser(u);
-    await loadSubscription();
+    // Never block sign-in if subscription/Stripe call fails
+    try {
+      await loadSubscription();
+    } catch {
+      setSubscription(null);
+    }
     return u;
   };
 
@@ -56,7 +65,11 @@ export function AuthProvider({ children }) {
     const { token, user: u } = await api.register(name, email, password);
     localStorage.setItem('ztd_token', token);
     setUser(u);
-    await loadSubscription();
+    try {
+      await loadSubscription();
+    } catch {
+      setSubscription(null);
+    }
     return u;
   };
 

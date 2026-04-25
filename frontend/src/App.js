@@ -110,8 +110,20 @@ function GuestTaskApp({ onSignUp, onLogin }) {
       <div className="guest-banner">
         <span>You're in guest mode - tasks will be lost when you close this tab.</span>
         <div className="guest-banner-actions">
-          <button className="guest-banner-btn" onClick={onSignUp}>Create free account</button>
-          <button className="guest-banner-btn guest-banner-btn--outline" onClick={onLogin}>Log in</button>
+          <button
+            type="button"
+            className="guest-banner-btn"
+            onClick={() => onSignUp()}
+          >
+            Create free account
+          </button>
+          <button
+            type="button"
+            className="guest-banner-btn guest-banner-btn--outline"
+            onClick={() => onLogin()}
+          >
+            Log in
+          </button>
         </div>
       </div>
       <Header onShowPricing={null} guestMode />

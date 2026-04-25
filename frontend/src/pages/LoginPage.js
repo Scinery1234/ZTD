@@ -65,7 +65,7 @@ function LoginPage({ onSwitch, onGuest }) {
 
         <p className="auth-switch">
           Don't have an account?{' '}
-          <button className="auth-link" onClick={() => onSwitch('register')}>
+          <button type="button" className="auth-link" onClick={() => onSwitch('register')}>
             Create one for free
           </button>
         </p>

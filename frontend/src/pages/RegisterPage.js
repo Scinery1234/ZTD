@@ -97,7 +97,7 @@ function RegisterPage({ onSwitch, onGuest }) {
 
         <p className="auth-switch">
           Already have an account?{' '}
-          <button className="auth-link" onClick={() => onSwitch('login')}>
+          <button type="button" className="auth-link" onClick={() => onSwitch('login')}>
             Sign in
           </button>
         </p>

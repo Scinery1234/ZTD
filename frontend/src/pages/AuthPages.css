@@ -57,6 +57,26 @@
   margin: 0 0 22px;
 }
 
+.auth-primary-alt {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.auth-primary-alt-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auth-btn--secondary {
+  background: linear-gradient(135deg, rgba(100, 160, 255, 0.35), rgba(80, 200, 180, 0.25));
+  box-shadow: 0 2px 12px rgba(100, 160, 255, 0.2);
+  border: 1px solid rgba(100, 160, 255, 0.45);
+  margin-top: 0;
+}
+
 .auth-error {
   background: rgba(248, 113, 113, 0.12);
   border: 1px solid rgba(248, 113, 113, 0.3);

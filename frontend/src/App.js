@@ -520,11 +520,68 @@ function TaskApp() {
   );
 }
 
+// URL hash so register/login/guest is bookmarkable and obvious (#register, #login, #guest)
+function readAuthFromHash() {
+  if (typeof window === 'undefined') {
+    return { guestMode: false, authView: 'login' };
+  }
+  const raw = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+  if (raw === 'register' || raw === 'signup') {
+    return { guestMode: false, authView: 'register' };
+  }
+  if (raw === 'guest') {
+    return { guestMode: true, authView: 'login' };
+  }
+  return { guestMode: false, authView: 'login' };
+}
+
 // ---- Root with auth gate ----
 function AppRoot() {
   const { user, loading } = useAuth();
-  const [authView, setAuthView] = useState('login');
-  const [guestMode, setGuestMode] = useState(false);
+  const { guestMode: hGuest, authView: hView } = readAuthFromHash();
+  const [authView, setAuthView] = useState(hView);
+  const [guestMode, setGuestMode] = useState(hGuest);
+
+  // Keep guest/login/register in sync with #guest / #register / #login (hooks must run before any return)
+  useEffect(() => {
+    if (user) return;
+    const onHash = () => {
+      const { guestMode: g, authView: v } = readAuthFromHash();
+      setGuestMode(g);
+      setAuthView(v);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [user]);
+
+  const goRegister = useCallback(() => {
+    setGuestMode(false);
+    setAuthView('register');
+    window.location.hash = 'register';
+    window.scrollTo(0, 0);
+  }, []);
+
+  const goLogin = useCallback(() => {
+    setGuestMode(false);
+    setAuthView('login');
+    window.location.hash = 'login';
+    window.scrollTo(0, 0);
+  }, []);
+
+  const goGuest = useCallback(() => {
+    setGuestMode(true);
+    setAuthView('login');
+    window.location.hash = 'guest';
+    window.scrollTo(0, 0);
+  }, []);
+
+  const onAuthViewSwitch = useCallback((view) => {
+    if (view === 'register') {
+      goRegister();
+    } else {
+      goLogin();
+    }
+  }, [goRegister, goLogin]);
 
   if (loading) {
     return (
@@ -538,22 +595,14 @@ function AppRoot() {
     if (guestMode) {
       return (
         <GuestTaskApp
-          onSignUp={() => {
-            setGuestMode(false);
-            setAuthView('register');
-            window.scrollTo(0, 0);
-          }}
-          onLogin={() => {
-            setGuestMode(false);
-            setAuthView('login');
-            window.scrollTo(0, 0);
-          }}
+          onSignUp={goRegister}
+          onLogin={goLogin}
         />
       );
     }
     return authView === 'login'
-      ? <LoginPage onSwitch={setAuthView} onGuest={() => setGuestMode(true)} />
-      : <RegisterPage onSwitch={setAuthView} onGuest={() => setGuestMode(true)} />;
+      ? <LoginPage onSwitch={onAuthViewSwitch} onGuest={goGuest} onRegister={goRegister} />
+      : <RegisterPage onSwitch={onAuthViewSwitch} onGuest={goGuest} />;
   }
 
   return <TaskApp />;

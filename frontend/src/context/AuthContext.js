@@ -73,6 +73,13 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('ztd-session-expired', handleExpiry);
   }, []);
 
+  // Clear #register / #login from the URL after successful sign-in
+  useEffect(() => {
+    if (user && window.location.hash) {
+      window.location.hash = '';
+    }
+  }, [user]);
+
   const login = async (email, password) => {
     const { token, user: u } = await api.login(email, password);
     localStorage.setItem('ztd_token', token);

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './AuthPages.css';
 
-function LoginPage({ onSwitch, onGuest }) {
+function LoginPage({ onSwitch, onGuest, onRegister }) {
   const { login } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -31,6 +31,19 @@ function LoginPage({ onSwitch, onGuest }) {
 
         <h2 className="auth-title">Welcome back</h2>
         <p className="auth-subtitle">Sign in to access your tasks</p>
+
+        {onRegister && (
+          <div className="auth-primary-alt">
+            <p className="auth-primary-alt-label">New here?</p>
+            <button
+              type="button"
+              className="auth-btn auth-btn--secondary"
+              onClick={onRegister}
+            >
+              Create free account
+            </button>
+          </div>
+        )}
 
         {error && <div className="auth-error">{error}</div>}
 
@@ -71,7 +84,7 @@ function LoginPage({ onSwitch, onGuest }) {
         </p>
 
         <div className="auth-divider">or</div>
-        <button className="auth-guest-btn" onClick={onGuest}>
+        <button type="button" className="auth-guest-btn" onClick={onGuest}>
           Continue without account
         </button>
       </div>

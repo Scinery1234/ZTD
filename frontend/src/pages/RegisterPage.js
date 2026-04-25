@@ -103,7 +103,7 @@ function RegisterPage({ onSwitch, onGuest }) {
         </p>
 
         <div className="auth-divider">or</div>
-        <button className="auth-guest-btn" onClick={onGuest}>
+        <button type="button" className="auth-guest-btn" onClick={onGuest}>
           Continue without account
         </button>
       </div>

@@ -6,26 +6,58 @@ function RegisterPage({ onSwitch, onGuest }) {
   const { register } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
-    if (form.password !== form.confirm) {
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const password = form.password;
+    const confirm = form.confirm;
+
+    if (!name) {
+      setError('Name is required.');
+      return;
+    }
+    if (!email) {
+      setError('Email is required.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    if (!password) {
+      setError('Password is required.');
+      return;
+    }
+    if (password !== confirm) {
       setError('Passwords do not match.');
       return;
     }
-    if (form.password.length < 8) {
+    if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
     }
 
     setLoading(true);
+    setInfo('Creating your account…');
     try {
-      await register(form.name, form.email, form.password);
+      await Promise.race([
+        register(name, email, password),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Registration timed out. Please try again.')), 20000)
+        ),
+      ]);
+      setInfo('Account created! Redirecting…');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
+      setInfo('');
     } finally {
       setLoading(false);
     }
@@ -43,8 +75,9 @@ function RegisterPage({ onSwitch, onGuest }) {
         <p className="auth-subtitle">Free forever — no credit card required</p>
 
         {error && <div className="auth-error">{error}</div>}
+        {info && !error && <div className="auth-info">{info}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" noValidate>
           <div className="auth-field">
             <label>Name</label>
             <input

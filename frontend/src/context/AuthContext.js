@@ -111,7 +111,12 @@ export function AuthProvider({ children }) {
     const token = res?.token || res?.access_token;
     const u = res?.user;
     if (!token) {
-      throw new Error('Account was created but no token was returned.');
+      const keys = res && typeof res === 'object' ? Object.keys(res).join(', ') : typeof res;
+      throw new Error(
+        `Registration response missing token. Received keys: [${keys || 'none'}]. ` +
+        'This usually indicates the frontend hit the wrong endpoint/service (HTML or non-auth JSON) ' +
+        'instead of the API /auth/register route.'
+      );
     }
     localStorage.setItem('ztd_token', token);
     const resolvedUser = u || (await api.me());

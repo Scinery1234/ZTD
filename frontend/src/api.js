@@ -55,7 +55,32 @@ async function apiFetch(path, options = {}) {
   } finally {
     window.clearTimeout(timeoutId);
   }
-  const data = await res.json().catch(() => ({}));
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const raw = await res.text();
+  let data = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = {};
+    }
+  }
+
+  // If we got HTML here, request likely hit the frontend service (or SPA fallback) not the API.
+  if (contentType.includes('text/html')) {
+    const isAuthPath = href.startsWith('/auth/');
+    const prefix = isAuthPath
+      ? 'Authentication request reached non-API endpoint.'
+      : 'API request reached non-API endpoint.';
+    throw Object.assign(
+      new Error(
+        `${prefix} Expected JSON but received HTML from ${url}. ` +
+        'This usually means REACT_APP_API_URL points to the frontend URL (or missing /api), ' +
+        'or your host rewrote /api/* to index.html.'
+      ),
+      { status: res.status, data: { raw: raw.slice(0, 200) } }
+    );
+  }
   if (!res.ok) {
     if (res.status === 401 && data.token_expired) {
       // Token expired mid-session — signal AuthContext to log out

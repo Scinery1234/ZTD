@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["python311", "nodejs_18"]
+nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt", "cd frontend && npm ci"]
-
-[phases.build]
-cmds = ["cd frontend && npm run build"]
+cmds = ["python3 -m pip install -r requirements.txt"]
 
 [start]
 cmd = "gunicorn -c gunicorn_config.py --bind 0.0.0.0:$PORT --workers 2 wsgi:app"

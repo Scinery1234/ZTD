@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
+import { asArray } from '../utils/arrays';
 import './PricingPage.css';
 
 const TIER_ORDER = ['free', 'pro', 'premium'];
@@ -85,7 +86,7 @@ function PricingPage({ onBack }) {
               </div>
 
               <ul className="tier-features">
-                {(tier.features || []).map((feature, i) => (
+                {asArray(tier.features).map((feature, i) => (
                   <li key={i}>
                     <span className="feature-check">✓</span> {feature}
                   </li>

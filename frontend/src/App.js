@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { api } from './api';
+import { asArray } from './utils/arrays';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
 import TaskFilters from './components/TaskFilters';
@@ -269,7 +270,7 @@ function TaskApp() {
   const fetchTasks = useCallback(async () => {
     try {
       const data = await api.getTasks();
-      setTasks(data);
+      setTasks(asArray(data));
     } catch (err) {
       console.error('Error fetching tasks:', err);
     }
@@ -278,7 +279,7 @@ function TaskApp() {
   const fetchDoneTasks = useCallback(async () => {
     try {
       const data = await api.getDoneTasks();
-      setDoneTasks(data);
+      setDoneTasks(asArray(data));
     } catch (err) {
       console.error('Error fetching done tasks:', err);
     }
@@ -287,7 +288,7 @@ function TaskApp() {
   const fetchHats = async () => {
     try {
       const data = await api.getHats();
-      setHats(data);
+      setHats(asArray(data));
     } catch (err) {
       console.error('Error fetching hats:', err);
     }

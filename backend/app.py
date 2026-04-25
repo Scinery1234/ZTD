@@ -149,9 +149,14 @@ class Task(db.Model):
 
     def subtasks_list(self):
         try:
-            return json.loads(self.subtasks or '[]')
+            raw = json.loads(self.subtasks or '[]')
         except Exception:
             return []
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, dict):
+            return list(raw.values())
+        return []
 
     def to_dict(self):
         return {
@@ -185,9 +190,14 @@ class DoneTask(db.Model):
 
     def subtasks_list(self):
         try:
-            return json.loads(self.subtasks or '[]')
+            raw = json.loads(self.subtasks or '[]')
         except Exception:
             return []
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, dict):
+            return list(raw.values())
+        return []
 
     def to_dict(self):
         return {

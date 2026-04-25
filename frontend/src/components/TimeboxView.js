@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { asSubtaskList } from '../utils/arrays';
 import './TimeboxView.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
     category: task.category || '',
     priority: task.priority || '',
     hat_id: task.hat_id ?? '',
-    subtasks: task.subtasks ? task.subtasks.map(s => ({ ...s })) : [],
+    subtasks: asSubtaskList(task.subtasks).map((s) => ({ ...s })),
   });
 
   const handleSave = () => {

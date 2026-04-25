@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { asSubtaskList } from '../utils/arrays';
 import './TaskItem.css';
 
 let subtaskIdCounter = Date.now();
@@ -40,17 +41,17 @@ const TaskItem = ({
     priority: task.priority || '',
     recurring: task.recurring || '',
     due: task.due || '',
-    subtasks: task.subtasks ? [...task.subtasks] : [],
+    subtasks: asSubtaskList(task.subtasks),
   });
 
   // Local subtask state for view-mode toggling (without a full save)
-  const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
+  const [localSubtasks, setLocalSubtasks] = useState(() => asSubtaskList(task.subtasks));
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
 
   // Sync local subtasks if task prop changes
   React.useEffect(() => {
-    setLocalSubtasks(task.subtasks || []);
+    setLocalSubtasks(asSubtaskList(task.subtasks));
   }, [task.subtasks]);
 
   const getPriorityClass = (priority) => ({

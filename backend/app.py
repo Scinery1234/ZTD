@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
 import json
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timedelta
 import dateparser
 import stripe
@@ -30,9 +31,19 @@ def _sqlalchemy_database_uri() -> str:
     url = os.getenv("DATABASE_URL", default_sqlite)
     # Heroku / Railway: postgres:// is deprecated in SQLAlchemy; normalize to postgresql+psycopg2
     if url.startswith("postgres://"):
-        return "postgresql+psycopg2://" + url.removeprefix("postgres://")
-    if url.startswith("postgresql://"):
-        return "postgresql+psycopg2://" + url.removeprefix("postgresql://")
+        url = "postgresql+psycopg2://" + url.removeprefix("postgres://")
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
+        url = "postgresql+psycopg2://" + url.removeprefix("postgresql://")
+    if url.startswith("postgresql+psycopg2://"):
+        parts = urlsplit(url)
+        q = dict(parse_qsl(parts.query, keep_blank_values=True))
+        ssl = os.getenv("DATABASE_SSLMODE", "require")
+        if "sslmode" not in q and ssl and ssl.lower() != "disable":
+            q["sslmode"] = ssl
+        if q and urlencode(q) != parts.query:
+            url = urlunsplit(
+                (parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment)
+            )
     return url
 
 

@@ -1,4 +1,4 @@
-const API_URL = process.env.REACT_APP_API_URL || '/api';
+const API_URL = (process.env.REACT_APP_API_URL || '/api').replace(/\/$/, '');
 
 function getToken() {
   return localStorage.getItem('ztd_token');
@@ -12,10 +12,30 @@ function authHeaders() {
 }
 
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  const href = path.startsWith('/') ? path : `/${path}`;
+  const url = `${API_URL}${href}`;
+
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  } catch (e) {
+    const isNetwork = e && (e.name === 'TypeError' || /failed to fetch|networkerror|load failed/i.test(String(e.message || '')));
+    if (isNetwork) {
+      const hint =
+        (typeof window !== 'undefined' &&
+          process.env.REACT_APP_API_URL == null &&
+          !/\/localhost(?::\d+)?$/.test(window.location.host))
+          ? ' Set REACT_APP_API_URL in your hosting build to your public API base URL, including /api (then redeploy the frontend).'
+          : ' Check that the API is running and CORS is allowed for this site.';
+      throw new Error(
+        `Cannot reach the server (${url}).${hint} (${e.message || 'network'})`
+      );
+    }
+    throw e;
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && data.token_expired) {

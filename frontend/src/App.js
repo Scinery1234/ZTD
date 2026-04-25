@@ -526,8 +526,16 @@ function AppRoot() {
     if (guestMode) {
       return (
         <GuestTaskApp
-          onSignUp={() => { setGuestMode(false); setAuthView('register'); }}
-          onLogin={() => { setGuestMode(false); setAuthView('login'); }}
+          onSignUp={() => {
+            setGuestMode(false);
+            setAuthView('register');
+            window.scrollTo(0, 0);
+          }}
+          onLogin={() => {
+            setGuestMode(false);
+            setAuthView('login');
+            window.scrollTo(0, 0);
+          }}
         />
       );
     }

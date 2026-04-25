@@ -20,11 +20,23 @@ app = Flask(__name__)
 CORS(app)
 
 # --- Configuration ---
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    'DATABASE_URL',
-    f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
-)
+
+
+def _sqlalchemy_database_uri() -> str:
+    """Local dev uses SQLite; use DATABASE_URL (e.g. Railway Postgres) in production."""
+    default_sqlite = f"sqlite:///{os.path.join(BASE_DIR, 'ztd.db')}"
+    url = os.getenv("DATABASE_URL", default_sqlite)
+    # Heroku / Railway: postgres:// is deprecated in SQLAlchemy; normalize to postgresql+psycopg2
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url.removeprefix("postgresql://")
+    return url
+
+
+app.config["SQLALCHEMY_DATABASE_URI"] = _sqlalchemy_database_uri()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)

@@ -88,6 +88,17 @@
   line-height: 1.4;
 }
 
+.auth-info {
+  background: rgba(100, 200, 180, 0.12);
+  border: 1px solid rgba(100, 200, 180, 0.35);
+  color: #a7f3d0;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  margin-bottom: 18px;
+  line-height: 1.4;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,8 @@
 const API_URL = (process.env.REACT_APP_API_URL || '/api').replace(/\/$/, '');
 
+/** Avoid infinite loading if the API never responds (wrong URL, CORS hang, etc.) */
+const FETCH_TIMEOUT_MS = 30000;
+
 function getToken() {
   return localStorage.getItem('ztd_token');
 }
@@ -16,12 +19,26 @@ async function apiFetch(path, options = {}) {
   const url = `${API_URL}${href}`;
 
   let res;
+  const { skipAuth, ...restOptions } = options;
+  const baseHeaders = skipAuth
+    ? { 'Content-Type': 'application/json' }
+    : authHeaders();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     res = await fetch(url, {
-      ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) },
+      ...restOptions,
+      signal: restOptions.signal || controller.signal,
+      headers: { ...baseHeaders, ...(restOptions.headers || {}) },
     });
   } catch (e) {
+    if (e && (e.name === 'AbortError' || e.message === 'The user aborted a request.')) {
+      throw new Error(
+        `The server did not answer in time (${Math.round(
+          FETCH_TIMEOUT_MS / 1000
+        )}s). Check that the API is reachable, CORS allows this site, and REACT_APP_API_URL is correct.`
+      );
+    }
     const isNetwork = e && (e.name === 'TypeError' || /failed to fetch|networkerror|load failed/i.test(String(e.message || '')));
     if (isNetwork) {
       const hint =
@@ -35,6 +52,8 @@ async function apiFetch(path, options = {}) {
       );
     }
     throw e;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -51,9 +70,17 @@ async function apiFetch(path, options = {}) {
 export const api = {
   // Auth
   register: (name, email, password) =>
-    apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
+    apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+      skipAuth: true,
+    }),
   login: (email, password) =>
-    apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+      skipAuth: true,
+    }),
   me: () => apiFetch('/auth/me'),
 
   // Hats

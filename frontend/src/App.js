@@ -293,18 +293,37 @@ function TaskApp() {
     }
   };
 
+  // Initial load only — do not re-run on every fetchTasks/fetchDoneTasks identity change
+  // (that caused duplicate requests and could leave the screen on "Loading" forever)
+  const BOOTSTRAP_MAX_MS = 15000;
   useEffect(() => {
-    const init = async () => {
-      await Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()]);
-      setLoading(false);
-    };
-    init();
-  }, []); // eslint-disable-line
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      if (!cancelled) {
+        setLoading(false);
+        console.warn(
+          'Task load took longer than expected; showing the app. Check Network tab for stuck requests.'
+        );
+      }
+    }, BOOTSTRAP_MAX_MS);
 
-  // Re-fetch tasks when hat changes
-  useEffect(() => {
-    fetchTasks();
-    fetchDoneTasks();
+    (async () => {
+      try {
+        await Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()]);
+      } catch (e) {
+        console.error('Bootstrap fetch failed:', e);
+      } finally {
+        if (!cancelled) {
+          window.clearTimeout(t);
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [fetchTasks, fetchDoneTasks]);
 
   const toggleHat = (hatId) => {

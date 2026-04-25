@@ -6,11 +6,13 @@ function RegisterPage({ onSwitch, onGuest }) {
   const { register } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setStatusMessage('');
 
     if (form.password !== form.confirm) {
       setError('Passwords do not match.');
@@ -22,10 +24,13 @@ function RegisterPage({ onSwitch, onGuest }) {
     }
 
     setLoading(true);
+    setStatusMessage('Contacting the server...');
     try {
       await register(form.name, form.email, form.password);
+      setStatusMessage("Success! Setting up your workspace...");
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
+      setStatusMessage('');
     } finally {
       setLoading(false);
     }
@@ -43,6 +48,11 @@ function RegisterPage({ onSwitch, onGuest }) {
         <p className="auth-subtitle">Free forever — no credit card required</p>
 
         {error && <div className="auth-error">{error}</div>}
+        {statusMessage && !error && (
+          <div className="auth-info" role="status">
+            {statusMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-field">

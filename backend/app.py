@@ -278,7 +278,8 @@ def register():
     db.session.commit()
 
     token = create_access_token(identity=str(user.id))
-    return jsonify({'token': token, 'user': user.to_dict()}), 201
+    # Return both keys for compatibility across mixed frontend/backend deploys.
+    return jsonify({'token': token, 'access_token': token, 'user': user.to_dict()}), 201
 
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -294,7 +295,8 @@ def login():
         return jsonify({'error': 'Invalid email or password'}), 401
 
     token = create_access_token(identity=str(user.id))
-    return jsonify({'token': token, 'user': user.to_dict()})
+    # Return both keys for compatibility across mixed frontend/backend deploys.
+    return jsonify({'token': token, 'access_token': token, 'user': user.to_dict()})
 
 
 @app.route('/api/auth/me', methods=['GET'])

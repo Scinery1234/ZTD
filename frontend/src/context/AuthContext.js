@@ -90,7 +90,9 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const login = async (email, password) => {
-    const { token, user: u } = await api.login(email, password);
+    const res = await api.login(email, password);
+    const token = res?.token || res?.access_token;
+    const u = res?.user;
     if (!token) {
       throw new Error('Login succeeded but no token was returned.');
     }
@@ -105,7 +107,9 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password) => {
-    const { token, user: u } = await api.register(name, email, password);
+    const res = await api.register(name, email, password);
+    const token = res?.token || res?.access_token;
+    const u = res?.user;
     if (!token) {
       throw new Error('Account was created but no token was returned.');
     }

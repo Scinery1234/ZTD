@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-# Bind all interfaces — plain "-l $PORT" can listen on localhost only, so Railway's healthcheck fails
-startCommand = "serve -s build -l tcp://0.0.0.0:$PORT"
+# npm run expands $PORT; a raw "serve ... $PORT" start can run without a shell and leave $PORT literal
+startCommand = "npm run serve:prod"
 healthcheckPath = "/"
 restartPolicyType = "on_failure"

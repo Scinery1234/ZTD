@@ -3,6 +3,18 @@ import { api } from '../api';
 
 const AuthContext = createContext(null);
 
+const SUBSCRIPTION_FETCH_MS = 8000;
+
+/** Stripe/slow network must not block login, register, or first paint. */
+function loadSubscriptionRaced() {
+  return Promise.race([
+    api.getSubscription(),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('subscription timeout')), SUBSCRIPTION_FETCH_MS);
+    }),
+  ]);
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [subscription, setSubscription] = useState(null);
@@ -10,10 +22,10 @@ export function AuthProvider({ children }) {
 
   const loadSubscription = useCallback(async () => {
     try {
-      const sub = await api.getSubscription();
+      const sub = await loadSubscriptionRaced();
       setSubscription(sub);
     } catch {
-      // Non-fatal
+      setSubscription(null);
     }
   }, []);
 
@@ -39,11 +51,8 @@ export function AuthProvider({ children }) {
         if (done) return;
         window.clearTimeout(t);
         setUser(u);
-        try {
-          await loadSubscription();
-        } catch {
-          setSubscription(null);
-        }
+        // Never await — can hang on Stripe; race inside loadSubscription caps wait time
+        void loadSubscription();
       } catch {
         if (done) return;
         window.clearTimeout(t);
@@ -84,12 +93,7 @@ export function AuthProvider({ children }) {
     const { token, user: u } = await api.login(email, password);
     localStorage.setItem('ztd_token', token);
     setUser(u);
-    // Never block sign-in if subscription/Stripe call fails
-    try {
-      await loadSubscription();
-    } catch {
-      setSubscription(null);
-    }
+    void loadSubscription();
     return u;
   };
 
@@ -97,11 +101,7 @@ export function AuthProvider({ children }) {
     const { token, user: u } = await api.register(name, email, password);
     localStorage.setItem('ztd_token', token);
     setUser(u);
-    try {
-      await loadSubscription();
-    } catch {
-      setSubscription(null);
-    }
+    void loadSubscription();
     return u;
   };
 

@@ -247,7 +247,7 @@ function TaskApp() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [viewMode, setViewMode] = useState('active');
-  const [loading, setLoading] = useState(true);
+  const [dataSyncing, setDataSyncing] = useState(true);
   const [categoryOrder, setCategoryOrder] = useState([]);
   const [showPricing, setShowPricing] = useState(false);
   const [limitError, setLimitError] = useState('');
@@ -294,37 +294,12 @@ function TaskApp() {
     }
   };
 
-  // Initial load only — do not re-run on every fetchTasks/fetchDoneTasks identity change
-  // (that caused duplicate requests and could leave the screen on "Loading" forever)
-  const BOOTSTRAP_MAX_MS = 15000;
+  // Load in background — shell renders immediately; banner until first sync completes
   useEffect(() => {
-    let cancelled = false;
-    const t = window.setTimeout(() => {
-      if (!cancelled) {
-        setLoading(false);
-        console.warn(
-          'Task load took longer than expected; showing the app. Check Network tab for stuck requests.'
-        );
-      }
-    }, BOOTSTRAP_MAX_MS);
-
-    (async () => {
-      try {
-        await Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()]);
-      } catch (e) {
-        console.error('Bootstrap fetch failed:', e);
-      } finally {
-        if (!cancelled) {
-          window.clearTimeout(t);
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-    };
+    setDataSyncing(true);
+    void Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()])
+      .catch((e) => console.error('Bootstrap fetch failed:', e))
+      .finally(() => setDataSyncing(false));
   }, [fetchTasks, fetchDoneTasks]);
 
   const toggleHat = (hatId) => {
@@ -432,20 +407,17 @@ function TaskApp() {
 
   if (showPricing) return <PricingPage onBack={() => setShowPricing(false)} />;
 
-  if (loading) {
-    return (
-      <div className="app">
-        <div className="loading">Loading your tasks…</div>
-      </div>
-    );
-  }
-
   const atLimit = subscription?.at_limit;
 
   return (
     <div className="app">
       <Header onShowPricing={() => setShowPricing(true)} />
       <div className="container">
+        {dataSyncing && (
+          <div className="sync-banner" role="status">
+            Syncing your tasks…
+          </div>
+        )}
         {limitError && (
           <div className="limit-banner">
             {limitError}{' '}

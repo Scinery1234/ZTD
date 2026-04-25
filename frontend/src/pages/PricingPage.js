@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import { asArray } from '../utils/arrays';
+import { mergeTiersFromApi } from '../constants/tiers';
 import './PricingPage.css';
 
 const TIER_ORDER = ['free', 'pro', 'premium'];
@@ -14,9 +15,13 @@ function PricingPage({ onBack }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.getTiers()
-      .then(setTiers)
-      .catch(() => setError('Failed to load pricing. Please try again.'))
+    api
+      .getTiers()
+      .then((data) => setTiers(mergeTiersFromApi(data)))
+      .catch(() => {
+        setTiers(mergeTiersFromApi(null));
+        setError('Could not reach the server for live pricing. Showing default plans.');
+      })
       .finally(() => setLoading(false));
   }, []);
 

@@ -1,4 +1,22 @@
-const API_URL = (process.env.REACT_APP_API_URL || '/api').replace(/\/$/, '');
+function normalizeApiBase(raw) {
+  const value = (raw || '/api').trim();
+  if (value === '/api') return value;
+  if (/^https?:\/\//i.test(value)) return value.replace(/\/$/, '');
+  if (value.startsWith('//')) {
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${protocol}${value}`.replace(/\/$/, '');
+  }
+  // Common Railway misconfig: "my-api.up.railway.app/api" (missing protocol)
+  if (/^[\w.-]+(?:\:\d+)?(\/.*)?$/.test(value) && !value.startsWith('/')) {
+    const prefixed = value.startsWith('localhost') || value.startsWith('127.0.0.1')
+      ? `http://${value}`
+      : `https://${value}`;
+    return prefixed.replace(/\/$/, '');
+  }
+  return value.replace(/\/$/, '');
+}
+
+const API_URL = normalizeApiBase(process.env.REACT_APP_API_URL || '/api');
 
 /** Avoid infinite loading if the API never responds (wrong URL, CORS hang, etc.) */
 const FETCH_TIMEOUT_MS = 30000;

@@ -7,7 +7,7 @@ function normalizeApiBase(raw) {
     return `${protocol}${value}`.replace(/\/$/, '');
   }
   // Common Railway misconfig: "my-api.up.railway.app/api" (missing protocol)
-  if (/^[\w.-]+(?:\:\d+)?(\/.*)?$/.test(value) && !value.startsWith('/')) {
+  if (/^[\w.-]+(?::\d+)?(\/.*)?$/.test(value) && !value.startsWith('/')) {
     const prefixed = value.startsWith('localhost') || value.startsWith('127.0.0.1')
       ? `http://${value}`
       : `https://${value}`;
@@ -17,6 +17,16 @@ function normalizeApiBase(raw) {
 }
 
 const API_URL = normalizeApiBase(process.env.REACT_APP_API_URL || '/api');
+const IS_RAILWAY_HOST =
+  typeof window !== 'undefined' && /\.up\.railway\.app$/i.test(window.location.hostname);
+
+function railwayApiHint() {
+  if (!IS_RAILWAY_HOST) return '';
+  return (
+    ' Railway fix: set REACT_APP_API_URL to your backend service public domain with /api ' +
+    '(example: https://your-backend.up.railway.app/api), then redeploy the frontend.'
+  );
+}
 
 /** Avoid infinite loading if the API never responds (wrong URL, CORS hang, etc.) */
 const FETCH_TIMEOUT_MS = 30000;
@@ -63,7 +73,7 @@ async function apiFetch(path, options = {}) {
         (typeof window !== 'undefined' &&
           process.env.REACT_APP_API_URL == null &&
           !/\/localhost(?::\d+)?$/.test(window.location.host))
-          ? ' Set REACT_APP_API_URL in your hosting build to your public API base URL, including /api (then redeploy the frontend).'
+          ? ` Set REACT_APP_API_URL in your hosting build to your public API base URL, including /api (then redeploy the frontend).${railwayApiHint()}`
           : ' Check that the API is running and CORS is allowed for this site.';
       throw new Error(
         `Cannot reach the server (${url}).${hint} (${e.message || 'network'})`
@@ -94,7 +104,7 @@ async function apiFetch(path, options = {}) {
       new Error(
         `${prefix} Expected JSON but received HTML from ${url}. ` +
         'This usually means REACT_APP_API_URL points to the frontend URL (or missing /api), ' +
-        'or your host rewrote /api/* to index.html.'
+        `or your host rewrote /api/* to index.html.${railwayApiHint()}`
       ),
       { status: res.status, data: { raw: raw.slice(0, 200) } }
     );

@@ -14,6 +14,7 @@ import TimeboxView from './components/TimeboxView';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
+import LooseThreads from './components/LooseThreads';
 import {
   DndContext,
   closestCenter,
@@ -128,37 +129,40 @@ function GuestTaskApp({ onSignUp, onLogin }) {
         </div>
       </div>
       <Header onShowPricing={null} guestMode />
-      <div className="container">
-        <div className="view-controls">
-          <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>Active Tasks</button>
-          <button className={`view-btn ${viewMode === 'done' ? 'active' : ''}`} onClick={() => setViewMode('done')}>Completed ({doneTasks.length})</button>
+      <div className="app-body">
+        <div className="container">
+          <div className="view-controls">
+            <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>Active Tasks</button>
+            <button className={`view-btn ${viewMode === 'done' ? 'active' : ''}`} onClick={() => setViewMode('done')}>Completed ({doneTasks.length})</button>
+          </div>
+
+          {viewMode === 'active' && (
+            <>
+              <TaskForm onAdd={addTask} categories={getCategories()} />
+              <TaskList
+                tasks={getFilteredTasks()}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+                onMarkDone={markDone}
+                onReorder={(reordered) => persist(reordered, undefined)}
+                viewMode="active"
+              />
+              <TaskFilters
+                filter={filter}
+                setFilter={setFilter}
+                categories={getCategories()}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                selectedPriority={selectedPriority}
+                setSelectedPriority={setSelectedPriority}
+              />
+              <Stats tasks={tasks} doneTasks={doneTasks} />
+            </>
+          )}
+
+          {viewMode === 'done' && <TaskList tasks={doneTasks} viewMode="done" />}
         </div>
-
-        {viewMode === 'active' && (
-          <>
-            <TaskForm onAdd={addTask} categories={getCategories()} />
-            <TaskList
-              tasks={getFilteredTasks()}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-              onMarkDone={markDone}
-              onReorder={(reordered) => persist(reordered, undefined)}
-              viewMode="active"
-            />
-            <TaskFilters
-              filter={filter}
-              setFilter={setFilter}
-              categories={getCategories()}
-              selectedCategory={selectedCategory}
-              setSelectedCategory={setSelectedCategory}
-              selectedPriority={selectedPriority}
-              setSelectedPriority={setSelectedPriority}
-            />
-            <Stats tasks={tasks} doneTasks={doneTasks} />
-          </>
-        )}
-
-        {viewMode === 'done' && <TaskList tasks={doneTasks} viewMode="done" />}
+        <LooseThreads />
       </div>
     </div>
   );
@@ -412,101 +416,104 @@ function TaskApp() {
   return (
     <div className="app">
       <Header onShowPricing={() => setShowPricing(true)} />
-      <div className="container">
-        {dataSyncing && (
-          <div className="sync-banner" role="status">
-            Syncing your tasks…
+      <div className="app-body">
+        <div className="container">
+          {dataSyncing && (
+            <div className="sync-banner" role="status">
+              Syncing your tasks…
+            </div>
+          )}
+          {limitError && (
+            <div className="limit-banner">
+              {limitError}{' '}
+              <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade now</button>
+            </div>
+          )}
+
+          {/* Hat bar */}
+          <HatBar
+            hats={hats}
+            selectedHatIds={selectedHatIds}
+            onToggleHat={toggleHat}
+            onHatsChange={setHats}
+          />
+
+          {/* View tabs */}
+          <div className="view-controls">
+            <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>
+              Tasks
+            </button>
+            <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
+              By Category
+            </button>
+            <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
+              Timebox
+            </button>
           </div>
-        )}
-        {limitError && (
-          <div className="limit-banner">
-            {limitError}{' '}
-            <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade now</button>
-          </div>
-        )}
 
-        {/* Hat bar */}
-        <HatBar
-          hats={hats}
-          selectedHatIds={selectedHatIds}
-          onToggleHat={toggleHat}
-          onHatsChange={setHats}
-        />
+          {viewMode === 'active' && (
+            <>
+              {atLimit ? (
+                <div className="limit-banner">
+                  Task limit reached.{' '}
+                  <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
+                </div>
+              ) : (
+                <TaskForm onAdd={addTask} categories={getCategories()} />
+              )}
+              <TaskFilters
+                filter={filter}
+                setFilter={setFilter}
+                categories={getCategories()}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                selectedPriority={selectedPriority}
+                setSelectedPriority={setSelectedPriority}
+              />
+              <TaskList
+                tasks={getFilteredTasks()}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+                onMarkDone={markDone}
+                onReorder={reorderTasks}
+                onCategoryClick={(category) => {
+                  setViewMode('categories');
+                  setTimeout(() => {
+                    const el = document.querySelector(`[data-category="${category}"]`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                viewMode="active"
+              />
+              <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
+              <CompletedSection doneTasks={doneTasks} />
+            </>
+          )}
 
-        {/* View tabs */}
-        <div className="view-controls">
-          <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>
-            Tasks
-          </button>
-          <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
-            By Category
-          </button>
-          <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
-            Timebox
-          </button>
-        </div>
-
-        {viewMode === 'active' && (
-          <>
-            {atLimit ? (
-              <div className="limit-banner">
-                Task limit reached.{' '}
-                <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
-              </div>
-            ) : (
-              <TaskForm onAdd={addTask} categories={getCategories()} />
-            )}
-            <TaskFilters
-              filter={filter}
-              setFilter={setFilter}
+          {viewMode === 'categories' && (
+            <CategoriesView
               categories={getCategories()}
-              selectedCategory={selectedCategory}
-              setSelectedCategory={setSelectedCategory}
-              selectedPriority={selectedPriority}
-              setSelectedPriority={setSelectedPriority}
-            />
-            <TaskList
-              tasks={getFilteredTasks()}
+              tasks={getVisibleTasks()}
               onUpdate={updateTask}
               onDelete={deleteTask}
               onMarkDone={markDone}
-              onReorder={reorderTasks}
-              onCategoryClick={(category) => {
-                setViewMode('categories');
-                setTimeout(() => {
-                  const el = document.querySelector(`[data-category="${category}"]`);
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-              }}
-              viewMode="active"
+              onAddTask={addTask}
+              categoryOrder={categoryOrder}
+              onReorderCategories={saveCategoryOrder}
             />
-            <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
-            <CompletedSection doneTasks={doneTasks} />
-          </>
-        )}
+          )}
 
-        {viewMode === 'categories' && (
-          <CategoriesView
-            categories={getCategories()}
-            tasks={getVisibleTasks()}
-            onUpdate={updateTask}
-            onDelete={deleteTask}
-            onMarkDone={markDone}
-            onAddTask={addTask}
-            categoryOrder={categoryOrder}
-            onReorderCategories={saveCategoryOrder}
-          />
-        )}
-
-        {viewMode === 'timebox' && (
-          <TimeboxView
-            tasks={getVisibleTasks()}
-            hats={hats}
-            onUpdate={updateTask}
-            onAddTask={addTask}
-            maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
-          />
-        )}
+          {viewMode === 'timebox' && (
+            <TimeboxView
+              tasks={getVisibleTasks()}
+              hats={hats}
+              onUpdate={updateTask}
+              onAddTask={addTask}
+              maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
+            />
+          )}
+        </div>
+        <LooseThreads />
       </div>
     </div>
   );

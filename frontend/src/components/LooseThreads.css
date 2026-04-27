@@ -1,0 +1,368 @@
+/* ---- Loose Threads side panel ---- */
+
+.lt-panel {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.lt-panel--collapsed {
+  width: 44px;
+  min-width: 44px;
+}
+
+/* Panel header */
+.lt-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.lt-panel--collapsed .lt-panel-header {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.lt-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.lt-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lt-new-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.lt-new-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
+.lt-collapse-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.lt-collapse-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Panel body */
+.lt-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.lt-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.lt-panel-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+
+/* Empty state */
+.lt-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 13px;
+}
+
+.lt-empty p {
+  margin: 0 0 12px;
+}
+
+.lt-empty-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lt-empty-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.lt-hint {
+  padding: 12px 14px 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  text-align: center;
+}
+
+.lt-slot-hint {
+  padding: 4px 14px 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.2);
+  text-align: right;
+}
+
+/* Editors stack */
+.lt-editors {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Individual editor */
+.lt-editor {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.lt-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  gap: 8px;
+}
+
+.lt-editor-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.lt-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 16px;
+  line-height: 1;
+  font-family: inherit;
+  padding: 0 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.lt-close-btn:hover {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Toolbar */
+.lt-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px 6px;
+}
+
+.lt-toolbar-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 2px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  line-height: 1.6;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  min-width: 26px;
+  text-align: center;
+}
+
+.lt-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lt-toolbar-btn--italic {
+  font-style: italic;
+}
+
+.lt-toolbar-btn--strike {
+  text-decoration: line-through;
+}
+
+/* Contenteditable body */
+.lt-editor-body {
+  padding: 4px 12px 14px;
+  min-height: 100px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+  outline: none;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+.lt-editor-body::-webkit-scrollbar {
+  width: 3px;
+}
+
+.lt-editor-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+}
+
+.lt-editor-body:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.lt-editor-body ul,
+.lt-editor-body ol {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.lt-editor-body li {
+  margin: 2px 0;
+}
+
+/* Saved notes list */
+.lt-list {
+  padding: 10px 0 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lt-list-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.2);
+  padding: 0 14px 6px;
+}
+
+.lt-list-item {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 14px;
+  gap: 4px;
+}
+
+.lt-list-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lt-list-open {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  transition: color 0.12s;
+}
+
+.lt-list-open:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.lt-list-open:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lt-list-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.lt-list-date {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lt-list-delete {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.18);
+  font-size: 15px;
+  font-family: inherit;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.12s;
+  flex-shrink: 0;
+}
+
+.lt-list-delete:hover {
+  color: rgba(255, 100, 100, 0.7);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .lt-panel {
+    display: none;
+  }
+}

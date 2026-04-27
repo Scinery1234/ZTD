@@ -1,11 +1,23 @@
 .app {
   min-height: 100vh;
-  padding: 24px 20px 60px;
+  padding-top: 24px;
+  padding-bottom: 60px;
+}
+
+/* Side-by-side layout: main content + Loose Threads panel */
+.app-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 0 20px;
+  max-width: 1300px;
+  margin: 0 auto;
 }
 
 .container {
+  flex: 1;
+  min-width: 0;
   max-width: 860px;
-  margin: 0 auto;
 }
 
 .loading {
@@ -204,9 +216,20 @@
   opacity: 0.7;
 }
 
+@media (max-width: 900px) {
+  .app-body {
+    padding: 0 12px;
+    gap: 0;
+  }
+}
+
 @media (max-width: 640px) {
   .app {
-    padding: 16px 12px 40px;
+    padding-top: 16px;
+    padding-bottom: 40px;
+  }
+  .app-body {
+    padding: 0 12px;
   }
   .view-controls {
     gap: 2px;

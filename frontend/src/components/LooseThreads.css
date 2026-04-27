@@ -1,7 +1,9 @@
 /* ---- Loose Threads side panel ---- */
 
 .lt-panel {
-  width: 300px;
+  width: 33vw;
+  min-width: 260px;
+  max-width: 420px;
   flex-shrink: 0;
   position: sticky;
   top: 24px;
@@ -12,12 +14,13 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   overflow: hidden;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, min-width 0.2s ease;
 }
 
 .lt-panel--collapsed {
   width: 44px;
   min-width: 44px;
+  max-width: 44px;
 }
 
 /* Panel header */
@@ -169,12 +172,10 @@
   gap: 8px;
 }
 
-.lt-editor-title {
+.lt-editor-date {
   font-size: 11px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.35);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
@@ -303,9 +304,8 @@
 .lt-list-open {
   flex: 1;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.55);
@@ -327,19 +327,23 @@
   cursor: not-allowed;
 }
 
-.lt-list-title {
+.lt-list-date-primary {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.lt-list-open:hover .lt-list-date-primary {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.lt-list-snippet {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-}
-
-.lt-list-date {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.2);
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .lt-list-delete {
@@ -358,6 +362,106 @@
 
 .lt-list-delete:hover {
   color: rgba(255, 100, 100, 0.7);
+}
+
+/* Trash section */
+.lt-trash-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 0 10px;
+}
+
+.lt-trash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.lt-trash-toggle:hover {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.lt-trash-count {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 1px 6px;
+  font-size: 10px;
+}
+
+.lt-trash-list {
+  padding: 4px 0 0;
+}
+
+.lt-trash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 4px 14px;
+  gap: 6px;
+}
+
+.lt-trash-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lt-trash-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.lt-trash-date {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.lt-trash-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.lt-trash-restore {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.lt-trash-restore:hover {
+  color: rgba(100, 200, 150, 0.8);
+}
+
+.lt-trash-delete {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.18);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.lt-trash-delete:hover {
+  color: rgba(255, 80, 80, 0.7);
 }
 
 /* Responsive */

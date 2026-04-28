@@ -169,7 +169,7 @@ function GuestTaskApp({ onSignUp, onLogin }) {
 }
 
 // ---- Completed tasks collapsible section ----
-function CompletedSection({ doneTasks }) {
+function CompletedSection({ doneTasks, onUnmarkDone }) {
   const [open, setOpen] = useState(false);
   if (doneTasks.length === 0) return null;
   return (
@@ -181,7 +181,7 @@ function CompletedSection({ doneTasks }) {
       </button>
       {open && (
         <div className="completed-list">
-          <TaskList tasks={doneTasks} viewMode="done" />
+          <TaskList tasks={doneTasks} viewMode="done" onUnmarkDone={onUnmarkDone} />
         </div>
       )}
     </div>
@@ -370,6 +370,17 @@ function TaskApp() {
     }
   };
 
+  const unmarkDone = async (doneTaskId) => {
+    try {
+      await api.unmarkDone(doneTaskId);
+      await fetchTasks();
+      await fetchDoneTasks();
+      await refreshSubscription();
+    } catch (err) {
+      console.error('Error restoring task:', err);
+    }
+  };
+
   const reorderTasks = async (reorderedTasks) => {
     try {
       await api.reorder(reorderedTasks);
@@ -486,7 +497,7 @@ function TaskApp() {
                 viewMode="active"
               />
               <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
-              <CompletedSection doneTasks={doneTasks} />
+              <CompletedSection doneTasks={doneTasks} onUnmarkDone={unmarkDone} />
             </>
           )}
 

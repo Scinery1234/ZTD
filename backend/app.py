@@ -567,6 +567,30 @@ def mark_task_done(task_id):
     return jsonify(done_task.to_dict())
 
 
+@app.route('/api/tasks/done/<int:done_task_id>/restore', methods=['POST'])
+@jwt_required()
+def restore_done_task(done_task_id):
+    user_id = int(get_jwt_identity())
+    done_task = DoneTask.query.filter_by(id=done_task_id, user_id=user_id).first()
+    if not done_task:
+        return jsonify({'error': 'Task not found'}), 404
+
+    task = Task(
+        user_id=user_id,
+        hat_id=done_task.hat_id,
+        description=done_task.description,
+        category=done_task.category,
+        priority=done_task.priority,
+        recurring=done_task.recurring,
+        due=done_task.due,
+        subtasks=done_task.subtasks,
+    )
+    db.session.add(task)
+    db.session.delete(done_task)
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
 @app.route('/api/tasks/done', methods=['GET'])
 @jwt_required()
 def get_done_tasks():

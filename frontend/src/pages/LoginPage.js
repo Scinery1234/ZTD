@@ -5,6 +5,7 @@ import './AuthPages.css';
 function LoginPage({ onSwitch, onGuest, onRegister }) {
   const { login } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -13,7 +14,7 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
     setError('');
     setLoading(true);
     try {
-      await login(form.email, form.password);
+      await login(form.email, form.password, remember);
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
@@ -70,6 +71,15 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
               required
             />
           </div>
+
+          <label className="auth-remember">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+            />
+            Stay signed in
+          </label>
 
           <button type="submit" className="auth-btn" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}

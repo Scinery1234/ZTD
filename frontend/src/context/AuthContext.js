@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('ztd_token');
+    const token = localStorage.getItem('ztd_token') || sessionStorage.getItem('ztd_token');
     if (!token) {
       setLoading(false);
       return undefined;
@@ -57,6 +57,7 @@ export function AuthProvider({ children }) {
         if (done) return;
         window.clearTimeout(t);
         localStorage.removeItem('ztd_token');
+        sessionStorage.removeItem('ztd_token');
       } finally {
         if (!done) {
           done = true;
@@ -89,14 +90,20 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
-  const login = async (email, password) => {
+  const login = async (email, password, remember = true) => {
     const res = await api.login(email, password);
     const token = res?.token || res?.access_token;
     const u = res?.user;
     if (!token) {
       throw new Error('Login succeeded but no token was returned.');
     }
-    localStorage.setItem('ztd_token', token);
+    if (remember) {
+      localStorage.setItem('ztd_token', token);
+      sessionStorage.removeItem('ztd_token');
+    } else {
+      sessionStorage.setItem('ztd_token', token);
+      localStorage.removeItem('ztd_token');
+    }
     const resolvedUser = u || (await api.me());
     if (!resolvedUser) {
       throw new Error('Login succeeded but account data could not be loaded.');
@@ -130,6 +137,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem('ztd_token');
+    sessionStorage.removeItem('ztd_token');
     setUser(null);
     setSubscription(null);
   };

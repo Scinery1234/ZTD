@@ -32,7 +32,12 @@ function railwayApiHint() {
 const FETCH_TIMEOUT_MS = 30000;
 
 function getToken() {
-  return localStorage.getItem('ztd_token');
+  return localStorage.getItem('ztd_token') || sessionStorage.getItem('ztd_token');
+}
+
+function clearToken() {
+  localStorage.removeItem('ztd_token');
+  sessionStorage.removeItem('ztd_token');
 }
 
 function authHeaders() {
@@ -112,7 +117,7 @@ async function apiFetch(path, options = {}) {
   if (!res.ok) {
     if (res.status === 401 && data.token_expired) {
       // Token expired mid-session — signal AuthContext to log out
-      localStorage.removeItem('ztd_token');
+      clearToken();
       window.dispatchEvent(new Event('ztd-session-expired'));
     }
     throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
@@ -150,6 +155,7 @@ export const api = {
   updateTask: (id, data) => apiFetch(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTask: (id) => apiFetch(`/tasks/${id}`, { method: 'DELETE' }),
   markDone: (id) => apiFetch(`/tasks/${id}/done`, { method: 'POST' }),
+  unmarkDone: (id) => apiFetch(`/tasks/done/${id}/restore`, { method: 'POST' }),
   reorder: (tasks) => apiFetch('/tasks/reorder', { method: 'POST', body: JSON.stringify({ tasks }) }),
 
   // Stripe / Tiers

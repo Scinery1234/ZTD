@@ -18,9 +18,9 @@
 }
 
 .lt-panel--collapsed {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
 }
 
 /* Panel header */
@@ -233,6 +233,33 @@
 
 .lt-toolbar-btn--strike {
   text-decoration: line-through;
+}
+
+.lt-toolbar-sep {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 2px 3px;
+  align-self: stretch;
+}
+
+.lt-toolbar-btn--font {
+  font-size: 11px;
+  letter-spacing: -0.3px;
+  min-width: 24px;
+}
+
+.lt-toolbar-btn--font:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.lt-font-size-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  min-width: 18px;
+  text-align: center;
+  line-height: 1;
+  align-self: center;
 }
 
 /* Contenteditable body */
@@ -464,9 +491,20 @@
   color: rgba(255, 80, 80, 0.7);
 }
 
-/* Responsive */
+/* Mobile: panel hidden by default; shown full-width when Threads tab is active */
 @media (max-width: 900px) {
   .lt-panel {
     display: none;
+  }
+
+  .app-body--threads .lt-panel {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    position: static;
+    max-height: calc(100vh - 180px);
+    border-radius: 12px;
+    margin-top: 12px;
   }
 }

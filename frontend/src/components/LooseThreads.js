@@ -4,6 +4,8 @@ import './LooseThreads.css';
 const STORAGE_KEY = 'ztd_loose_threads';
 const TRASH_KEY   = 'ztd_loose_threads_trash';
 const MAX_OPEN    = 3;
+const FONT_SIZES  = [12, 14, 16, 18, 20];
+const DEFAULT_FONT_SIZE = 14;
 
 function load(key) {
   try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
@@ -36,8 +38,10 @@ function getSnippet(html) {
   return text.slice(0, 38) || null;
 }
 
-function NoteEditor({ note, onUpdate, onClose }) {
+function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
   const editorRef = useRef(null);
+  const fontSize = note.fontSize || DEFAULT_FONT_SIZE;
+  const sizeIdx = FONT_SIZES.indexOf(fontSize);
 
   useEffect(() => {
     if (editorRef.current) {
@@ -53,6 +57,16 @@ function NoteEditor({ note, onUpdate, onClose }) {
   const exec = (cmd) => {
     editorRef.current?.focus();
     document.execCommand(cmd, false, null);
+  };
+
+  const decreaseFont = (e) => {
+    e.preventDefault();
+    if (sizeIdx > 0) onFontSize(note.id, FONT_SIZES[sizeIdx - 1]);
+  };
+
+  const increaseFont = (e) => {
+    e.preventDefault();
+    if (sizeIdx < FONT_SIZES.length - 1) onFontSize(note.id, FONT_SIZES[sizeIdx + 1]);
   };
 
   return (
@@ -77,6 +91,20 @@ function NoteEditor({ note, onUpdate, onClose }) {
         <button className="lt-toolbar-btn lt-toolbar-btn--strike" onMouseDown={e => { e.preventDefault(); exec('strikeThrough'); }} title="Strikethrough">
           S
         </button>
+        <div className="lt-toolbar-sep" />
+        <button
+          className="lt-toolbar-btn lt-toolbar-btn--font"
+          onMouseDown={decreaseFont}
+          disabled={sizeIdx === 0}
+          title="Smaller text"
+        >A−</button>
+        <span className="lt-font-size-label">{fontSize}</span>
+        <button
+          className="lt-toolbar-btn lt-toolbar-btn--font"
+          onMouseDown={increaseFont}
+          disabled={sizeIdx === FONT_SIZES.length - 1}
+          title="Larger text"
+        >A+</button>
       </div>
       <div
         ref={editorRef}
@@ -85,6 +113,7 @@ function NoteEditor({ note, onUpdate, onClose }) {
         suppressContentEditableWarning
         onInput={handleInput}
         data-placeholder="Write here…"
+        style={{ fontSize: `${fontSize}px` }}
       />
     </div>
   );
@@ -102,7 +131,7 @@ export default function LooseThreads() {
 
   const createNote = () => {
     const now  = Date.now();
-    const note = { id: generateId(), content: '', createdAt: now, updatedAt: now };
+    const note = { id: generateId(), content: '', createdAt: now, updatedAt: now, fontSize: DEFAULT_FONT_SIZE };
     saveNotes([note, ...notes]);
     setOpenIds(prev => [note.id, ...prev].slice(0, MAX_OPEN));
   };
@@ -123,7 +152,14 @@ export default function LooseThreads() {
     });
   }, []);
 
-  // Move to trash instead of deleting permanently
+  const updateFontSize = useCallback((id, fontSize) => {
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, fontSize } : n);
+      persist(STORAGE_KEY, updated);
+      return updated;
+    });
+  }, []);
+
   const trashNote = (id) => {
     const note = notes.find(n => n.id === id);
     if (!note) return;
@@ -180,11 +216,16 @@ export default function LooseThreads() {
 
           <div className="lt-editors">
             {openNotes.map(note => (
-              <NoteEditor key={note.id} note={note} onUpdate={updateNote} onClose={closeNote} />
+              <NoteEditor
+                key={note.id}
+                note={note}
+                onUpdate={updateNote}
+                onClose={closeNote}
+                onFontSize={updateFontSize}
+              />
             ))}
           </div>
 
-          {/* Saved notes list */}
           {notes.length > 0 && (
             <div className="lt-list">
               {closedNotes.length > 0 && (
@@ -211,7 +252,6 @@ export default function LooseThreads() {
             </div>
           )}
 
-          {/* Trash section */}
           {trash.length > 0 && (
             <div className="lt-trash-section">
               <button className="lt-trash-toggle" onClick={() => setTrashOpen(o => !o)}>

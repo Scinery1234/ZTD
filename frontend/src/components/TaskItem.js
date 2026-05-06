@@ -17,6 +17,7 @@ const TaskItem = ({
   onUpdate,
   onDelete,
   onMarkDone,
+  onUnmarkDone,
   onCategoryClick,
   viewMode,
 }) => {
@@ -344,6 +345,11 @@ const TaskItem = ({
             >+</button>
             <button onClick={(e) => { e.stopPropagation(); onMarkDone(); }} className="btn-done" title="Mark done">✓</button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn-delete" title="Delete">✕</button>
+          </div>
+        )}
+        {viewMode === 'done' && onUnmarkDone && (
+          <div className="task-actions">
+            <button onClick={(e) => { e.stopPropagation(); onUnmarkDone(); }} className="btn-restore" title="Move back to active">↩</button>
           </div>
         )}
       </div>

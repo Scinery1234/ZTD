@@ -358,8 +358,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   useEffect(() => { localTasksRef.current = localTasks; }, [localTasks]);
   useEffect(() => { localWindowRef.current = localWindow; }, [localWindow]);
 
+  const todayStr = toLocalDateStr(new Date());
   const columnTasks = localTasks.filter(t =>
-    t.scheduled_date === date || (!t.scheduled_date && t.due === date)
+    t.scheduled_date === date ||
+    (!t.scheduled_date && t.due === date) ||
+    // Tasks with no date at all: show in day view always, or in week view only for today
+    (!t.scheduled_date && !t.due && (!isWeekView || date === todayStr))
   );
   const scheduled = columnTasks.filter(t => t.scheduled_time);
   const unscheduled = columnTasks.filter(t => !t.scheduled_time);

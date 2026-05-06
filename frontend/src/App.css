@@ -216,10 +216,26 @@
   opacity: 0.7;
 }
 
+/* Threads tab only visible on mobile — hidden on desktop where panel is always shown */
+.view-btn--mobile-only {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .app-body {
+    flex-direction: column;
     padding: 0 12px;
     gap: 0;
+  }
+
+  /* Show Threads tab on mobile */
+  .view-btn--mobile-only {
+    display: block;
+  }
+
+  /* In Threads mode: hide the main content, reveal the panel full-width */
+  .app-body--threads .container {
+    display: none;
   }
 }
 
@@ -236,6 +252,6 @@
   }
   .view-btn {
     font-size: 13px;
-    padding: 10px 10px;
+    padding: 10px 8px;
   }
 }

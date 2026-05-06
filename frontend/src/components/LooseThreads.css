@@ -491,9 +491,20 @@
   color: rgba(255, 80, 80, 0.7);
 }
 
-/* Responsive */
+/* Mobile: panel hidden by default; shown full-width when Threads tab is active */
 @media (max-width: 900px) {
   .lt-panel {
     display: none;
+  }
+
+  .app-body--threads .lt-panel {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    position: static;
+    max-height: calc(100vh - 180px);
+    border-radius: 12px;
+    margin-top: 12px;
   }
 }

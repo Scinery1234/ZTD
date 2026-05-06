@@ -129,11 +129,12 @@ function GuestTaskApp({ onSignUp, onLogin }) {
         </div>
       </div>
       <Header onShowPricing={null} guestMode />
-      <div className="app-body">
+      <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
           <div className="view-controls">
             <button className={`view-btn ${viewMode === 'active' ? 'active' : ''}`} onClick={() => setViewMode('active')}>Active Tasks</button>
             <button className={`view-btn ${viewMode === 'done' ? 'active' : ''}`} onClick={() => setViewMode('done')}>Completed ({doneTasks.length})</button>
+            <button className={`view-btn view-btn--mobile-only ${viewMode === 'threads' ? 'active' : ''}`} onClick={() => setViewMode('threads')}>Threads</button>
           </div>
 
           {viewMode === 'active' && (
@@ -427,7 +428,7 @@ function TaskApp() {
   return (
     <div className="app">
       <Header onShowPricing={() => setShowPricing(true)} />
-      <div className="app-body">
+      <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
           {dataSyncing && (
             <div className="sync-banner" role="status">
@@ -459,6 +460,9 @@ function TaskApp() {
             </button>
             <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
               Timebox
+            </button>
+            <button className={`view-btn view-btn--mobile-only ${viewMode === 'threads' ? 'active' : ''}`} onClick={() => setViewMode('threads')}>
+              Threads
             </button>
           </div>
 

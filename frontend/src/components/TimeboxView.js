@@ -338,17 +338,16 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle, onEditTask }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [localTasks, setLocalTasks] = useState(tasks);
   const [localWindow, setLocalWindow] = useState(dayWindow);
-  const [blockDrag, setBlockDrag] = useState(null); // { startMin, endMin, screenX, screenY }
-  const [pendingSlot, setPendingSlot] = useState(null); // shown after drag ends
+  const [blockDrag, setBlockDrag] = useState(null);
+  const [pendingSlot, setPendingSlot] = useState(null);
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
-  const [editingTask, setEditingTask] = useState(null);
-  const [dragOverMins, setDragOverMins] = useState(null); // HTML5 drag-from-sidebar preview
+  const [dragOverMins, setDragOverMins] = useState(null);
 
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
@@ -691,21 +690,27 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   }, e)}
                 />
                 <div className="timebox-task-body">
-                  <div className="timebox-task-top-row">
-                    <span className="timebox-task-desc">{task.description}</span>
-                    <button
-                      className="timebox-task-unschedule"
-                      onClick={(e) => { e.stopPropagation(); handleUnschedule(task); }}
-                      title="Remove from schedule"
-                    >×</button>
-                  </div>
+                  <span className="timebox-task-desc">{task.description}</span>
                   <div className="timebox-task-meta">
                     <span className="timebox-task-duration">{task.duration || 30}m</span>
                     <button
+                      className="timebox-task-edit-btn"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
+                      title="Edit task"
+                    >✎</button>
+                    <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
+                      onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
                       title={isMit ? 'Remove from MIT' : 'Mark as Most Important Task'}
                     >⭐</button>
+                    <button
+                      className="timebox-task-unschedule"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleUnschedule(task); }}
+                      title="Remove from schedule"
+                    >×</button>
                   </div>
                 </div>
                 <div
@@ -733,19 +738,6 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         />
       )}
 
-      {/* Task edit modal */}
-      {editingTask && (
-        <TaskEditModal
-          task={editingTask}
-          hats={hats}
-          onSave={async (id, data) => {
-            setLocalTasks(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
-            await onUpdateTask(id, data);
-            setEditingTask(null);
-          }}
-          onClose={() => setEditingTask(null)}
-        />
-      )}
 
       {/* Task pool — all unscheduled tasks (always shown in day view / today's week col) */}
       {showTaskPool && (
@@ -789,7 +781,8 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [shuffleSeed, setShuffleSeed] = useState(0);
-  const [weekStartOffset, setWeekStartOffset] = useState(0); // days from today
+  const [weekStartOffset, setWeekStartOffset] = useState(0);
+  const [editingTask, setEditingTask] = useState(null);
 
   const today = toLocalDateStr(new Date());
   const weekDates = getWeekDates(weekStartOffset);
@@ -847,10 +840,22 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
     onAddTask,
     shuffleSeed,
     onShuffle: handleShuffle,
+    onEditTask: setEditingTask,
   };
 
   return (
     <div className="timebox-container">
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          hats={hats}
+          onSave={async (id, data) => {
+            await onUpdate(id, data);
+            setEditingTask(null);
+          }}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
       <div className="timebox-subview-toggle">
         <button className={`timebox-sub-btn ${subView === 'day' ? 'active' : ''}`} onClick={() => setSubView('day')}>Day</button>
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
@@ -879,6 +884,11 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
                     <span className="timebox-chip-desc">{task.description}</span>
                     <div className="timebox-chip-row">
                       <span className="timebox-chip-dur">{task.duration || 30}m</span>
+                      <button
+                        className="timebox-task-edit-btn"
+                        onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                        title="Edit task"
+                      >✎</button>
                       <button
                         className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
                         onClick={(e) => { e.stopPropagation(); handleToggleMit(task.id); }}

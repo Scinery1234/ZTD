@@ -348,6 +348,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const [pendingSlot, setPendingSlot] = useState(null); // shown after drag ends
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
   const [editingTask, setEditingTask] = useState(null);
+  const [dragOverMins, setDragOverMins] = useState(null); // HTML5 drag-from-sidebar preview
 
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
@@ -532,6 +533,41 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     onBlockedTimesChange(next);
   };
 
+  // ── HTML5 drag-from-sidebar handlers ──────────────────────────────────────
+  const handleGridDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!wrapperRef.current) return;
+    const y = getRelativeY(e, wrapperRef.current);
+    const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
+    setDragOverMins(mins);
+  };
+
+  const handleGridDragLeave = () => setDragOverMins(null);
+
+  const handleGridDrop = async (e) => {
+    e.preventDefault();
+    setDragOverMins(null);
+    const taskJson = e.dataTransfer.getData('application/task-json');
+    if (!taskJson || !wrapperRef.current) return;
+    const task = JSON.parse(taskJson);
+    const y = getRelativeY(e, wrapperRef.current);
+    const mins = snapMinutes(Math.max(windowStart, Math.min(windowEnd - (task.duration || 30), yToMinutes(y))));
+    const updates = { scheduled_time: formatTime(mins), scheduled_date: date };
+    setLocalTasks(prev => {
+      const exists = prev.some(t => t.id === task.id);
+      if (exists) return prev.map(t => t.id === task.id ? { ...t, ...updates } : t);
+      return [...prev, { ...task, ...updates }];
+    });
+    await onUpdateTask(task.id, updates);
+  };
+
+  const handleUnschedule = async (task) => {
+    const updates = { scheduled_time: null, scheduled_date: null };
+    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+    await onUpdateTask(task.id, updates);
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const hourLabels = Array.from({ length: 24 }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
@@ -552,9 +588,18 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       </div>
 
       {/* Grid */}
-      <div className="timebox-grid-wrapper" ref={wrapperRef}>
+      <div className="timebox-grid-wrapper" ref={wrapperRef}
+        onDragOver={handleGridDragOver}
+        onDrop={handleGridDrop}
+        onDragLeave={handleGridDragLeave}
+      >
         <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
           style={{ height: GRID_HEIGHT }}>
+
+          {/* Drag-from-sidebar preview */}
+          {dragOverMins !== null && (
+            <div className="timebox-drag-preview" style={{ top: dragOverMins * PX_PER_MIN, height: 30 * PX_PER_MIN }} />
+          )}
 
           {/* Hour lines + labels */}
           {hourLabels.map(h => (
@@ -646,7 +691,14 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   }, e)}
                 />
                 <div className="timebox-task-body">
-                  <span className="timebox-task-desc">{task.description}</span>
+                  <div className="timebox-task-top-row">
+                    <span className="timebox-task-desc">{task.description}</span>
+                    <button
+                      className="timebox-task-unschedule"
+                      onClick={(e) => { e.stopPropagation(); handleUnschedule(task); }}
+                      title="Remove from schedule"
+                    >×</button>
+                  </div>
                   <div className="timebox-task-meta">
                     <span className="timebox-task-duration">{task.duration || 30}m</span>
                     <button
@@ -817,13 +869,19 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
                   <div
                     key={task.id}
                     className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/task-json', JSON.stringify(task));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    title="Drag onto the grid to schedule"
                   >
                     <span className="timebox-chip-desc">{task.description}</span>
                     <div className="timebox-chip-row">
                       <span className="timebox-chip-dur">{task.duration || 30}m</span>
                       <button
                         className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-                        onClick={() => handleToggleMit(task.id)}
+                        onClick={(e) => { e.stopPropagation(); handleToggleMit(task.id); }}
                         title="Toggle Most Important Task"
                       >⭐</button>
                     </div>

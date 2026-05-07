@@ -60,6 +60,20 @@
   background: rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   border-left: 2px solid rgba(255, 255, 255, 0.15);
+  cursor: grab;
+}
+
+.timebox-sidebar-chip:active { cursor: grabbing; }
+
+.timebox-drag-preview {
+  position: absolute;
+  left: 40px;
+  right: 4px;
+  background: rgba(102, 126, 234, 0.2);
+  border: 2px dashed rgba(102, 126, 234, 0.6);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 9;
 }
 
 .timebox-sidebar-chip.priority-urgent { border-left-color: #f87171; }
@@ -485,12 +499,17 @@
 .timebox-task-body {
   flex: 1;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
   padding: 3px 6px;
-  gap: 4px;
+  gap: 2px;
   overflow: hidden;
   min-height: 0;
+}
+
+.timebox-task-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
 }
 
 .timebox-task-desc {
@@ -503,6 +522,22 @@
   -webkit-box-orient: vertical;
   flex: 1;
 }
+
+.timebox-task-unschedule {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 1px;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.12s;
+  margin-top: -1px;
+}
+
+.timebox-task-unschedule:hover { color: rgba(255, 80, 80, 0.8); }
 
 .timebox-task-meta {
   display: flex;

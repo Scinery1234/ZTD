@@ -359,14 +359,19 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   useEffect(() => { localWindowRef.current = localWindow; }, [localWindow]);
 
   const todayStr = toLocalDateStr(new Date());
+  // Tasks that appear ON the grid for this day
   const columnTasks = localTasks.filter(t =>
     t.scheduled_date === date ||
-    (!t.scheduled_date && t.due === date) ||
-    // Tasks with no date at all: show in day view always, or in week view only for today
-    (!t.scheduled_date && !t.due && (!isWeekView || date === todayStr))
+    (!t.scheduled_date && t.due === date)
   );
   const scheduled = columnTasks.filter(t => t.scheduled_time);
-  const unscheduled = columnTasks.filter(t => !t.scheduled_time);
+
+  // Task pool: ALL tasks with no scheduled_time, shown in the panel so they can be scheduled.
+  // In week view show only in today's column to avoid duplication.
+  const showTaskPool = !isWeekView || date === todayStr;
+  const unscheduled = showTaskPool
+    ? localTasks.filter(t => !t.scheduled_time)
+    : [];
 
   const windowStart = parseMinutes(localWindow.start);
   const windowEnd = parseMinutes(localWindow.end);
@@ -382,7 +387,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const handleAutoSchedule = useCallback(async () => {
     onShuffle();
     const PRIO = PRIORITY_ORDER;
-    let ordered = [...columnTasks].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
+    // Schedule from the full task pool (all unscheduled), not just column-date tasks
+    const pool = localTasks.filter(t => !t.scheduled_time);
+    let ordered = [...pool].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
     const seed = shuffleSeed + 1;
     for (let i = ordered.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom(seed + i) * (i + 1));
@@ -688,27 +695,33 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         />
       )}
 
-      {/* Unscheduled tasks panel */}
-      {unscheduled.length > 0 && (
+      {/* Task pool — all unscheduled tasks (always shown in day view / today's week col) */}
+      {showTaskPool && (
         <div className="timebox-unscheduled">
           <button className="timebox-unscheduled-toggle" onClick={() => setUnscheduledOpen(o => !o)}>
             <span>{unscheduledOpen ? '▾' : '▸'}</span>
-            Unscheduled
-            <span className="timebox-unscheduled-count">{unscheduled.length}</span>
+            Task Pool
+            {unscheduled.length > 0 && (
+              <span className="timebox-unscheduled-count">{unscheduled.length}</span>
+            )}
           </button>
           {unscheduledOpen && (
             <div className="timebox-unscheduled-list">
-              {unscheduled.map(task => (
-                <div key={task.id} className={`timebox-unscheduled-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}>
-                  <span className="timebox-chip-desc">{task.description}</span>
-                  <span className="timebox-chip-dur">{task.duration || 30}m</span>
-                  <button
-                    className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-                    onClick={() => onToggleMit(task.id)}
-                    title="Toggle Most Important Task"
-                  >⭐</button>
-                </div>
-              ))}
+              {unscheduled.length === 0 ? (
+                <div className="timebox-pool-empty">All tasks are scheduled ✓</div>
+              ) : (
+                unscheduled.map(task => (
+                  <div key={task.id} className={`timebox-unscheduled-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}>
+                    <span className="timebox-chip-desc">{task.description}</span>
+                    <span className="timebox-chip-dur">{task.duration || 30}m</span>
+                    <button
+                      className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+                      onClick={() => onToggleMit(task.id)}
+                      title="Toggle Most Important Task"
+                    >⭐</button>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>

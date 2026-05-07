@@ -492,6 +492,17 @@
   align-items: center;
   gap: 6px;
 }
+.edit-subtask-drag {
+  cursor: grab;
+  color: rgba(255,255,255,0.3);
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1;
+}
+.edit-subtask-drag:active { cursor: grabbing; }
+
 .edit-subtask-bullet {
   color: rgba(255,255,255,0.3);
   font-size: 18px;

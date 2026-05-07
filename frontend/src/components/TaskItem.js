@@ -1,8 +1,34 @@
 import React, { useState } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
 import './TaskItem.css';
+
+function SortableSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: st.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="edit-subtask-row"
+    >
+      <span className="edit-subtask-drag" {...attributes} {...listeners}>⠿</span>
+      <input
+        className="edit-subtask-input"
+        value={st.text}
+        placeholder="Subtask…"
+        onChange={(e) => onUpdate(st.id, e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); onAddNew(); }
+          if (e.key === 'Backspace' && st.text === '') onRemove(st.id);
+        }}
+        autoFocus={isLast && st.text === ''}
+      />
+      <button className="edit-subtask-remove" onClick={() => onRemove(st.id)} type="button">✕</button>
+    </div>
+  );
+}
 
 let subtaskIdCounter = Date.now();
 const newSubtaskId = () => `st-${++subtaskIdCounter}`;
@@ -118,6 +144,17 @@ const TaskItem = ({
     }));
   };
 
+  const reorderEditSubtasks = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    setEditData((d) => {
+      const oldIdx = d.subtasks.findIndex(s => s.id === active.id);
+      const newIdx = d.subtasks.findIndex(s => s.id === over.id);
+      return { ...d, subtasks: arrayMove(d.subtasks, oldIdx, newIdx) };
+    });
+  };
+
+  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
   // ---- Edit mode ----
   if (isEditing) {
     return (
@@ -198,27 +235,20 @@ const TaskItem = ({
           <div className="edit-section">
             <label className="edit-label">Subtasks</label>
             <div className="edit-subtasks">
-              {editData.subtasks.map((st, i) => (
-                <div key={st.id ?? i} className="edit-subtask-row">
-                  <span className="edit-subtask-bullet">·</span>
-                  <input
-                    className="edit-subtask-input"
-                    value={st.text}
-                    placeholder="Subtask…"
-                    onChange={(e) => updateEditSubtask(st.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); addEditSubtask(); }
-                      if (e.key === 'Backspace' && st.text === '') removeEditSubtask(st.id);
-                    }}
-                    autoFocus={i === editData.subtasks.length - 1 && st.text === ''}
-                  />
-                  <button
-                    className="edit-subtask-remove"
-                    onClick={() => removeEditSubtask(st.id)}
-                    type="button"
-                  >✕</button>
-                </div>
-              ))}
+              <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={reorderEditSubtasks}>
+                <SortableContext items={editData.subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  {editData.subtasks.map((st, i) => (
+                    <SortableSubtaskRow
+                      key={st.id ?? i}
+                      st={st}
+                      isLast={i === editData.subtasks.length - 1}
+                      onUpdate={updateEditSubtask}
+                      onRemove={removeEditSubtask}
+                      onAddNew={addEditSubtask}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               <button className="edit-subtask-add" onClick={addEditSubtask} type="button">
                 + Add subtask
               </button>

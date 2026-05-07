@@ -5,6 +5,95 @@
   gap: 12px;
 }
 
+/* ── Day view: sidebar + grid side by side ──────────────────────────────────── */
+.timebox-day-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.timebox-task-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 580px;
+}
+
+.timebox-task-sidebar-hd {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.timebox-task-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.timebox-task-sidebar-body::-webkit-scrollbar { width: 3px; }
+.timebox-task-sidebar-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+
+.timebox-sidebar-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.timebox-sidebar-chip.priority-urgent { border-left-color: #f87171; }
+.timebox-sidebar-chip.priority-today  { border-left-color: #fbbf24; }
+.timebox-sidebar-chip.priority-tomorrow { border-left-color: #60a5fa; }
+.timebox-sidebar-chip.mit {
+  border-left-color: #fbbf24 !important;
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.timebox-sidebar-chip .timebox-chip-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.timebox-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+@media (max-width: 700px) {
+  .timebox-day-layout {
+    flex-direction: column;
+  }
+  .timebox-task-sidebar {
+    width: 100%;
+    max-height: 200px;
+  }
+}
+
 /* ── Sub-view toggle ───────────────────────────────────────────────────────── */
 .timebox-subview-toggle {
   display: inline-flex;

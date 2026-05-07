@@ -366,9 +366,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   );
   const scheduled = columnTasks.filter(t => t.scheduled_time);
 
-  // Task pool: ALL tasks with no scheduled_time, shown in the panel so they can be scheduled.
-  // In week view show only in today's column to avoid duplication.
-  const showTaskPool = !isWeekView || date === todayStr;
+  // Task pool inside the column: only for week view (today's column).
+  // Day view shows the pool in a sidebar managed by TimeboxView.
+  const showTaskPool = isWeekView && date === todayStr;
   const unscheduled = showTaskPool
     ? localTasks.filter(t => !t.scheduled_time)
     : [];
@@ -805,13 +805,41 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
       </div>
 
       {subView === 'day' && (
-        <TimeboxDayColumn
-          {...sharedProps}
-          date={today}
-          dayWindow={getWindowForDate(today)}
-          onWindowChange={handleWindowChange}
-          isWeekView={false}
-        />
+        <div className="timebox-day-layout">
+          {/* Task pool sidebar — all tasks with no scheduled_time */}
+          <aside className="timebox-task-sidebar">
+            <div className="timebox-task-sidebar-hd">Task Pool</div>
+            <div className="timebox-task-sidebar-body">
+              {tasks.filter(t => !t.scheduled_time).length === 0 ? (
+                <div className="timebox-pool-empty">All tasks scheduled ✓</div>
+              ) : (
+                tasks.filter(t => !t.scheduled_time).map(task => (
+                  <div
+                    key={task.id}
+                    className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+                  >
+                    <span className="timebox-chip-desc">{task.description}</span>
+                    <div className="timebox-chip-row">
+                      <span className="timebox-chip-dur">{task.duration || 30}m</span>
+                      <button
+                        className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+                        onClick={() => handleToggleMit(task.id)}
+                        title="Toggle Most Important Task"
+                      >⭐</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </aside>
+          <TimeboxDayColumn
+            {...sharedProps}
+            date={today}
+            dayWindow={getWindowForDate(today)}
+            onWindowChange={handleWindowChange}
+            isWeekView={false}
+          />
+        </div>
       )}
 
       {subView === 'week' && (

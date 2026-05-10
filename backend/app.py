@@ -399,9 +399,19 @@ def reorder_hats():
 def get_tasks():
     user_id = int(get_jwt_identity())
     hat_id = request.args.get('hat_id', type=int)
+    today = datetime.today().strftime("%Y-%m-%d")
     q = Task.query.filter_by(user_id=user_id)
     if hat_id is not None:
         q = q.filter_by(hat_id=hat_id)
+    # Hide recurring tasks whose due date is in the future
+    q = q.filter(
+        db.or_(
+            Task.recurring == None,
+            Task.recurring == '',
+            Task.due == None,
+            Task.due <= today,
+        )
+    )
     tasks = q.order_by(Task.position, Task.id).all()
     return jsonify([t.to_dict() for t in tasks])
 

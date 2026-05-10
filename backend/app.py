@@ -770,8 +770,30 @@ def get_subscription():
     return jsonify(result)
 
 
+_premium_users_applied = False
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
+    global _premium_users_applied
+    if not _premium_users_applied:
+        _premium_users_applied = True
+        try:
+            raw = os.environ.get("PREMIUM_USERS") or ""
+            emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
+            print(f"[health/PREMIUM_USERS] env={raw!r}", flush=True)
+            for email in emails:
+                user = User.query.filter_by(email=email).first()
+                if user is None:
+                    print(f"[health/PREMIUM_USERS] no account for {email}", flush=True)
+                elif user.tier != "premium":
+                    user.tier = "premium"
+                    db.session.commit()
+                    print(f"[health/PREMIUM_USERS] upgraded {email} -> premium", flush=True)
+                else:
+                    print(f"[health/PREMIUM_USERS] {email} already premium", flush=True)
+        except Exception as e:
+            print(f"[health/PREMIUM_USERS] error: {e}", flush=True)
     return jsonify({'status': 'ok'})
 
 

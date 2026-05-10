@@ -849,6 +849,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
 function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
+  const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
@@ -933,10 +934,20 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
       </div>
 
-      {subView === 'day' && (
+      {subView === 'day' && (() => {
+        const d = new Date(); d.setDate(d.getDate() + dayOffset);
+        const selectedDay = toLocalDateStr(d);
+        return (
         <div className="timebox-day-layout">
           {/* Task pool sidebar — all tasks with no scheduled_time */}
           <aside className="timebox-task-sidebar">
+            <div className="timebox-day-nav">
+              <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o - 1)}>‹</button>
+              {dayOffset !== 0 && (
+                <button className="timebox-nav-today-btn" onClick={() => setDayOffset(0)}>Today</button>
+              )}
+              <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o + 1)}>›</button>
+            </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
             <div className="timebox-task-sidebar-body">
               {tasks.filter(t => !t.scheduled_time).length === 0 ? (
@@ -974,13 +985,14 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
           </aside>
           <TimeboxDayColumn
             {...sharedProps}
-            date={today}
-            dayWindow={getWindowForDate(today)}
+            date={selectedDay}
+            dayWindow={getWindowForDate(selectedDay)}
             onWindowChange={handleWindowChange}
             isWeekView={false}
           />
         </div>
-      )}
+        );
+      })()}
 
       {subView === 'week' && (
         <>

@@ -919,6 +919,17 @@
   gap: 6px;
 }
 
+.tef-subtask-drag {
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 13px;
+  line-height: 1;
+}
+.tef-subtask-drag:active { cursor: grabbing; }
+
 .tef-subtask-input {
   flex: 1;
   background: rgba(255, 255, 255, 0.05);

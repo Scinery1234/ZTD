@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
 import './TimeboxView.css';
 
@@ -209,6 +212,32 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   );
 }
 
+// ── TaskEditModal subtask drag row ────────────────────────────────────────────
+function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: st.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="tef-subtask-row"
+    >
+      <span className="tef-subtask-drag" {...attributes} {...listeners}>⠿</span>
+      <input
+        className="tef-subtask-input"
+        value={st.text}
+        placeholder="Subtask…"
+        onChange={e => onUpdate(st.id, e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); onAddNew(); }
+          if (e.key === 'Backspace' && st.text === '') onRemove(st.id);
+        }}
+        autoFocus={isLast && st.text === ''}
+      />
+      <button className="tef-subtask-remove" onClick={() => onRemove(st.id)}>✕</button>
+    </div>
+  );
+}
+
 // ── TaskEditModal ─────────────────────────────────────────────────────────────
 let _stIdCounter = Date.now();
 const newStId = () => `st-${++_stIdCounter}`;
@@ -240,6 +269,17 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 
   const removeSubtask = (stId) =>
     setEditData(d => ({ ...d, subtasks: d.subtasks.filter(s => s.id !== stId) }));
+
+  const reorderSubtasks = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    setEditData(d => {
+      const oldIdx = d.subtasks.findIndex(s => s.id === active.id);
+      const newIdx = d.subtasks.findIndex(s => s.id === over.id);
+      return { ...d, subtasks: arrayMove(d.subtasks, oldIdx, newIdx) };
+    });
+  };
+
+  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   return (
     <>
@@ -306,23 +346,21 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 
           <div className="tef-field">
             <label className="tef-label">Subtasks</label>
-            <div className="tef-subtasks" onDoubleClick={e => { if (e.target === e.currentTarget) addSubtask(); }}>
-              {editData.subtasks.map((st, i) => (
-                <div key={st.id ?? i} className="tef-subtask-row" onDoubleClick={e => { if (e.target === e.currentTarget) addSubtask(); }}>
-                  <input
-                    className="tef-subtask-input"
-                    value={st.text}
-                    placeholder="Subtask…"
-                    onChange={e => updateSubtask(st.id, e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') { e.preventDefault(); addSubtask(); }
-                      if (e.key === 'Backspace' && st.text === '') removeSubtask(st.id);
-                    }}
-                    autoFocus={i === editData.subtasks.length - 1 && st.text === ''}
-                  />
-                  <button className="tef-subtask-remove" onClick={() => removeSubtask(st.id)}>✕</button>
-                </div>
-              ))}
+            <div className="tef-subtasks">
+              <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={reorderSubtasks}>
+                <SortableContext items={editData.subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  {editData.subtasks.map((st, i) => (
+                    <SortableModalSubtaskRow
+                      key={st.id ?? i}
+                      st={st}
+                      isLast={i === editData.subtasks.length - 1}
+                      onUpdate={updateSubtask}
+                      onRemove={removeSubtask}
+                      onAddNew={addSubtask}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               <button className="tef-subtask-add" onClick={addSubtask}>+ Add subtask</button>
             </div>
           </div>
@@ -670,7 +708,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 key={task.id}
                 className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''}`}
                 style={{ top: taskTop, height: taskHeight }}
-                onDoubleClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;

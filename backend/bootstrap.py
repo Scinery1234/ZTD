@@ -34,20 +34,19 @@ def ensure_premium_users() -> None:
     if not emails:
         return
 
-    from backend.app import User, app, db
+    from backend.app import User, db
 
-    with app.app_context():
-        for email in emails:
-            user: Optional[User] = User.query.filter_by(email=email).first()
-            if user is None:
-                logger.warning("Bootstrap: PREMIUM_USERS — no account found for %s, skipping.", email)
-                continue
-            if user.tier != "premium":
-                user.tier = "premium"
-                db.session.commit()
-                logger.info("Bootstrap: upgraded %s → premium", email)
-            else:
-                logger.info("Bootstrap: %s already premium, no change.", email)
+    for email in emails:
+        user: Optional[User] = User.query.filter_by(email=email).first()
+        if user is None:
+            logger.warning("Bootstrap: PREMIUM_USERS — no account found for %s, skipping.", email)
+            continue
+        if user.tier != "premium":
+            user.tier = "premium"
+            db.session.commit()
+            logger.info("Bootstrap: upgraded %s → premium", email)
+        else:
+            logger.info("Bootstrap: %s already premium, no change.", email)
 
 
 def ensure_bootstrap_admin() -> None:

@@ -550,6 +550,8 @@ def mark_task_done(task_id):
     if not task:
         return jsonify({'error': 'Task not found'}), 404
 
+    today = datetime.today().date()
+
     done_task = DoneTask(
         user_id=user_id,
         hat_id=task.hat_id,
@@ -559,10 +561,50 @@ def mark_task_done(task_id):
         recurring=task.recurring,
         due=task.due,
         subtasks=task.subtasks,
-        last_done=datetime.today().strftime("%Y-%m-%d") if task.recurring else None,
+        last_done=today.strftime("%Y-%m-%d") if task.recurring else None,
     )
     db.session.add(done_task)
     db.session.delete(task)
+
+    # Respawn recurring tasks with next due date, subtasks reset to undone
+    if task.recurring:
+        if task.recurring == 'daily':
+            next_due = today + timedelta(days=1)
+        elif task.recurring == 'weekly':
+            next_due = today + timedelta(weeks=1)
+        elif task.recurring == 'monthly':
+            # same day next month
+            month = today.month + 1
+            year = today.year + (month - 1) // 12
+            month = ((month - 1) % 12) + 1
+            import calendar
+            day = min(today.day, calendar.monthrange(year, month)[1])
+            next_due = today.replace(year=year, month=month, day=day)
+        else:
+            next_due = today + timedelta(days=1)
+
+        # Reset all subtasks to undone
+        try:
+            subtask_list = json.loads(task.subtasks or '[]')
+            reset_subtasks = json.dumps([{**s, 'done': False} for s in subtask_list])
+        except Exception:
+            reset_subtasks = '[]'
+
+        max_pos = db.session.query(db.func.max(Task.position)).filter_by(user_id=user_id).scalar() or 0
+        new_task = Task(
+            user_id=user_id,
+            hat_id=task.hat_id,
+            description=task.description,
+            category=task.category,
+            priority=task.priority,
+            recurring=task.recurring,
+            due=next_due.strftime("%Y-%m-%d"),
+            subtasks=reset_subtasks,
+            duration=task.duration,
+            position=max_pos + 1,
+        )
+        db.session.add(new_task)
+
     db.session.commit()
     return jsonify(done_task.to_dict())
 

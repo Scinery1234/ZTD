@@ -1,12 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
 import './TaskItem.css';
 
-function SortableSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
+// Sensor that won't start dragging when the user clicks an input or button
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown',
+      handler: ({ nativeEvent: event }) => {
+        const tag = event.target?.tagName;
+        if (!event.isPrimary || event.button !== 0 ||
+            tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
+function SortableSubtaskRow({ st, onUpdate, onRemove, onAddNew, shouldFocus, onFocused }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: st.id });
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldFocus && inputRef.current) {
+      inputRef.current.focus();
+      onFocused();
+    }
+  }, [shouldFocus]); // eslint-disable-line
+
   return (
     <div
       ref={setNodeRef}
@@ -15,6 +41,7 @@ function SortableSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
     >
       <span className="edit-subtask-drag" {...attributes} {...listeners}>⠿</span>
       <input
+        ref={inputRef}
         className="edit-subtask-input"
         value={st.text}
         placeholder="Subtask…"
@@ -23,7 +50,6 @@ function SortableSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
           if (e.key === 'Enter') { e.preventDefault(); onAddNew(); }
           if (e.key === 'Backspace' && st.text === '') onRemove(st.id);
         }}
-        autoFocus={isLast && st.text === ''}
       />
       <button className="edit-subtask-remove" onClick={() => onRemove(st.id)} type="button">✕</button>
     </div>
@@ -123,10 +149,14 @@ const TaskItem = ({
   };
 
   // ---- Edit subtask management ----
+  const [subtaskFocusId, setSubtaskFocusId] = useState(null);
+
   const addEditSubtask = () => {
+    const id = newSubtaskId();
+    setSubtaskFocusId(id);
     setEditData((d) => ({
       ...d,
-      subtasks: [...d.subtasks, { id: newSubtaskId(), text: '', done: false }],
+      subtasks: [...d.subtasks, { id, text: '', done: false }],
     }));
   };
 
@@ -153,7 +183,7 @@ const TaskItem = ({
     });
   };
 
-  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const subtaskSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
   // ---- Edit mode ----
   if (isEditing) {
@@ -237,14 +267,15 @@ const TaskItem = ({
             <div className="edit-subtasks">
               <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={reorderEditSubtasks}>
                 <SortableContext items={editData.subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                  {editData.subtasks.map((st, i) => (
+                  {editData.subtasks.map((st) => (
                     <SortableSubtaskRow
-                      key={st.id ?? i}
+                      key={st.id}
                       st={st}
-                      isLast={i === editData.subtasks.length - 1}
                       onUpdate={updateEditSubtask}
                       onRemove={removeEditSubtask}
                       onAddNew={addEditSubtask}
+                      shouldFocus={subtaskFocusId === st.id}
+                      onFocused={() => setSubtaskFocusId(null)}
                     />
                   ))}
                 </SortableContext>

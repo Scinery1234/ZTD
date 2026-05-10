@@ -3,6 +3,23 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
+
+// Sensor that won't activate when the user clicks inside an input/button
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown',
+      handler: ({ nativeEvent: event }) => {
+        const tag = event.target?.tagName;
+        if (!event.isPrimary || event.button !== 0 ||
+            tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
 import './TimeboxView.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -213,8 +230,17 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
 }
 
 // ── TaskEditModal subtask drag row ────────────────────────────────────────────
-function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
+function SortableModalSubtaskRow({ st, onUpdate, onRemove, onAddNew, shouldFocus, onFocused }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: st.id });
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldFocus && inputRef.current) {
+      inputRef.current.focus();
+      onFocused();
+    }
+  }, [shouldFocus]); // eslint-disable-line
+
   return (
     <div
       ref={setNodeRef}
@@ -223,6 +249,7 @@ function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
     >
       <span className="tef-subtask-drag" {...attributes} {...listeners}>⠿</span>
       <input
+        ref={inputRef}
         className="tef-subtask-input"
         value={st.text}
         placeholder="Subtask…"
@@ -231,7 +258,6 @@ function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
           if (e.key === 'Enter') { e.preventDefault(); onAddNew(); }
           if (e.key === 'Backspace' && st.text === '') onRemove(st.id);
         }}
-        autoFocus={isLast && st.text === ''}
       />
       <button className="tef-subtask-remove" onClick={() => onRemove(st.id)}>✕</button>
     </div>
@@ -261,8 +287,13 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
     });
   };
 
-  const addSubtask = () =>
-    setEditData(d => ({ ...d, subtasks: [...d.subtasks, { id: newStId(), text: '', done: false }] }));
+  const [focusId, setFocusId] = useState(null);
+
+  const addSubtask = () => {
+    const id = newStId();
+    setFocusId(id);
+    setEditData(d => ({ ...d, subtasks: [...d.subtasks, { id, text: '', done: false }] }));
+  };
 
   const updateSubtask = (stId, text) =>
     setEditData(d => ({ ...d, subtasks: d.subtasks.map(s => s.id === stId ? { ...s, text } : s) }));
@@ -279,7 +310,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
     });
   };
 
-  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const subtaskSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
   return (
     <>
@@ -351,12 +382,13 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
                 <SortableContext items={editData.subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
                   {editData.subtasks.map((st, i) => (
                     <SortableModalSubtaskRow
-                      key={st.id ?? i}
+                      key={st.id}
                       st={st}
-                      isLast={i === editData.subtasks.length - 1}
                       onUpdate={updateSubtask}
                       onRemove={removeSubtask}
                       onAddNew={addSubtask}
+                      shouldFocus={focusId === st.id}
+                      onFocused={() => setFocusId(null)}
                     />
                   ))}
                 </SortableContext>

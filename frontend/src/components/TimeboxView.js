@@ -449,7 +449,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    await Promise.all(updates.map(u => onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })));
+    for (const u of updates) {
+      await onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date });
+    }
   }, [localTasks, blockedTimes, date, windowStart, windowEnd, shuffleSeed, onShuffle, onUpdateTask]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────

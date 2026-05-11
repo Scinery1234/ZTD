@@ -457,14 +457,23 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const handleAutoSchedule = useCallback(async () => {
     onShuffle();
     const PRIO = PRIORITY_ORDER;
-    // Schedule from the full task pool (all unscheduled), not just column-date tasks
-    const pool = localTasks.filter(t => !t.scheduled_time);
+    // Schedule from the full task pool (all unscheduled and not locked), not just column-date tasks
+    const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
     let ordered = [...pool].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
     const seed = shuffleSeed + 1;
     for (let i = ordered.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom(seed + i) * (i + 1));
       [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
     }
+    // Treat locked scheduled tasks as additional blocked intervals
+    const lockedIntervals = localTasks
+      .filter(t => t.locked && t.scheduled_time && t.scheduled_date === date)
+      .map(t => ({
+        date,
+        start: t.scheduled_time,
+        end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
+      }));
+    const allBlocked = [...blockedTimes, ...lockedIntervals];
     // For today's column, never schedule before the current time
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -473,7 +482,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = [];
     for (const task of ordered) {
       const dur = task.duration || 30;
-      cursor = advancePastBlocked(cursor, dur, blockedTimes, date);
+      cursor = advancePastBlocked(cursor, dur, allBlocked, date);
       if (cursor + dur > windowEnd) break;
       updates.push({ id: task.id, scheduled_time: formatTime(cursor), scheduled_date: date });
       cursor += dur;
@@ -639,6 +648,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     await onUpdateTask(task.id, updates);
   };
 
+  const handleToggleLock = async (task) => {
+    const locked = !task.locked;
+    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, locked } : t));
+    await onUpdateTask(task.id, { locked });
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const hourLabels = Array.from({ length: 24 }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
@@ -735,15 +750,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           {/* Scheduled task blocks */}
           {scheduled.map(task => {
             const isMit = mitIds.has(task.id);
+            const isLocked = Boolean(task.locked);
             const taskTop = timeToY(task.scheduled_time);
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
             return (
               <div
                 key={task.id}
-                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''}`}
+                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''}`}
                 style={{ top: taskTop, height: taskHeight }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
+                  if (isLocked) return;
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
                   startMouseDrag('task-move', {
@@ -755,11 +772,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
               >
                 <div
                   className="timebox-task-resize-top"
-                  onMouseDown={(e) => startMouseDrag('task-resize-top', {
+                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-top', {
                     taskId: task.id,
                     origMin: parseMinutes(task.scheduled_time),
                     origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
-                  }, e)}
+                  }, e); }}
                 />
                 <div className="timebox-task-body">
                   <span className="timebox-task-desc">{task.description}</span>
@@ -771,6 +788,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                       title="Edit task"
                     >✎</button>
+                    <button
+                      className={`timebox-lock-btn ${isLocked ? 'active' : ''}`}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
+                      title={isLocked ? 'Unlock task' : 'Lock task in time'}
+                    >🔒</button>
                     <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
@@ -787,11 +810,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 </div>
                 <div
                   className="timebox-task-resize-bottom"
-                  onMouseDown={(e) => startMouseDrag('task-resize-bottom', {
+                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-bottom', {
                     taskId: task.id,
                     origMin: parseMinutes(task.scheduled_time),
                     origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
-                  }, e)}
+                  }, e); }}
                 />
               </div>
             );

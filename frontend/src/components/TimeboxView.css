@@ -589,6 +589,37 @@
 .timebox-mit-btn.active { opacity: 1; }
 .timebox-mit-btn.disabled { opacity: 0.15; cursor: not-allowed; }
 
+/* ── Lock button ────────────────────────────────────────────────────────────── */
+.timebox-lock-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 9px;
+  padding: 1px 2px;
+  border-radius: 3px;
+  opacity: 0.2;
+  transition: opacity 0.15s, filter 0.15s;
+  line-height: 1;
+  filter: grayscale(1);
+}
+
+.timebox-lock-btn:hover { opacity: 0.6; filter: grayscale(0.4); }
+.timebox-lock-btn.active { opacity: 1; filter: grayscale(0); }
+
+/* Locked task block */
+.timebox-task.locked {
+  cursor: default !important;
+  border-style: dashed;
+  opacity: 0.9;
+}
+
+.timebox-task.locked:active { cursor: default !important; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+
+.timebox-task.locked .timebox-task-resize-top,
+.timebox-task.locked .timebox-task-resize-bottom {
+  cursor: default;
+}
+
 /* ── Unscheduled panel ─────────────────────────────────────────────────────── */
 .timebox-unscheduled {
   background: rgba(255, 255, 255, 0.04);

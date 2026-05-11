@@ -535,6 +535,8 @@ def update_task(task_id):
         task.scheduled_time = data['scheduled_time'] or None
     if 'scheduled_date' in data:
         task.scheduled_date = data['scheduled_date'] or None
+    if 'locked' in data:
+        task.locked = bool(data.get('locked', False))
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -883,6 +885,7 @@ def migrate_db():
                 'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
                 'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
                 'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
+                'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
             ]:
                 try:
                     conn.execute(text(stmt))

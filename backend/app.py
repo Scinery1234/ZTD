@@ -146,6 +146,7 @@ class Task(db.Model):
     duration = db.Column(db.Integer, default=30)           # minutes
     scheduled_time = db.Column(db.String(5), nullable=True)  # HH:MM
     scheduled_date = db.Column(db.String(10), nullable=True) # YYYY-MM-DD
+    locked = db.Column(db.Boolean, default=False)            # locked in timebox
 
     def subtasks_list(self):
         try:
@@ -172,6 +173,7 @@ class Task(db.Model):
             'duration': self.duration if self.duration is not None else 30,
             'scheduled_time': self.scheduled_time,
             'scheduled_date': self.scheduled_date,
+            'locked': bool(self.locked),
         }
 
 

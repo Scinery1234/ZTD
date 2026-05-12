@@ -79,6 +79,29 @@ function advancePastBlocked(cursorMin, durationMin, blockedTimes, date) {
   return cursor;
 }
 
+// During drag: if desired position overlaps a locked task, snap to the nearest
+// free slot (before or after the locked task), based on raw desired position.
+function snapAroundLocked(desiredMin, durationMin, lockedIntervals, date) {
+  let result = desiredMin;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const b of lockedIntervals) {
+      if (b.date !== date) continue;
+      const bs = parseMinutes(b.start);
+      const be = parseMinutes(b.end);
+      if (result < be && result + durationMin > bs) {
+        const before = bs - durationMin;
+        const after = be;
+        result = Math.abs(desiredMin - before) <= Math.abs(desiredMin - after) ? before : after;
+        changed = true;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 function seededRandom(seed) {
   const x = Math.sin(seed + 1) * 10000;
   return x - Math.floor(x);
@@ -516,7 +539,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         const newMin = Math.max(wStart + 60, Math.min(1439, snapMinutes(dragging.origMin + deltaMins)));
         setLocalWindow(w => ({ ...w, end: formatTime(newMin) }));
       } else if (dragging.type === 'task-move') {
-        const newMin = Math.max(wStart, Math.min(wEnd - (dragging.duration || 30), snapMinutes(dragging.origMin + deltaMins)));
+        const dur = dragging.duration || 30;
+        let newMin = Math.max(wStart, Math.min(wEnd - dur, snapMinutes(dragging.origMin + deltaMins)));
+        // Hop over locked tasks — snap to nearest free slot (before or after)
+        const lockedIntervals = localTasksRef.current
+          .filter(t => t.id !== dragging.taskId && t.locked && t.scheduled_time)
+          .map(t => ({
+            date: t.scheduled_date || date,
+            start: t.scheduled_time,
+            end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
+          }));
+        if (lockedIntervals.length > 0) {
+          newMin = snapAroundLocked(newMin, dur, lockedIntervals, date);
+          newMin = Math.max(wStart, Math.min(wEnd - dur, newMin));
+        }
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newMin) } : t));
       } else if (dragging.type === 'task-resize-bottom') {
         const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(wEnd, snapMinutes(dragging.origEndMin + deltaMins)));

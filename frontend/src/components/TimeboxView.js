@@ -3,6 +3,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
+import './TimeboxView.css';
 
 // Sensor that won't activate when the user clicks inside an input/button
 class SmartPointerSensor extends PointerSensor {
@@ -20,7 +21,6 @@ class SmartPointerSensor extends PointerSensor {
     },
   ];
 }
-import './TimeboxView.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const PX_PER_HOUR = 64;

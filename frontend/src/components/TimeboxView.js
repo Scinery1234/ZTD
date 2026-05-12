@@ -829,7 +829,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
                       title={isLocked ? 'Unlock task' : 'Lock task in time'}
-                    >🔒</button>
+                    >{isLocked ? '🔒' : '🔓'}</button>
                     <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}

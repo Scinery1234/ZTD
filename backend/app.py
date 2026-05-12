@@ -146,6 +146,7 @@ class Task(db.Model):
     duration = db.Column(db.Integer, default=30)           # minutes
     scheduled_time = db.Column(db.String(5), nullable=True)  # HH:MM
     scheduled_date = db.Column(db.String(10), nullable=True) # YYYY-MM-DD
+    locked = db.Column(db.Boolean, default=False)            # locked in timebox
 
     def subtasks_list(self):
         try:
@@ -172,6 +173,7 @@ class Task(db.Model):
             'duration': self.duration if self.duration is not None else 30,
             'scheduled_time': self.scheduled_time,
             'scheduled_date': self.scheduled_date,
+            'locked': bool(self.locked),
         }
 
 
@@ -533,6 +535,8 @@ def update_task(task_id):
         task.scheduled_time = data['scheduled_time'] or None
     if 'scheduled_date' in data:
         task.scheduled_date = data['scheduled_date'] or None
+    if 'locked' in data:
+        task.locked = bool(data.get('locked', False))
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -881,6 +885,7 @@ def migrate_db():
                 'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
                 'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
                 'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
+                'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
             ]:
                 try:
                     conn.execute(text(stmt))

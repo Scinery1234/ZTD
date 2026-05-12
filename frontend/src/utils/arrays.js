@@ -15,14 +15,15 @@ export function asArray(x) {
 
 /**
  * API task subtasks: must be an array of {id, text, done} for .map in UI.
+ * Always generates a stable id so DnD and React keys are never undefined.
  */
 export function asSubtaskList(x) {
   const arr = asArray(x);
   return arr
-    .map((s) => {
+    .map((s, i) => {
       if (s == null || typeof s !== 'object') return null;
       return {
-        id: s.id,
+        id: s.id != null ? String(s.id) : `legacy-${i}-${String(s.text || '')}`,
         text: s.text != null ? String(s.text) : '',
         done: Boolean(s.done),
       };

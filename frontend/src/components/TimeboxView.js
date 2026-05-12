@@ -3,6 +3,23 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
+
+// Sensor that won't activate when the user clicks inside an input/button
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown',
+      handler: ({ nativeEvent: event }) => {
+        const tag = event.target?.tagName;
+        if (!event.isPrimary || event.button !== 0 ||
+            tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
 import './TimeboxView.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -213,8 +230,17 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
 }
 
 // ── TaskEditModal subtask drag row ────────────────────────────────────────────
-function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
+function SortableModalSubtaskRow({ st, onUpdate, onRemove, onAddNew, shouldFocus, onFocused }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: st.id });
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldFocus && inputRef.current) {
+      inputRef.current.focus();
+      onFocused();
+    }
+  }, [shouldFocus]); // eslint-disable-line
+
   return (
     <div
       ref={setNodeRef}
@@ -223,6 +249,7 @@ function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
     >
       <span className="tef-subtask-drag" {...attributes} {...listeners}>⠿</span>
       <input
+        ref={inputRef}
         className="tef-subtask-input"
         value={st.text}
         placeholder="Subtask…"
@@ -231,7 +258,6 @@ function SortableModalSubtaskRow({ st, isLast, onUpdate, onRemove, onAddNew }) {
           if (e.key === 'Enter') { e.preventDefault(); onAddNew(); }
           if (e.key === 'Backspace' && st.text === '') onRemove(st.id);
         }}
-        autoFocus={isLast && st.text === ''}
       />
       <button className="tef-subtask-remove" onClick={() => onRemove(st.id)}>✕</button>
     </div>
@@ -261,8 +287,13 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
     });
   };
 
-  const addSubtask = () =>
-    setEditData(d => ({ ...d, subtasks: [...d.subtasks, { id: newStId(), text: '', done: false }] }));
+  const [focusId, setFocusId] = useState(null);
+
+  const addSubtask = () => {
+    const id = newStId();
+    setFocusId(id);
+    setEditData(d => ({ ...d, subtasks: [...d.subtasks, { id, text: '', done: false }] }));
+  };
 
   const updateSubtask = (stId, text) =>
     setEditData(d => ({ ...d, subtasks: d.subtasks.map(s => s.id === stId ? { ...s, text } : s) }));
@@ -279,7 +310,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
     });
   };
 
-  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const subtaskSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
   return (
     <>
@@ -351,12 +382,13 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
                 <SortableContext items={editData.subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
                   {editData.subtasks.map((st, i) => (
                     <SortableModalSubtaskRow
-                      key={st.id ?? i}
+                      key={st.id}
                       st={st}
-                      isLast={i === editData.subtasks.length - 1}
                       onUpdate={updateSubtask}
                       onRemove={removeSubtask}
                       onAddNew={addSubtask}
+                      shouldFocus={focusId === st.id}
+                      onFocused={() => setFocusId(null)}
                     />
                   ))}
                 </SortableContext>
@@ -425,14 +457,23 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const handleAutoSchedule = useCallback(async () => {
     onShuffle();
     const PRIO = PRIORITY_ORDER;
-    // Schedule from the full task pool (all unscheduled), not just column-date tasks
-    const pool = localTasks.filter(t => !t.scheduled_time);
+    // Schedule from the full task pool (all unscheduled and not locked), not just column-date tasks
+    const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
     let ordered = [...pool].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
     const seed = shuffleSeed + 1;
     for (let i = ordered.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom(seed + i) * (i + 1));
       [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
     }
+    // Treat locked scheduled tasks as additional blocked intervals
+    const lockedIntervals = localTasks
+      .filter(t => t.locked && t.scheduled_time && t.scheduled_date === date)
+      .map(t => ({
+        date,
+        start: t.scheduled_time,
+        end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
+      }));
+    const allBlocked = [...blockedTimes, ...lockedIntervals];
     // For today's column, never schedule before the current time
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -441,7 +482,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = [];
     for (const task of ordered) {
       const dur = task.duration || 30;
-      cursor = advancePastBlocked(cursor, dur, blockedTimes, date);
+      cursor = advancePastBlocked(cursor, dur, allBlocked, date);
       if (cursor + dur > windowEnd) break;
       updates.push({ id: task.id, scheduled_time: formatTime(cursor), scheduled_date: date });
       cursor += dur;
@@ -449,7 +490,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    await Promise.all(updates.map(u => onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })));
+    for (const u of updates) {
+      await onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date });
+    }
   }, [localTasks, blockedTimes, date, windowStart, windowEnd, shuffleSeed, onShuffle, onUpdateTask]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
@@ -605,6 +648,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     await onUpdateTask(task.id, updates);
   };
 
+  const handleToggleLock = async (task) => {
+    const locked = !task.locked;
+    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, locked } : t));
+    await onUpdateTask(task.id, { locked });
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const hourLabels = Array.from({ length: 24 }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
@@ -701,15 +750,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           {/* Scheduled task blocks */}
           {scheduled.map(task => {
             const isMit = mitIds.has(task.id);
+            const isLocked = Boolean(task.locked);
             const taskTop = timeToY(task.scheduled_time);
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
             return (
               <div
                 key={task.id}
-                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''}`}
+                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''}`}
                 style={{ top: taskTop, height: taskHeight }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
+                  if (isLocked) return;
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
                   startMouseDrag('task-move', {
@@ -721,11 +772,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
               >
                 <div
                   className="timebox-task-resize-top"
-                  onMouseDown={(e) => startMouseDrag('task-resize-top', {
+                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-top', {
                     taskId: task.id,
                     origMin: parseMinutes(task.scheduled_time),
                     origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
-                  }, e)}
+                  }, e); }}
                 />
                 <div className="timebox-task-body">
                   <span className="timebox-task-desc">{task.description}</span>
@@ -737,6 +788,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                       title="Edit task"
                     >✎</button>
+                    <button
+                      className={`timebox-lock-btn ${isLocked ? 'active' : ''}`}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
+                      title={isLocked ? 'Unlock task' : 'Lock task in time'}
+                    >🔒</button>
                     <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
@@ -753,11 +810,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 </div>
                 <div
                   className="timebox-task-resize-bottom"
-                  onMouseDown={(e) => startMouseDrag('task-resize-bottom', {
+                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-bottom', {
                     taskId: task.id,
                     origMin: parseMinutes(task.scheduled_time),
                     origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
-                  }, e)}
+                  }, e); }}
                 />
               </div>
             );
@@ -815,6 +872,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
 function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
+  const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
@@ -899,10 +957,20 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
       </div>
 
-      {subView === 'day' && (
+      {subView === 'day' && (() => {
+        const d = new Date(); d.setDate(d.getDate() + dayOffset);
+        const selectedDay = toLocalDateStr(d);
+        return (
         <div className="timebox-day-layout">
           {/* Task pool sidebar — all tasks with no scheduled_time */}
           <aside className="timebox-task-sidebar">
+            <div className="timebox-day-nav">
+              <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o - 1)}>‹</button>
+              {dayOffset !== 0 && (
+                <button className="timebox-nav-today-btn" onClick={() => setDayOffset(0)}>Today</button>
+              )}
+              <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o + 1)}>›</button>
+            </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
             <div className="timebox-task-sidebar-body">
               {tasks.filter(t => !t.scheduled_time).length === 0 ? (
@@ -940,13 +1008,14 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
           </aside>
           <TimeboxDayColumn
             {...sharedProps}
-            date={today}
-            dayWindow={getWindowForDate(today)}
+            date={selectedDay}
+            dayWindow={getWindowForDate(selectedDay)}
             onWindowChange={handleWindowChange}
             isWeekView={false}
           />
         </div>
-      )}
+        );
+      })()}
 
       {subView === 'week' && (
         <>

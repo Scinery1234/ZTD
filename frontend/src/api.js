@@ -150,6 +150,10 @@ export const api = {
 
   // Tasks (hat_id is optional query param)
   getTasks: (hat_id) => apiFetch(hat_id != null ? `/tasks?hat_id=${hat_id}` : '/tasks'),
+  getTasksForDate: (dateStr, hat_id) => {
+    const base = `/tasks?view_date=${dateStr}`;
+    return apiFetch(hat_id != null ? `${base}&hat_id=${hat_id}` : base);
+  },
   getDoneTasks: (hat_id) => apiFetch(hat_id != null ? `/tasks/done?hat_id=${hat_id}` : '/tasks/done'),
   addTask: (data) => apiFetch('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) => apiFetch(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

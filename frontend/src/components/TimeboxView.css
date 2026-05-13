@@ -531,7 +531,7 @@
 .timebox-task-unschedule {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 11px;
   line-height: 1;
   padding: 1px 2px;
@@ -541,15 +541,21 @@
   transition: color 0.12s;
 }
 
-.timebox-task-edit-btn:hover { color: rgba(150, 200, 255, 0.9); }
-.timebox-task-unschedule:hover { color: rgba(255, 80, 80, 0.8); }
+.timebox-task-edit-btn:hover { color: rgba(150, 200, 255, 1); }
+.timebox-task-unschedule:hover { color: rgba(255, 100, 100, 1); }
 
 .timebox-task-meta {
   display: flex;
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
+
+/* Show action buttons on hover; always show when locked so state is obvious */
+.timebox-task:hover .timebox-task-meta { opacity: 1; }
+.timebox-task.locked .timebox-task-meta { opacity: 1; }
 
 .timebox-task-duration {
   font-size: 9px;
@@ -589,35 +595,27 @@
 .timebox-mit-btn.active { opacity: 1; }
 .timebox-mit-btn.disabled { opacity: 0.15; cursor: not-allowed; }
 
-/* ── Lock button — absolute overlay on task block ───────────────────────────── */
+/* ── Lock button (inline in meta row) ───────────────────────────────────────── */
 .timebox-lock-btn {
-  position: absolute;
-  bottom: 6px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: none;
+  border: none;
   cursor: pointer;
-  font-size: 10px;
-  padding: 1px 3px;
+  font-size: 11px;
+  padding: 1px 2px;
   border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  opacity: 0.55;
+  transition: opacity 0.15s;
   line-height: 1;
-  z-index: 8;
+  flex-shrink: 0;
 }
 
-/* Show on task hover */
-.timebox-task:hover .timebox-lock-btn { opacity: 0.7; }
-.timebox-task:hover .timebox-lock-btn:hover { opacity: 1; background: rgba(255, 210, 60, 0.2); border-color: rgba(255,210,60,0.5); }
-
-/* Always show (bright gold) when locked */
-.timebox-task.locked .timebox-lock-btn { opacity: 1; background: rgba(255, 210, 60, 0.25); border-color: rgba(255,210,60,0.6); }
+.timebox-lock-btn:hover { opacity: 1; }
+.timebox-lock-btn.active { opacity: 1; }
 
 /* Locked task block */
 .timebox-task.locked {
   cursor: default !important;
   border-style: dashed;
-  opacity: 0.9;
 }
 
 .timebox-task.locked:active { cursor: default !important; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }

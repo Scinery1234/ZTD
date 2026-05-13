@@ -825,6 +825,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       title="Edit task"
                     >✎</button>
                     <button
+                      className={`timebox-lock-btn ${isLocked ? 'active' : ''}`}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
+                      title={isLocked ? 'Unlock task' : 'Lock task in time'}
+                    >{isLocked ? '🔒' : '🔓'}</button>
+                    <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
@@ -838,13 +844,6 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                     >×</button>
                   </div>
                 </div>
-                {/* Lock button — absolutely positioned so it's always visible */}
-                <button
-                  className={`timebox-lock-btn ${isLocked ? 'active' : ''}`}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
-                  title={isLocked ? 'Unlock task' : 'Lock task in time'}
-                >{isLocked ? '🔒' : '🔓'}</button>
                 <div
                   className="timebox-task-resize-bottom"
                   onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-bottom', {

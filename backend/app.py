@@ -402,16 +402,18 @@ def get_tasks():
     user_id = int(get_jwt_identity())
     hat_id = request.args.get('hat_id', type=int)
     today = datetime.today().strftime("%Y-%m-%d")
+    # view_date lets the frontend request tasks visible on a future date (e.g. tomorrow's pool)
+    view_date = request.args.get('view_date') or today
     q = Task.query.filter_by(user_id=user_id)
     if hat_id is not None:
         q = q.filter_by(hat_id=hat_id)
-    # Hide recurring tasks whose due date is in the future
+    # Hide recurring tasks whose due date is after the requested view date
     q = q.filter(
         db.or_(
             Task.recurring == None,
             Task.recurring == '',
             Task.due == None,
-            Task.due <= today,
+            Task.due <= view_date,
         )
     )
     try:

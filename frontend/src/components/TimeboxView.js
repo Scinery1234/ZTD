@@ -3,6 +3,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
+import { api } from '../api';
 import './TimeboxView.css';
 
 // Sensor that won't activate when the user clicks inside an input/button
@@ -28,7 +29,6 @@ const PX_PER_MIN = PX_PER_HOUR / 60;
 const GRID_HEIGHT = 24 * PX_PER_HOUR; // 1536px
 const SNAP = 15; // minutes
 
-const PRIORITY_ORDER = { urgent: 0, today: 1, tomorrow: 2, later: 3, '': 4 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function parseMinutes(hhmm) {
@@ -102,10 +102,6 @@ function snapAroundLocked(desiredMin, durationMin, lockedIntervals, date) {
   return result;
 }
 
-function seededRandom(seed) {
-  const x = Math.sin(seed + 1) * 10000;
-  return x - Math.floor(x);
-}
 
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -167,6 +163,25 @@ function loadMit() {
   catch { return []; }
 }
 function saveMit(ids) { localStorage.setItem('ztd_mit_tasks', JSON.stringify([...ids])); }
+
+function loadDismissed(dateStr) {
+  try {
+    const all = JSON.parse(localStorage.getItem('ztd_dismissed') || '{}');
+    return new Set(all[dateStr] || []);
+  } catch { return new Set(); }
+}
+function saveDismissed(dateStr, ids) {
+  try {
+    const all = JSON.parse(localStorage.getItem('ztd_dismissed') || '{}');
+    all[dateStr] = [...ids];
+    // Prune entries older than 30 days
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    for (const key of Object.keys(all)) {
+      if (key < toLocalDateStr(cutoff)) delete all[key];
+    }
+    localStorage.setItem('ztd_dismissed', JSON.stringify(all));
+  } catch {}
+}
 
 // ── Slot popup (shown after grid drag) ───────────────────────────────────────
 function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
@@ -431,7 +446,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, shuffleSeed, onShuffle, onEditTask }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, onEditTask }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -478,26 +493,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
-    onShuffle();
-    const PRIO = PRIORITY_ORDER;
-    // Schedule from the full task pool (all unscheduled and not locked), not just column-date tasks
     const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
-    let ordered = [...pool].sort((a, b) => (PRIO[a.priority] ?? 4) - (PRIO[b.priority] ?? 4));
-    const seed = shuffleSeed + 1;
-    for (let i = ordered.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom(seed + i) * (i + 1));
-      [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
-    }
-    // Treat locked scheduled tasks as additional blocked intervals
-    const lockedIntervals = localTasks
-      .filter(t => t.locked && t.scheduled_time && t.scheduled_date === date)
-      .map(t => ({
-        date,
-        start: t.scheduled_time,
-        end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
-      }));
-    const allBlocked = [...blockedTimes, ...lockedIntervals];
-    // For today's column, never schedule before the current time
+    // Use manual position order (matches sidebar order)
+    const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
+    // Treat all already-scheduled tasks on this date as blocked (locked or not)
+    const allBlocked = [
+      ...blockedTimes,
+      ...localTasks
+        .filter(t => t.scheduled_time && t.scheduled_date === date)
+        .map(t => ({
+          date,
+          start: t.scheduled_time,
+          end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
+        })),
+    ];
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
     const isToday = date === toLocalDateStr(now);
@@ -505,10 +514,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = [];
     for (const task of ordered) {
       const dur = task.duration || 30;
-      cursor = advancePastBlocked(cursor, dur, allBlocked, date);
-      if (cursor + dur > windowEnd) break;
-      updates.push({ id: task.id, scheduled_time: formatTime(cursor), scheduled_date: date });
-      cursor += dur;
+      const slotStart = advancePastBlocked(cursor, dur, allBlocked, date);
+      if (slotStart + dur > windowEnd) continue; // skip tasks that don't fit, try next
+      updates.push({ id: task.id, scheduled_time: formatTime(slotStart), scheduled_date: date });
+      cursor = slotStart + dur;
+      allBlocked.push({ date, start: formatTime(slotStart), end: formatTime(slotStart + dur) });
     }
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
@@ -516,7 +526,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     for (const u of updates) {
       await onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date });
     }
-  }, [localTasks, blockedTimes, date, windowStart, windowEnd, shuffleSeed, onShuffle, onUpdateTask]);
+  }, [localTasks, blockedTimes, date, windowStart, windowEnd, onUpdateTask]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startMouseDrag = useCallback((type, extra, e) => {
@@ -912,9 +922,13 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
-  const [shuffleSeed, setShuffleSeed] = useState(0);
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
+  const [dismissed, setDismissed] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 0);
+    return loadDismissed(toLocalDateStr(d));
+  });
+  const [futureTasks, setFutureTasks] = useState(null);
 
   const weekDates = getWeekDates(weekStartOffset);
 
@@ -958,7 +972,29 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
     });
   };
 
-  const handleShuffle = () => setShuffleSeed(s => s + 1);
+
+  useEffect(() => {
+    const d = new Date(); d.setDate(d.getDate() + dayOffset);
+    const dateStr = toLocalDateStr(d);
+    setDismissed(loadDismissed(dateStr));
+    if (dayOffset > 0) {
+      setFutureTasks(null);
+      api.getTasksForDate(dateStr).then(setFutureTasks).catch(() => setFutureTasks(null));
+    } else {
+      setFutureTasks(null);
+    }
+  }, [dayOffset]);
+
+  const handleDismiss = (taskId) => {
+    const d = new Date(); d.setDate(d.getDate() + dayOffset);
+    const dateStr = toLocalDateStr(d);
+    setDismissed(prev => {
+      const next = new Set(prev);
+      next.add(taskId);
+      saveDismissed(dateStr, next);
+      return next;
+    });
+  };
 
   const sharedProps = {
     tasks,
@@ -969,8 +1005,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,
     onAddTask,
-    shuffleSeed,
-    onShuffle: handleShuffle,
     onEditTask: setEditingTask,
   };
 
@@ -1008,37 +1042,53 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
             </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
             <div className="timebox-task-sidebar-body">
-              {tasks.filter(t => !t.scheduled_time).length === 0 ? (
-                <div className="timebox-pool-empty">All tasks scheduled ✓</div>
-              ) : (
-                tasks.filter(t => !t.scheduled_time).map(task => (
-                  <div
-                    key={task.id}
-                    className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('application/task-json', JSON.stringify(task));
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    title="Drag onto the grid to schedule"
-                  >
-                    <span className="timebox-chip-desc">{task.description}</span>
-                    <div className="timebox-chip-row">
-                      <span className="timebox-chip-dur">{task.duration || 30}m</span>
-                      <button
-                        className="timebox-task-edit-btn"
-                        onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
-                        title="Edit task"
-                      >✎</button>
-                      <button
-                        className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); handleToggleMit(task.id); }}
-                        title="Toggle Most Important Task"
-                      >⭐</button>
-                    </div>
-                  </div>
-                ))
-              )}
+              {(() => {
+                const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
+                const pool = taskSource.filter(t => !t.scheduled_time && !dismissed.has(t.id));
+                const hasDismissed = taskSource.filter(t => !t.scheduled_time && dismissed.has(t.id)).length > 0;
+                return (
+                  <>
+                    {pool.length === 0 && !hasDismissed ? (
+                      <div className="timebox-pool-empty">All tasks scheduled ✓</div>
+                    ) : pool.length === 0 && hasDismissed ? (
+                      <div className="timebox-pool-empty">No tasks for today ✓</div>
+                    ) : (
+                      pool.map(task => (
+                        <div
+                          key={task.id}
+                          className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/task-json', JSON.stringify(task));
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          title="Drag onto the grid to schedule"
+                        >
+                          <button
+                            className="timebox-chip-dismiss"
+                            onClick={(e) => { e.stopPropagation(); handleDismiss(task.id); }}
+                            title="Remove from today's pool"
+                          >×</button>
+                          <span className="timebox-chip-desc">{task.description}</span>
+                          <div className="timebox-chip-row">
+                            <span className="timebox-chip-dur">{task.duration || 30}m</span>
+                            <button
+                              className="timebox-task-edit-btn"
+                              onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                              title="Edit task"
+                            >✎</button>
+                            <button
+                              className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); handleToggleMit(task.id); }}
+                              title="Toggle Most Important Task"
+                            >⭐</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </aside>
           <TimeboxDayColumn

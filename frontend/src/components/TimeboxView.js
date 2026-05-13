@@ -655,7 +655,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, date, onWindowChange, onUpdateTask]);
+  }, [dragging, date, onWindowChange, onUpdateTask, isWeekView]);
 
   // ── Grid drag (task or block creation) ───────────────────────────────────
   useEffect(() => {

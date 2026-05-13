@@ -47,6 +47,14 @@ function formatTime(totalMinutes) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+// Like formatTime but allows hours > 23 (for window-end in extended zone)
+function formatExtendedTime(totalMinutes) {
+  const mins = Math.max(0, totalMinutes);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function timeToY(hhmm) {
   return parseMinutes(hhmm) * PX_PER_MIN;
 }
@@ -590,8 +598,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
         setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
       } else if (dragging.type === 'window-end') {
-        const newMin = Math.max(wStart + 60, Math.min(1439, snapMinutes(dragging.origMin + deltaMins)));
-        setLocalWindow(w => ({ ...w, end: formatTime(newMin) }));
+        const newMin = Math.max(wStart + 60, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origMin + deltaMins)));
+        setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
       } else if (dragging.type === 'task-move') {
         const dur = dragging.duration || 30;
         // Allow dragging anywhere on the 29-hour grid (not clamped to window)
@@ -804,7 +812,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
           {/* Inactive overlays — stop at midnight; overflow zone styled separately */}
           <div className="timebox-inactive" style={{ top: 0, height: timeToY(localWindow.start) }} />
-          <div className="timebox-inactive" style={{ top: timeToY(localWindow.end), height: 24 * PX_PER_HOUR - timeToY(localWindow.end) }} />
+          <div className="timebox-inactive" style={{ top: timeToY(localWindow.end), height: Math.max(0, GRID_HEIGHT - timeToY(localWindow.end)) }} />
 
           {/* Midnight divider + next-day overflow zone */}
           <div className="timebox-nextday-zone" style={{ top: 24 * PX_PER_HOUR, height: OVERFLOW_HOURS * PX_PER_HOUR }} />
@@ -856,7 +864,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             style={{ top: timeToY(localWindow.end) }}
             onMouseDown={(e) => startMouseDrag('window-end', { origMin: parseMinutes(localWindow.end) }, e)}
           >
-            <span className="window-bar-label">▼ {localWindow.end}</span>
+            <span className="window-bar-label">▼ {formatGridTime(parseMinutes(localWindow.end))}</span>
           </div>
 
           {/* Scheduled task blocks */}

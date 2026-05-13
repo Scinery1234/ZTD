@@ -371,6 +371,9 @@
   pointer-events: none;
   z-index: 1;
 }
+.timebox-hour-label.overflow-hour {
+  color: rgba(139, 92, 246, 0.5);
+}
 
 .timebox-hour-line {
   position: absolute;
@@ -422,6 +425,42 @@
   background: rgba(0, 0, 0, 0.28);
   pointer-events: none;
   z-index: 2;
+}
+
+/* ── Midnight divider + next-day overflow zone ─────────────────────────────── */
+.timebox-nextday-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(139, 92, 246, 0.04);
+  border-top: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.timebox-midnight-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(139, 92, 246, 0.35);
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timebox-midnight-label {
+  background: rgba(139, 92, 246, 0.7);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* ── Window bars ───────────────────────────────────────────────────────────── */

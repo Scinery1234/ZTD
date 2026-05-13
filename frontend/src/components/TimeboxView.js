@@ -446,7 +446,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, isWeekView, onEditTask }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onRefreshTasks, isWeekView, onEditTask }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -494,7 +494,6 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
     const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
-    // Use manual position order (matches sidebar order)
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
     // Treat all already-scheduled tasks on this date as blocked (locked or not)
     const allBlocked = [
@@ -515,18 +514,22 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     for (const task of ordered) {
       const dur = task.duration || 30;
       const slotStart = advancePastBlocked(cursor, dur, allBlocked, date);
-      if (slotStart + dur > windowEnd) continue; // skip tasks that don't fit, try next
+      if (slotStart + dur > windowEnd) continue;
       updates.push({ id: task.id, scheduled_time: formatTime(slotStart), scheduled_date: date });
       cursor = slotStart + dur;
       allBlocked.push({ date, start: formatTime(slotStart), end: formatTime(slotStart + dur) });
     }
+    if (updates.length === 0) return;
+    // Apply all changes to local state immediately (no flicker)
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    for (const u of updates) {
-      await onUpdateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date });
-    }
-  }, [localTasks, blockedTimes, date, windowStart, windowEnd, onUpdateTask]);
+    // Save all to API in parallel, then refresh parent state once
+    await Promise.all(updates.map(u =>
+      api.updateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })
+    ));
+    if (onRefreshTasks) await onRefreshTasks();
+  }, [localTasks, blockedTimes, date, windowStart, windowEnd, onRefreshTasks]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startMouseDrag = useCallback((type, extra, e) => {
@@ -916,7 +919,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1005,6 +1008,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,
     onAddTask,
+    onRefreshTasks: onRefresh,
     onEditTask: setEditingTask,
   };
 

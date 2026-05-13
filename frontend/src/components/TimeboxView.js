@@ -874,11 +874,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             const gridMins = taskGridMinutes(task, date);
             const taskTop = gridMins * PX_PER_MIN;
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
+            const taskHat = hats?.find(h => h.id === task.hat_id);
             return (
               <div
                 key={task.id}
                 className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''}`}
-                style={{ top: taskTop, height: taskHeight }}
+                style={{ top: taskTop, height: taskHeight, ...(taskHat?.color ? { borderLeft: `3px solid ${taskHat.color}` } : {}) }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
                   if (isLocked) return;
@@ -970,8 +971,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
               {unscheduled.length === 0 ? (
                 <div className="timebox-pool-empty">All tasks are scheduled ✓</div>
               ) : (
-                unscheduled.map(task => (
-                  <div key={task.id} className={`timebox-unscheduled-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}>
+                unscheduled.map(task => {
+                  const unschedHat = hats?.find(h => h.id === task.hat_id);
+                  return (
+                  <div key={task.id} className={`timebox-unscheduled-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+                    style={unschedHat?.color ? { borderLeft: `3px solid ${unschedHat.color}` } : undefined}>
                     <span className="timebox-chip-desc">{task.description}</span>
                     <span className="timebox-chip-dur">{task.duration || 30}m</span>
                     <button
@@ -980,7 +984,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       title="Toggle Most Important Task"
                     >⭐</button>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}
@@ -1129,10 +1134,13 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
                     ) : pool.length === 0 && hasDismissed ? (
                       <div className="timebox-pool-empty">No tasks for today ✓</div>
                     ) : (
-                      pool.map(task => (
+                      pool.map(task => {
+                        const poolHat = hats.find(h => h.id === task.hat_id);
+                        return (
                         <div
                           key={task.id}
                           className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+                          style={poolHat?.color ? { borderLeft: `3px solid ${poolHat.color}` } : undefined}
                           draggable
                           onDragStart={(e) => {
                             e.dataTransfer.setData('application/task-json', JSON.stringify(task));
@@ -1160,7 +1168,8 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
                             >⭐</button>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </>
                 );

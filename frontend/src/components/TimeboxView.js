@@ -26,7 +26,10 @@ class SmartPointerSensor extends PointerSensor {
 // ── Constants ───────────────────────────────────────────────────────────────
 const PX_PER_HOUR = 64;
 const PX_PER_MIN = PX_PER_HOUR / 60;
-const GRID_HEIGHT = 24 * PX_PER_HOUR; // 1536px
+const OVERFLOW_HOURS = 5; // hours of next-day shown at bottom of grid
+const GRID_HOURS = 24 + OVERFLOW_HOURS;
+const GRID_HEIGHT = GRID_HOURS * PX_PER_HOUR;
+const MAX_GRID_MINS = GRID_HOURS * 60; // 1740
 const SNAP = 15; // minutes
 
 
@@ -54,6 +57,36 @@ function yToMinutes(y, snap = SNAP) {
 
 function snapMinutes(mins, snap = SNAP) {
   return Math.round(mins / snap) * snap;
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
+}
+
+// Grid position (in minutes, 0–1740) for a task on a given column date.
+// Tasks on the next calendar day (00:00–05:00) appear in the extended area (1440–1740).
+function taskGridMinutes(task, date) {
+  const mins = parseMinutes(task.scheduled_time);
+  if (task.scheduled_date && task.scheduled_date !== date && mins < OVERFLOW_HOURS * 60) {
+    return mins + 1440;
+  }
+  return mins;
+}
+
+// Convert a grid minute position to the correct scheduled_time + scheduled_date for storage.
+function gridMinsToSchedule(gridMins, date) {
+  if (gridMins >= 1440) {
+    return { scheduled_time: formatTime(gridMins - 1440), scheduled_date: addDays(date, 1) };
+  }
+  return { scheduled_time: formatTime(gridMins), scheduled_date: date };
+}
+
+// Human-readable time for grid positions that may exceed midnight
+function formatGridTime(gridMins) {
+  if (gridMins >= 1440) return formatTime(gridMins - 1440) + ' +1';
+  return formatTime(gridMins);
 }
 
 function getRelativeY(e, el) {
@@ -197,13 +230,14 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
 
   const handleAddTask = async () => {
     if (!desc.trim()) return;
+    const { scheduled_time, scheduled_date } = gridMinsToSchedule(slot.startMin, date);
     await onAddTask({
       description: desc.trim(),
       priority,
       duration,
-      scheduled_time: formatTime(slot.startMin),
-      scheduled_date: date,
-      due: date,
+      scheduled_time,
+      scheduled_date,
+      due: scheduled_date,
     });
     onCancel();
   };
@@ -222,7 +256,7 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
       <div className="slot-popup-backdrop" onClick={onCancel} />
       <div className="slot-popup" style={{ top: popupTop, left: popupLeft }}>
         <div className="slot-popup-time">
-          {formatTime(slot.startMin)} – {formatTime(slot.endMin)}
+          {formatGridTime(slot.startMin)} – {formatGridTime(slot.endMin)}
           <span className="slot-popup-dur">{duration}m</span>
         </div>
         <input
@@ -446,7 +480,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onRefreshTasks, isWeekView, onEditTask }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, isWeekView, onEditTask, dismissedIds }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -467,11 +501,15 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   useEffect(() => { localWindowRef.current = localWindow; }, [localWindow]);
 
   const todayStr = toLocalDateStr(new Date());
-  // Tasks that appear ON the grid for this day
-  const columnTasks = localTasks.filter(t =>
-    t.scheduled_date === date ||
-    (!t.scheduled_date && t.due === date)
-  );
+  const nextDay = addDays(date, 1);
+  // Tasks that appear ON the grid for this day — including next-day tasks in the overflow area
+  const columnTasks = localTasks.filter(t => {
+    if (t.scheduled_date === date) return true;
+    if (!t.scheduled_date && t.due === date) return true;
+    if (t.scheduled_date === nextDay && t.scheduled_time &&
+        parseMinutes(t.scheduled_time) < OVERFLOW_HOURS * 60) return true;
+    return false;
+  });
   const scheduled = columnTasks.filter(t => t.scheduled_time);
 
   // Task pool inside the column: only for week view (today's column).
@@ -493,9 +531,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
-    const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
+    // Exclude locked, already-scheduled, and dismissed tasks from the pool
+    const pool = localTasks.filter(t =>
+      !t.scheduled_time && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
+    );
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
-    // Treat all already-scheduled tasks on this date as blocked (locked or not)
+    // Treat all already-scheduled tasks on this date as blocked
     const allBlocked = [
       ...blockedTimes,
       ...localTasks
@@ -520,16 +561,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       allBlocked.push({ date, start: formatTime(slotStart), end: formatTime(slotStart + dur) });
     }
     if (updates.length === 0) return;
-    // Apply all changes to local state immediately (no flicker)
+    // Apply all to local state immediately — no intermediate renders, no flicker
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    // Save all to API in parallel, then refresh parent state once
+    // Save all to API in parallel, then sync parent state without an HTTP re-fetch
     await Promise.all(updates.map(u =>
       api.updateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })
     ));
-    if (onRefreshTasks) await onRefreshTasks();
-  }, [localTasks, blockedTimes, date, windowStart, windowEnd, onRefreshTasks]);
+    if (onApplyTaskUpdates) onApplyTaskUpdates(updates);
+  }, [localTasks, blockedTimes, date, windowStart, windowEnd, dismissedIds, onApplyTaskUpdates]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startMouseDrag = useCallback((type, extra, e) => {
@@ -553,7 +594,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         setLocalWindow(w => ({ ...w, end: formatTime(newMin) }));
       } else if (dragging.type === 'task-move') {
         const dur = dragging.duration || 30;
-        let newMin = Math.max(wStart, Math.min(wEnd - dur, snapMinutes(dragging.origMin + deltaMins)));
+        // Allow dragging anywhere on the 29-hour grid (not clamped to window)
+        let newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
         // Hop over locked tasks — snap to nearest free slot (before or after)
         const lockedIntervals = localTasksRef.current
           .filter(t => t.id !== dragging.taskId && t.locked && t.scheduled_time)
@@ -564,17 +606,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           }));
         if (lockedIntervals.length > 0) {
           newMin = snapAroundLocked(newMin, dur, lockedIntervals, date);
-          newMin = Math.max(wStart, Math.min(wEnd - dur, newMin));
+          newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, newMin));
         }
-        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newMin) } : t));
+        const moved = gridMinsToSchedule(newMin, date);
+        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...moved } : t));
       } else if (dragging.type === 'task-resize-bottom') {
-        const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(wEnd, snapMinutes(dragging.origEndMin + deltaMins)));
+        // Allow resizing into the next-day area
+        const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origEndMin + deltaMins)));
         const newDur = newEndMin - dragging.origMin;
         setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, duration: newDur } : t));
       } else if (dragging.type === 'task-resize-top') {
-        const newStartMin = Math.max(wStart, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
+        const newStartMin = Math.max(0, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
         const newDur = dragging.origEndMin - newStartMin;
-        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, scheduled_time: formatTime(newStartMin), duration: newDur } : t));
+        const resized = gridMinsToSchedule(newStartMin, date);
+        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...resized, duration: newDur } : t));
       }
     };
     const onUp = async (e) => {
@@ -585,16 +630,19 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
         const updated = localTasksRef.current.find(t => t.id === dragging.taskId);
         if (updated) {
-          // Detect cross-day drop by checking which day column is under the cursor
-          let targetDate = date;
-          if (dragging.type === 'task-move') {
+          // scheduled_time/date already set correctly by gridMinsToSchedule during drag.
+          // For week-view cross-column drag, override date with the target column.
+          let savedDate = updated.scheduled_date;
+          if (isWeekView && dragging.type === 'task-move') {
             const el = document.elementFromPoint(e.clientX, e.clientY);
             const col = el?.closest('[data-date]');
-            if (col) targetDate = col.getAttribute('data-date');
+            if (col && col.getAttribute('data-date') !== date) {
+              savedDate = col.getAttribute('data-date');
+            }
           }
           await onUpdateTask(updated.id, {
             scheduled_time: updated.scheduled_time,
-            scheduled_date: targetDate,
+            scheduled_date: savedDate,
             duration: updated.duration,
           });
         }
@@ -615,7 +663,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const onMove = (e) => {
       if (!wrapperRef.current) return;
       const y = getRelativeY(e, wrapperRef.current);
-      const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
+      const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
       setBlockDrag(prev => ({ ...prev, endMin: mins, screenX: e.clientX, screenY: e.clientY }));
     };
     const onUp = (e) => {
@@ -648,7 +696,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     if (e.target !== gridRef.current) return;
     if (!wrapperRef.current) return;
     const y = getRelativeY(e, wrapperRef.current);
-    const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
+    const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
     setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
   };
 
@@ -668,7 +716,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     e.dataTransfer.dropEffect = 'move';
     if (!wrapperRef.current) return;
     const y = getRelativeY(e, wrapperRef.current);
-    const mins = snapMinutes(Math.max(0, Math.min(1439, yToMinutes(y))));
+    const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
     setDragOverMins(mins);
   };
 
@@ -681,8 +729,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     if (!taskJson || !wrapperRef.current) return;
     const task = JSON.parse(taskJson);
     const y = getRelativeY(e, wrapperRef.current);
-    const mins = snapMinutes(Math.max(windowStart, Math.min(windowEnd - (task.duration || 30), yToMinutes(y))));
-    const updates = { scheduled_time: formatTime(mins), scheduled_date: date };
+    const rawMins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS - (task.duration || 30), yToMinutes(y))));
+    const updates = gridMinsToSchedule(rawMins, date);
     setLocalTasks(prev => {
       const exists = prev.some(t => t.id === task.id);
       if (exists) return prev.map(t => t.id === task.id ? { ...t, ...updates } : t);
@@ -704,7 +752,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const hourLabels = Array.from({ length: 24 }, (_, h) => h);
+  const hourLabels = Array.from({ length: GRID_HOURS }, (_, h) => h);
   const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
   const isToday = date === toLocalDateStr(new Date());
   const nowMinutes = useNowMinutes();
@@ -736,18 +784,33 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             <div className="timebox-drag-preview" style={{ top: dragOverMins * PX_PER_MIN, height: 30 * PX_PER_MIN }} />
           )}
 
-          {/* Hour lines + labels */}
-          {hourLabels.map(h => (
-            <React.Fragment key={h}>
-              <div className="timebox-hour-label" style={{ top: h * PX_PER_HOUR }}>{String(h).padStart(2, '0')}</div>
-              <div className="timebox-hour-line" style={{ top: h * PX_PER_HOUR }} />
-              <div className="timebox-halfhour-line" style={{ top: h * PX_PER_HOUR + PX_PER_HOUR / 2 }} />
-            </React.Fragment>
-          ))}
+          {/* Hour lines + labels (24 normal + 5 next-day overflow) */}
+          {hourLabels.map(h => {
+            const isOverflow = h >= 24;
+            const displayH = isOverflow ? h - 24 : h;
+            return (
+              <React.Fragment key={h}>
+                <div
+                  className={`timebox-hour-label${isOverflow ? ' overflow-hour' : ''}`}
+                  style={{ top: h * PX_PER_HOUR }}
+                >
+                  {String(displayH).padStart(2, '0')}
+                </div>
+                <div className="timebox-hour-line" style={{ top: h * PX_PER_HOUR }} />
+                <div className="timebox-halfhour-line" style={{ top: h * PX_PER_HOUR + PX_PER_HOUR / 2 }} />
+              </React.Fragment>
+            );
+          })}
 
-          {/* Inactive overlays */}
+          {/* Inactive overlays — stop at midnight; overflow zone styled separately */}
           <div className="timebox-inactive" style={{ top: 0, height: timeToY(localWindow.start) }} />
-          <div className="timebox-inactive" style={{ top: timeToY(localWindow.end), height: GRID_HEIGHT - timeToY(localWindow.end) }} />
+          <div className="timebox-inactive" style={{ top: timeToY(localWindow.end), height: 24 * PX_PER_HOUR - timeToY(localWindow.end) }} />
+
+          {/* Midnight divider + next-day overflow zone */}
+          <div className="timebox-nextday-zone" style={{ top: 24 * PX_PER_HOUR, height: OVERFLOW_HOURS * PX_PER_HOUR }} />
+          <div className="timebox-midnight-line" style={{ top: 24 * PX_PER_HOUR }}>
+            <span className="timebox-midnight-label">↑ {addDays(date, 1).slice(5).replace('-', '/')} ↓</span>
+          </div>
 
           {/* Blocked times */}
           {dateBlockedForDay.map((b, i) => (
@@ -800,7 +863,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           {scheduled.map(task => {
             const isMit = mitIds.has(task.id);
             const isLocked = Boolean(task.locked);
-            const taskTop = timeToY(task.scheduled_time);
+            const gridMins = taskGridMinutes(task, date);
+            const taskTop = gridMins * PX_PER_MIN;
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
             return (
               <div
@@ -814,7 +878,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
                   startMouseDrag('task-move', {
                     taskId: task.id,
-                    origMin: parseMinutes(task.scheduled_time),
+                    origMin: gridMins,
                     duration: task.duration || 30,
                   }, e);
                 }}
@@ -823,8 +887,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   className="timebox-task-resize-top"
                   onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-top', {
                     taskId: task.id,
-                    origMin: parseMinutes(task.scheduled_time),
-                    origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
+                    origMin: gridMins,
+                    origEndMin: gridMins + (task.duration || 30),
                   }, e); }}
                 />
                 <div className="timebox-task-body">
@@ -861,8 +925,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   className="timebox-task-resize-bottom"
                   onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-bottom', {
                     taskId: task.id,
-                    origMin: parseMinutes(task.scheduled_time),
-                    origEndMin: parseMinutes(task.scheduled_time) + (task.duration || 30),
+                    origMin: gridMins,
+                    origEndMin: gridMins + (task.duration || 30),
                   }, e); }}
                 />
               </div>
@@ -919,7 +983,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1008,7 +1072,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,
     onAddTask,
-    onRefreshTasks: onRefresh,
+    onApplyTaskUpdates,
     onEditTask: setEditingTask,
   };
 
@@ -1039,9 +1103,9 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
           <aside className="timebox-task-sidebar">
             <div className="timebox-day-nav">
               <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o - 1)}>‹</button>
-              {dayOffset !== 0 && (
-                <button className="timebox-nav-today-btn" onClick={() => setDayOffset(0)}>Today</button>
-              )}
+              <button className="timebox-nav-date-label" onClick={() => setDayOffset(0)} title="Go to today">
+                {dayOffset === 0 ? 'Today' : dayOffset === 1 ? 'Tomorrow' : dayOffset === -1 ? 'Yesterday' : formatDateLabel(selectedDay)}
+              </button>
               <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o + 1)}>›</button>
             </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
@@ -1101,6 +1165,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
             dayWindow={getWindowForDate(selectedDay)}
             onWindowChange={handleWindowChange}
             isWeekView={false}
+            dismissedIds={dismissed}
           />
         </div>
         );

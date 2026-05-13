@@ -414,7 +414,13 @@ def get_tasks():
             Task.due <= today,
         )
     )
-    tasks = q.order_by(Task.position, Task.id).all()
+    try:
+        tasks = q.order_by(Task.position, Task.id).all()
+    except Exception:
+        # Schema may be missing new columns — run migration then retry
+        db.session.rollback()
+        migrate_db()
+        tasks = q.order_by(Task.position, Task.id).all()
     return jsonify([t.to_dict() for t in tasks])
 
 

@@ -233,6 +233,25 @@
   background: rgba(102, 126, 234, 0.28);
 }
 
+.timebox-nav-date-label {
+  flex: 1;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: color 0.15s, background 0.15s;
+}
+.timebox-nav-date-label:hover {
+  color: #a5b4fc;
+  background: rgba(102, 126, 234, 0.1);
+}
+
 /* ── Week wrapper ──────────────────────────────────────────────────────────── */
 .timebox-week-wrapper {
   display: flex;

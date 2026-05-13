@@ -446,7 +446,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onRefreshTasks, isWeekView, onEditTask }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, isWeekView, onEditTask, dismissedIds }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -493,9 +493,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
-    const pool = localTasks.filter(t => !t.scheduled_time && !t.locked);
+    // Exclude locked, already-scheduled, and dismissed tasks from the pool
+    const pool = localTasks.filter(t =>
+      !t.scheduled_time && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
+    );
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
-    // Treat all already-scheduled tasks on this date as blocked (locked or not)
+    // Treat all already-scheduled tasks on this date as blocked
     const allBlocked = [
       ...blockedTimes,
       ...localTasks
@@ -520,16 +523,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       allBlocked.push({ date, start: formatTime(slotStart), end: formatTime(slotStart + dur) });
     }
     if (updates.length === 0) return;
-    // Apply all changes to local state immediately (no flicker)
+    // Apply all to local state immediately — no intermediate renders, no flicker
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    // Save all to API in parallel, then refresh parent state once
+    // Save all to API in parallel, then sync parent state without an HTTP re-fetch
     await Promise.all(updates.map(u =>
       api.updateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })
     ));
-    if (onRefreshTasks) await onRefreshTasks();
-  }, [localTasks, blockedTimes, date, windowStart, windowEnd, onRefreshTasks]);
+    if (onApplyTaskUpdates) onApplyTaskUpdates(updates);
+  }, [localTasks, blockedTimes, date, windowStart, windowEnd, dismissedIds, onApplyTaskUpdates]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startMouseDrag = useCallback((type, extra, e) => {
@@ -919,7 +922,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1008,7 +1011,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,
     onAddTask,
-    onRefreshTasks: onRefresh,
+    onApplyTaskUpdates,
     onEditTask: setEditingTask,
   };
 
@@ -1039,9 +1042,9 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
           <aside className="timebox-task-sidebar">
             <div className="timebox-day-nav">
               <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o - 1)}>‹</button>
-              {dayOffset !== 0 && (
-                <button className="timebox-nav-today-btn" onClick={() => setDayOffset(0)}>Today</button>
-              )}
+              <button className="timebox-nav-date-label" onClick={() => setDayOffset(0)} title="Go to today">
+                {dayOffset === 0 ? 'Today' : dayOffset === 1 ? 'Tomorrow' : dayOffset === -1 ? 'Yesterday' : formatDateLabel(selectedDay)}
+              </button>
               <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o + 1)}>›</button>
             </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
@@ -1101,6 +1104,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onRefresh, maxHistoryDa
             dayWindow={getWindowForDate(selectedDay)}
             onWindowChange={handleWindowChange}
             isWeekView={false}
+            dismissedIds={dismissed}
           />
         </div>
         );

@@ -350,6 +350,13 @@ function TaskApp() {
     }
   };
 
+  // Update task state locally without an HTTP round-trip (used by auto-schedule batch)
+  const applyTaskUpdates = useCallback((updates) => {
+    const map = {};
+    updates.forEach(u => { map[u.id] = u; });
+    setTasks(prev => prev.map(t => map[t.id] ? { ...t, ...map[t.id] } : t));
+  }, []);
+
   const deleteTask = async (taskId) => {
     try {
       await api.deleteTask(taskId);
@@ -524,7 +531,7 @@ function TaskApp() {
               hats={hats}
               onUpdate={updateTask}
               onAddTask={addTask}
-              onRefresh={fetchTasks}
+              onApplyTaskUpdates={applyTaskUpdates}
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
             />
           )}

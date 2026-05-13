@@ -524,6 +524,7 @@ function TaskApp() {
               hats={hats}
               onUpdate={updateTask}
               onAddTask={addTask}
+              onRefresh={fetchTasks}
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
             />
           )}

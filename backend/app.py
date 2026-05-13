@@ -879,19 +879,22 @@ def admin_set_tier():
 
 
 def migrate_db():
+    # Each statement runs in its own connection/transaction so a "column already
+    # exists" failure on one doesn't abort and roll back the others (PostgreSQL
+    # marks the whole transaction as aborted on any error).
     with app.app_context():
-        with db.engine.connect() as conn:
-            for stmt in [
-                'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
-                'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
-                'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
-                'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
-            ]:
-                try:
+        for stmt in [
+            'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
+            'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
+            'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
+            'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
+        ]:
+            try:
+                with db.engine.connect() as conn:
                     conn.execute(text(stmt))
-                except Exception:
-                    pass  # column already exists
-            conn.commit()
+                    conn.commit()
+            except Exception:
+                pass  # column already exists
 
 
 _FRONTEND_BUILD = os.path.join(BASE_DIR, '..', 'frontend', 'build')

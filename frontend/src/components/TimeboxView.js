@@ -917,7 +917,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, maxHistoryDays = 14 }) 
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
 
-  const today = toLocalDateStr(new Date());
   const weekDates = getWeekDates(weekStartOffset);
 
   const canGoBack = weekStartOffset > -maxHistoryDays;

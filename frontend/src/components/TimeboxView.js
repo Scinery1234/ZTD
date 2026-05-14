@@ -539,9 +539,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
-    // Exclude locked, already-scheduled, and dismissed tasks from the pool
+    const nextDayDate = addDays(date, 1);
+    // Mirror the sidebar pool logic: a task is "on today's grid" if it has a
+    // scheduled_time placed specifically for today (not a stale date from another day).
+    const isOnTodaysGrid = (t) => {
+      if (!t.scheduled_time) return false;
+      if (t.scheduled_date === date) return true;
+      if (!t.scheduled_date && t.due === date) return true;
+      if (t.scheduled_date === nextDayDate &&
+          parseMinutes(t.scheduled_time) < OVERFLOW_HOURS * 60) return true;
+      return false;
+    };
+    // Exclude tasks already on today's grid, locked, and dismissed
     const pool = localTasks.filter(t =>
-      !t.scheduled_time && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
+      !isOnTodaysGrid(t) && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
     );
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
     // Treat all already-scheduled tasks on this date as blocked

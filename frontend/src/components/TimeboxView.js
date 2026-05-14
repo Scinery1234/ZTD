@@ -1125,8 +1125,18 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
             <div className="timebox-task-sidebar-body">
               {(() => {
                 const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
-                const pool = taskSource.filter(t => !t.scheduled_time && !dismissed.has(t.id));
-                const hasDismissed = taskSource.filter(t => !t.scheduled_time && dismissed.has(t.id)).length > 0;
+                const nextDayStr = addDays(selectedDay, 1);
+                // A task is "on today's grid" if it has a scheduled_time AND is placed on today
+                const isOnTodaysGrid = (t) => {
+                  if (!t.scheduled_time) return false;
+                  if (t.scheduled_date === selectedDay) return true;
+                  if (!t.scheduled_date && t.due === selectedDay) return true;
+                  if (t.scheduled_date === nextDayStr &&
+                      parseMinutes(t.scheduled_time) < OVERFLOW_HOURS * 60) return true;
+                  return false;
+                };
+                const pool = taskSource.filter(t => !isOnTodaysGrid(t) && !dismissed.has(t.id));
+                const hasDismissed = taskSource.filter(t => !isOnTodaysGrid(t) && dismissed.has(t.id)).length > 0;
                 return (
                   <>
                     {pool.length === 0 && !hasDismissed ? (

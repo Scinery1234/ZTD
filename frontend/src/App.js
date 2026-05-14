@@ -527,7 +527,7 @@ function TaskApp() {
 
           {viewMode === 'timebox' && (
             <TimeboxView
-              tasks={tasks}
+              tasks={getVisibleTasks()}
               hats={hats}
               onUpdate={updateTask}
               onAddTask={addTask}

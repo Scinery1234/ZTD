@@ -514,7 +514,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, isWeekView, onEditTask, dismissedIds }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -800,6 +800,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     await onUpdateTask(task.id, updates);
   };
 
+  const handleMarkDone = async (task) => {
+    setLocalTasks(prev => prev.filter(t => t.id !== task.id));
+    try {
+      await api.markDone(task.id);
+      if (onMarkDone) onMarkDone(task.id);
+    } catch (err) {
+      setLocalTasks(prev => [...prev, task]);
+    }
+  };
+
   const handleToggleLock = async (task) => {
     const locked = !task.locked;
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, locked } : t));
@@ -958,6 +968,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   <div className="timebox-task-meta">
                     <span className="timebox-task-duration">{task.duration || 30}m</span>
                     <button
+                      className="timebox-task-done-btn"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleMarkDone(task); }}
+                      title="Mark as complete"
+                    >✓</button>
+                    <button
                       className="timebox-task-edit-btn"
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
@@ -1093,7 +1109,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1199,6 +1215,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
     onUpdateTask: onUpdate,
     onAddTask,
     onApplyTaskUpdates,
+    onMarkDone,
     onEditTask: setEditingTask,
   };
 

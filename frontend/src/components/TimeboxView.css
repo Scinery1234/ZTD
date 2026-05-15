@@ -625,6 +625,7 @@
   flex: 1;
 }
 
+.timebox-task-done-btn,
 .timebox-task-edit-btn,
 .timebox-task-unschedule {
   background: none;
@@ -639,6 +640,7 @@
   transition: color 0.12s;
 }
 
+.timebox-task-done-btn:hover { color: rgba(100, 220, 130, 1); }
 .timebox-task-edit-btn:hover { color: rgba(150, 200, 255, 1); }
 .timebox-task-unschedule:hover { color: rgba(255, 100, 100, 1); }
 

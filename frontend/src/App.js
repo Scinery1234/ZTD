@@ -532,6 +532,7 @@ function TaskApp() {
               onUpdate={updateTask}
               onAddTask={addTask}
               onApplyTaskUpdates={applyTaskUpdates}
+              onMarkDone={markDone}
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
             />
           )}

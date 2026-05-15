@@ -514,9 +514,10 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, isWeekView, onEditTask, dismissedIds }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
+  const dragRafRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [localTasks, setLocalTasks] = useState(tasks);
   const [localWindow, setLocalWindow] = useState(dayWindow);
@@ -620,57 +621,59 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   useEffect(() => {
     if (!dragging) return;
     const onMove = (e) => {
-      const deltaY = e.clientY - dragging.startY;
-      const deltaMins = yToMinutes(deltaY);
-      const wStart = parseMinutes(localWindowRef.current.start);
-      const wEnd = parseMinutes(localWindowRef.current.end);
-      if (dragging.type === 'window-start') {
-        const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
-        setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
-      } else if (dragging.type === 'window-end') {
-        const newMin = Math.max(wStart + 60, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origMin + deltaMins)));
-        setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
-      } else if (dragging.type === 'task-move') {
-        const dur = dragging.duration || 30;
-        const rawMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
+      const clientY = e.clientY;
+      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = requestAnimationFrame(() => {
+        dragRafRef.current = null;
+        const deltaY = clientY - dragging.startY;
+        const deltaMins = yToMinutes(deltaY);
+        const wStart = parseMinutes(localWindowRef.current.start);
         const wEnd = parseMinutes(localWindowRef.current.end);
-        // Build sibling tasks from original positions captured at drag start
-        const otherTasks = Object.entries(dragging.origTaskPositions || {})
-          .filter(([id]) => Number(id) !== dragging.taskId)
-          .map(([id, origStart]) => {
-            const t = localTasksRef.current.find(t => t.id === Number(id));
-            return t ? { id: Number(id), origStart, dur: t.duration || 30, locked: Boolean(t.locked) } : null;
-          })
-          .filter(Boolean);
-        // Try squeeze+push; fall back to hop if blocked by locked task or no room
-        const pushResult = computePushLayout(rawMin, dur, otherTasks, wEnd);
-        let finalStart;
-        let siblingsMap = {};
-        if (pushResult !== null) {
-          finalStart = rawMin;
-          siblingsMap = pushResult;
-        } else {
-          const blockedGrid = otherTasks.map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
-          finalStart = snapAroundBlockedGrid(rawMin, dur, blockedGrid);
-          finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, finalStart));
-          otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; }); // restore originals
+        if (dragging.type === 'window-start') {
+          const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
+          setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
+        } else if (dragging.type === 'window-end') {
+          const newMin = Math.max(wStart + 60, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origMin + deltaMins)));
+          setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
+        } else if (dragging.type === 'task-move') {
+          const dur = dragging.duration || 30;
+          const rawMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
+          const wEndMin = parseMinutes(localWindowRef.current.end);
+          const otherTasks = Object.entries(dragging.origTaskPositions || {})
+            .filter(([id]) => Number(id) !== dragging.taskId)
+            .map(([id, origStart]) => {
+              const t = localTasksRef.current.find(t => t.id === Number(id));
+              return t ? { id: Number(id), origStart, dur: t.duration || 30, locked: Boolean(t.locked) } : null;
+            })
+            .filter(Boolean);
+          const pushResult = computePushLayout(rawMin, dur, otherTasks, wEndMin);
+          let finalStart;
+          let siblingsMap = {};
+          if (pushResult !== null) {
+            finalStart = rawMin;
+            siblingsMap = pushResult;
+          } else {
+            const blockedGrid = otherTasks.map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
+            finalStart = snapAroundBlockedGrid(rawMin, dur, blockedGrid);
+            finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, finalStart));
+            otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; });
+          }
+          setLocalTasks(prev => prev.map(t => {
+            if (t.id === dragging.taskId) return { ...t, ...gridMinsToSchedule(finalStart, date) };
+            const ns = siblingsMap[t.id];
+            return ns !== undefined ? { ...t, ...gridMinsToSchedule(ns, date) } : t;
+          }));
+        } else if (dragging.type === 'task-resize-bottom') {
+          const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origEndMin + deltaMins)));
+          const newDur = newEndMin - dragging.origMin;
+          setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, duration: newDur } : t));
+        } else if (dragging.type === 'task-resize-top') {
+          const newStartMin = Math.max(0, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
+          const newDur = dragging.origEndMin - newStartMin;
+          const resized = gridMinsToSchedule(newStartMin, date);
+          setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...resized, duration: newDur } : t));
         }
-        setLocalTasks(prev => prev.map(t => {
-          if (t.id === dragging.taskId) return { ...t, ...gridMinsToSchedule(finalStart, date) };
-          const ns = siblingsMap[t.id];
-          return ns !== undefined ? { ...t, ...gridMinsToSchedule(ns, date) } : t;
-        }));
-      } else if (dragging.type === 'task-resize-bottom') {
-        // Allow resizing into the next-day area
-        const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origEndMin + deltaMins)));
-        const newDur = newEndMin - dragging.origMin;
-        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, duration: newDur } : t));
-      } else if (dragging.type === 'task-resize-top') {
-        const newStartMin = Math.max(0, Math.min(dragging.origEndMin - SNAP, snapMinutes(dragging.origMin + deltaMins)));
-        const newDur = dragging.origEndMin - newStartMin;
-        const resized = gridMinsToSchedule(newStartMin, date);
-        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...resized, duration: newDur } : t));
-      }
+      });
     };
     const onUp = async (e) => {
       document.removeEventListener('mousemove', onMove);
@@ -707,6 +710,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => {
+      if (dragRafRef.current) { cancelAnimationFrame(dragRafRef.current); dragRafRef.current = null; }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -798,6 +802,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = { scheduled_time: null, scheduled_date: null };
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
     await onUpdateTask(task.id, updates);
+  };
+
+  const handleMarkDone = async (task) => {
+    setLocalTasks(prev => prev.filter(t => t.id !== task.id));
+    try {
+      await api.markDone(task.id);
+      if (onMarkDone) onMarkDone(task.id);
+    } catch (err) {
+      setLocalTasks(prev => [...prev, task]);
+    }
   };
 
   const handleToggleLock = async (task) => {
@@ -958,6 +972,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   <div className="timebox-task-meta">
                     <span className="timebox-task-duration">{task.duration || 30}m</span>
                     <button
+                      className="timebox-task-done-btn"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); handleMarkDone(task); }}
+                      title="Mark as complete"
+                    >✓</button>
+                    <button
                       className="timebox-task-edit-btn"
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
@@ -1093,7 +1113,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1199,6 +1219,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
     onUpdateTask: onUpdate,
     onAddTask,
     onApplyTaskUpdates,
+    onMarkDone,
     onEditTask: setEditingTask,
   };
 

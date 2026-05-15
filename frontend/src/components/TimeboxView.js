@@ -1049,11 +1049,10 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-// The outer wrapper is the @dnd-kit item (setNodeRef). The handle span is inside
-// it but NOT inside any draggable element, so @dnd-kit pointer events work cleanly.
-// The chip-body div has HTML5 draggable for grid dropping.
 function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const handleRef = useRef(null);
+  const lastMouseDownTarget = useRef(null);
   const hat = hats?.find(h => h.id === task.hat_id);
   return (
     <div
@@ -1065,30 +1064,29 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
         ...(hat?.color ? { borderLeft: `3px solid ${hat.color}` } : {}),
       }}
       className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+      draggable
+      onMouseDown={(e) => { lastMouseDownTarget.current = e.target; }}
+      onDragStart={(e) => {
+        if (handleRef.current?.contains(lastMouseDownTarget.current)) {
+          e.preventDefault();
+          return;
+        }
+        e.dataTransfer.setData('application/task-json', JSON.stringify(task));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      title="Drag onto the grid to schedule"
     >
-      {/* Handle — @dnd-kit only; NOT draggable so HTML5 drag won't fire */}
-      <span className="timebox-pool-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</span>
-      {/* Body — HTML5 draggable for dropping onto the grid */}
-      <div
-        className="timebox-chip-body"
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData('application/task-json', JSON.stringify(task));
-          e.dataTransfer.effectAllowed = 'move';
-        }}
-        title="Drag onto the grid to schedule"
-      >
-        <button className="timebox-chip-dismiss" onClick={(e) => { e.stopPropagation(); onDismiss(task.id); }} title="Remove from today's pool">×</button>
-        <span className="timebox-chip-desc">{task.description}</span>
-        <div className="timebox-chip-row">
-          <span className="timebox-chip-dur">{task.duration || 30}m</span>
-          <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
-          <button
-            className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-            onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
-            title="Toggle Most Important Task"
-          >⭐</button>
-        </div>
+      <span ref={handleRef} className="timebox-pool-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</span>
+      <button className="timebox-chip-dismiss" onClick={(e) => { e.stopPropagation(); onDismiss(task.id); }} title="Remove from today's pool">×</button>
+      <span className="timebox-chip-desc">{task.description}</span>
+      <div className="timebox-chip-row">
+        <span className="timebox-chip-dur">{task.duration || 30}m</span>
+        <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
+        <button
+          className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+          onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
+          title="Toggle Most Important Task"
+        >⭐</button>
       </div>
     </div>
   );

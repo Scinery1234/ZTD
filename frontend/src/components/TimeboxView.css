@@ -62,37 +62,30 @@
 }
 
 .timebox-sidebar-chip {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  border-left: 2px solid rgba(255, 255, 255, 0.15);
-  overflow: hidden;
-}
-.timebox-chip-body {
-  flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 7px 9px;
-  position: relative;
+  padding: 7px 9px 7px 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
   cursor: grab;
-  min-width: 0;
 }
-.timebox-chip-body:active { cursor: grabbing; }
+.timebox-sidebar-chip:active { cursor: grabbing; }
 
 .timebox-pool-drag-handle {
-  display: flex;
-  align-items: center;
-  padding: 0 5px;
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   color: rgba(255, 255, 255, 0.2);
   font-size: 13px;
   cursor: grab;
   opacity: 0;
   transition: opacity 0.15s;
   user-select: none;
-  flex-shrink: 0;
+  line-height: 1;
 }
 .timebox-sidebar-chip:hover .timebox-pool-drag-handle { opacity: 1; }
 .timebox-pool-drag-handle:active { cursor: grabbing; }

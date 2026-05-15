@@ -611,18 +611,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
       } else if (dragging.type === 'task-move') {
         const dur = dragging.duration || 30;
-        // Allow dragging anywhere on the 29-hour grid (not clamped to window)
         let newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
-        // Hop over locked tasks — snap to nearest free slot (before or after)
-        const lockedIntervals = localTasksRef.current
-          .filter(t => t.id !== dragging.taskId && t.locked && t.scheduled_time)
+        // Hop over ALL scheduled tasks (not just locked) — snap to nearest free slot
+        const occupiedIntervals = localTasksRef.current
+          .filter(t => t.id !== dragging.taskId && t.scheduled_time)
           .map(t => ({
             date: t.scheduled_date || date,
             start: t.scheduled_time,
             end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
           }));
-        if (lockedIntervals.length > 0) {
-          newMin = snapAroundLocked(newMin, dur, lockedIntervals, date);
+        if (occupiedIntervals.length > 0) {
+          newMin = snapAroundLocked(newMin, dur, occupiedIntervals, date);
           newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, newMin));
         }
         const moved = gridMinsToSchedule(newMin, date);
@@ -1005,7 +1004,10 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-function SortablePoolChip({ task, hats, mitIds, poolDndActiveRef, onDismiss, onEdit, onToggleMit }) {
+// The outer wrapper is the @dnd-kit item (setNodeRef). The handle span is inside
+// it but NOT inside any draggable element, so @dnd-kit pointer events work cleanly.
+// The chip-body div has HTML5 draggable for grid dropping.
+function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const hat = hats?.find(h => h.id === task.hat_id);
   return (
@@ -1018,31 +1020,30 @@ function SortablePoolChip({ task, hats, mitIds, poolDndActiveRef, onDismiss, onE
         ...(hat?.color ? { borderLeft: `3px solid ${hat.color}` } : {}),
       }}
       className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
-      draggable
-      onDragStart={(e) => {
-        if (poolDndActiveRef.current) { e.preventDefault(); return; }
-        e.dataTransfer.setData('application/task-json', JSON.stringify(task));
-        e.dataTransfer.effectAllowed = 'move';
-      }}
-      title="Drag onto the grid to schedule"
     >
-      <span
-        className="timebox-pool-drag-handle"
-        {...attributes}
-        {...listeners}
-        onPointerDown={() => { poolDndActiveRef.current = true; }}
-        title="Drag to reorder"
-      >⠿</span>
-      <button className="timebox-chip-dismiss" onClick={(e) => { e.stopPropagation(); onDismiss(task.id); }} title="Remove from today's pool">×</button>
-      <span className="timebox-chip-desc">{task.description}</span>
-      <div className="timebox-chip-row">
-        <span className="timebox-chip-dur">{task.duration || 30}m</span>
-        <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
-        <button
-          className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-          onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
-          title="Toggle Most Important Task"
-        >⭐</button>
+      {/* Handle — @dnd-kit only; NOT draggable so HTML5 drag won't fire */}
+      <span className="timebox-pool-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</span>
+      {/* Body — HTML5 draggable for dropping onto the grid */}
+      <div
+        className="timebox-chip-body"
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/task-json', JSON.stringify(task));
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        title="Drag onto the grid to schedule"
+      >
+        <button className="timebox-chip-dismiss" onClick={(e) => { e.stopPropagation(); onDismiss(task.id); }} title="Remove from today's pool">×</button>
+        <span className="timebox-chip-desc">{task.description}</span>
+        <div className="timebox-chip-row">
+          <span className="timebox-chip-dur">{task.duration || 30}m</span>
+          <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
+          <button
+            className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+            onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
+            title="Toggle Most Important Task"
+          >⭐</button>
+        </div>
       </div>
     </div>
   );
@@ -1062,7 +1063,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
     return loadDismissed(toLocalDateStr(d));
   });
   const [futureTasks, setFutureTasks] = useState(null);
-  const poolDndActiveRef = useRef(false);
   const poolSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
   const weekDates = getWeekDates(weekStartOffset);
@@ -1133,7 +1133,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
   };
 
   const handlePoolDragEnd = useCallback((event) => {
-    poolDndActiveRef.current = false;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
@@ -1202,9 +1201,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
                   <DndContext
                     sensors={poolSensors}
                     collisionDetection={closestCenter}
-                    onDragStart={() => { poolDndActiveRef.current = true; }}
                     onDragEnd={handlePoolDragEnd}
-                    onDragCancel={() => { poolDndActiveRef.current = false; }}
                   >
                     <SortableContext items={pool.map(t => t.id)} strategy={verticalListSortingStrategy}>
                       {pool.map(task => (
@@ -1213,7 +1210,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
                           task={task}
                           hats={hats}
                           mitIds={mitIds}
-                          poolDndActiveRef={poolDndActiveRef}
                           onDismiss={handleDismiss}
                           onEdit={setEditingTask}
                           onToggleMit={handleToggleMit}

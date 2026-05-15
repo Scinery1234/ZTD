@@ -112,7 +112,7 @@ function isOnDaysGrid(task, date) {
   return false;
 }
 
-// Like advancePastBlocked but works in grid minutes (0–1740) across midnight
+// Advance cursor past blocked slots in grid minutes (0–1740) — used by auto-schedule
 function advancePastBlockedGrid(cursor, dur, blocked) {
   let c = cursor;
   let changed = true;
@@ -125,20 +125,16 @@ function advancePastBlockedGrid(cursor, dur, blocked) {
   return c;
 }
 
-// During drag: if desired position overlaps a locked task, snap to the nearest
-// free slot (before or after the locked task), based on raw desired position.
-function snapAroundLocked(desiredMin, durationMin, lockedIntervals, date) {
+// Hop: find nearest free slot (before or after) in grid minutes
+function snapAroundBlockedGrid(desiredMin, dur, blocked) {
   let result = desiredMin;
   let changed = true;
   while (changed) {
     changed = false;
-    for (const b of lockedIntervals) {
-      if (b.date !== date) continue;
-      const bs = parseMinutes(b.start);
-      const be = parseMinutes(b.end);
-      if (result < be && result + durationMin > bs) {
-        const before = bs - durationMin;
-        const after = be;
+    for (const b of blocked) {
+      if (result < b.end && result + dur > b.start) {
+        const before = b.start - dur;
+        const after = b.end;
         result = Math.abs(desiredMin - before) <= Math.abs(desiredMin - after) ? before : after;
         changed = true;
         break;
@@ -148,6 +144,31 @@ function snapAroundLocked(desiredMin, durationMin, lockedIntervals, date) {
   return result;
 }
 
+// Push: insert dragged task at desiredStart and cascade-shift overlapping tasks forward.
+// otherTasks: [{id, origStart, dur, locked}] — original positions at drag start.
+// Returns {[id]: newGridStart} for all otherTasks, or null if a locked task is in the way
+// or a pushed task would exceed windowEnd.
+function computePushLayout(desiredStart, duration, otherTasks, windowEnd) {
+  const sorted = [...otherTasks].sort((a, b) => a.origStart - b.origStart);
+  const result = {};
+  let cursor = desiredStart + duration;
+  for (const t of sorted) {
+    if (t.origStart + t.dur <= desiredStart) {
+      result[t.id] = t.origStart; // ends before drop point — no conflict
+    } else if (t.origStart < cursor) {
+      if (t.locked) return null; // can't shift a locked task
+      result[t.id] = cursor;
+      cursor += t.dur;
+    } else {
+      result[t.id] = t.origStart; // after cursor — no conflict
+    }
+  }
+  // Reject if any pushed task exceeds the window
+  for (const t of sorted) {
+    if (result[t.id] !== t.origStart && result[t.id] + t.dur > windowEnd) return null;
+  }
+  return result;
+}
 
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -611,21 +632,34 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
       } else if (dragging.type === 'task-move') {
         const dur = dragging.duration || 30;
-        let newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
-        // Hop over ALL scheduled tasks (not just locked) — snap to nearest free slot
-        const occupiedIntervals = localTasksRef.current
-          .filter(t => t.id !== dragging.taskId && t.scheduled_time)
-          .map(t => ({
-            date: t.scheduled_date || date,
-            start: t.scheduled_time,
-            end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
-          }));
-        if (occupiedIntervals.length > 0) {
-          newMin = snapAroundLocked(newMin, dur, occupiedIntervals, date);
-          newMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, newMin));
+        const rawMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
+        const wEnd = parseMinutes(localWindowRef.current.end);
+        // Build sibling tasks from original positions captured at drag start
+        const otherTasks = Object.entries(dragging.origTaskPositions || {})
+          .filter(([id]) => Number(id) !== dragging.taskId)
+          .map(([id, origStart]) => {
+            const t = localTasksRef.current.find(t => t.id === Number(id));
+            return t ? { id: Number(id), origStart, dur: t.duration || 30, locked: Boolean(t.locked) } : null;
+          })
+          .filter(Boolean);
+        // Try squeeze+push; fall back to hop if blocked by locked task or no room
+        const pushResult = computePushLayout(rawMin, dur, otherTasks, wEnd);
+        let finalStart;
+        let siblingsMap = {};
+        if (pushResult !== null) {
+          finalStart = rawMin;
+          siblingsMap = pushResult;
+        } else {
+          const blockedGrid = otherTasks.map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
+          finalStart = snapAroundBlockedGrid(rawMin, dur, blockedGrid);
+          finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, finalStart));
+          otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; }); // restore originals
         }
-        const moved = gridMinsToSchedule(newMin, date);
-        setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...moved } : t));
+        setLocalTasks(prev => prev.map(t => {
+          if (t.id === dragging.taskId) return { ...t, ...gridMinsToSchedule(finalStart, date) };
+          const ns = siblingsMap[t.id];
+          return ns !== undefined ? { ...t, ...gridMinsToSchedule(ns, date) } : t;
+        }));
       } else if (dragging.type === 'task-resize-bottom') {
         // Allow resizing into the next-day area
         const newEndMin = Math.max(dragging.origMin + SNAP, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origEndMin + deltaMins)));
@@ -646,21 +680,26 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
         const updated = localTasksRef.current.find(t => t.id === dragging.taskId);
         if (updated) {
-          // scheduled_time/date already set correctly by gridMinsToSchedule during drag.
-          // For week-view cross-column drag, override date with the target column.
           let savedDate = updated.scheduled_date;
           if (isWeekView && dragging.type === 'task-move') {
             const el = document.elementFromPoint(e.clientX, e.clientY);
             const col = el?.closest('[data-date]');
-            if (col && col.getAttribute('data-date') !== date) {
-              savedDate = col.getAttribute('data-date');
+            if (col && col.getAttribute('data-date') !== date) savedDate = col.getAttribute('data-date');
+          }
+          const allUpdates = [{ id: updated.id, scheduled_time: updated.scheduled_time, scheduled_date: savedDate, duration: updated.duration }];
+          // Also save sibling tasks that were pushed during a move
+          if (dragging.type === 'task-move' && dragging.origTaskPositions) {
+            for (const [idStr, origStart] of Object.entries(dragging.origTaskPositions)) {
+              const tid = Number(idStr);
+              if (tid === updated.id) continue;
+              const t = localTasksRef.current.find(t => t.id === tid);
+              if (!t || !t.scheduled_time) continue;
+              if (taskGridMinutes(t, date) !== origStart)
+                allUpdates.push({ id: t.id, scheduled_time: t.scheduled_time, scheduled_date: t.scheduled_date });
             }
           }
-          await onUpdateTask(updated.id, {
-            scheduled_time: updated.scheduled_time,
-            scheduled_date: savedDate,
-            duration: updated.duration,
-          });
+          await Promise.all(allUpdates.map(u => api.updateTask(u.id, u)));
+          if (onApplyTaskUpdates) onApplyTaskUpdates(allUpdates);
         }
       }
       setDragging(null);
@@ -671,7 +710,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, date, onWindowChange, onUpdateTask, isWeekView]);
+  }, [dragging, date, onWindowChange, onUpdateTask, onApplyTaskUpdates, isWeekView]);
 
   // ── Grid drag (task or block creation) ───────────────────────────────────
   useEffect(() => {
@@ -893,10 +932,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   if (isLocked) return;
                   if (e.target.classList.contains('timebox-task-resize-top') ||
                     e.target.classList.contains('timebox-task-resize-bottom')) return;
+                  const origTaskPositions = {};
+                  localTasks.forEach(t => {
+                    if (t.scheduled_time && isOnDaysGrid(t, date))
+                      origTaskPositions[t.id] = taskGridMinutes(t, date);
+                  });
                   startMouseDrag('task-move', {
                     taskId: task.id,
                     origMin: gridMins,
                     duration: task.duration || 30,
+                    origTaskPositions,
                   }, e);
                 }}
               >

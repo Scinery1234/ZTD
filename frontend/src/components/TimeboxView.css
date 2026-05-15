@@ -66,7 +66,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 7px 9px;
+  padding: 7px 9px 7px 18px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   border-left: 2px solid rgba(255, 255, 255, 0.15);
@@ -74,6 +74,25 @@
 }
 
 .timebox-sidebar-chip:active { cursor: grabbing; }
+
+.timebox-pool-drag-handle {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  cursor: grab;
+  padding: 2px 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+  line-height: 1;
+}
+.timebox-sidebar-chip:hover .timebox-pool-drag-handle {
+  opacity: 1;
+}
+.timebox-pool-drag-handle:active { cursor: grabbing; }
 
 .timebox-chip-dismiss {
   position: absolute;

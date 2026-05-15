@@ -102,22 +102,27 @@ function getRelativeY(e, el) {
   return e.clientY - rect.top + el.scrollTop;
 }
 
-function advancePastBlocked(cursorMin, durationMin, blockedTimes, date) {
-  let cursor = cursorMin;
+// Whether a task is placed on a specific day's grid (not stale from another day)
+function isOnDaysGrid(task, date) {
+  if (!task.scheduled_time) return false;
+  const nextDay = addDays(date, 1);
+  if (task.scheduled_date === date) return true;
+  if (!task.scheduled_date && task.due === date) return true;
+  if (task.scheduled_date === nextDay && parseMinutes(task.scheduled_time) < OVERFLOW_HOURS * 60) return true;
+  return false;
+}
+
+// Like advancePastBlocked but works in grid minutes (0–1740) across midnight
+function advancePastBlockedGrid(cursor, dur, blocked) {
+  let c = cursor;
   let changed = true;
   while (changed) {
     changed = false;
-    for (const b of blockedTimes) {
-      if (b.date !== date) continue;
-      const bs = parseMinutes(b.start);
-      const be = parseMinutes(b.end);
-      if (cursor < be && cursor + durationMin > bs) {
-        cursor = be;
-        changed = true;
-      }
+    for (const b of blocked) {
+      if (c < b.end && c + dur > b.start) { c = b.end; changed = true; }
     }
   }
-  return cursor;
+  return c;
 }
 
 // During drag: if desired position overlaps a locked task, snap to the nearest
@@ -540,31 +545,25 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   // ── Auto-schedule ──────────────────────────────────────────────────────────
   const handleAutoSchedule = useCallback(async () => {
     const nextDayDate = addDays(date, 1);
-    // Mirror the sidebar pool logic: a task is "on today's grid" if it has a
-    // scheduled_time placed specifically for today (not a stale date from another day).
-    const isOnTodaysGrid = (t) => {
-      if (!t.scheduled_time) return false;
-      if (t.scheduled_date === date) return true;
-      if (!t.scheduled_date && t.due === date) return true;
-      if (t.scheduled_date === nextDayDate &&
-          parseMinutes(t.scheduled_time) < OVERFLOW_HOURS * 60) return true;
-      return false;
-    };
     // Exclude tasks already on today's grid, locked, and dismissed
     const pool = localTasks.filter(t =>
-      !isOnTodaysGrid(t) && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
+      !isOnDaysGrid(t, date) && !t.locked && !(dismissedIds && dismissedIds.has(t.id))
     );
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
-    // Treat all already-scheduled tasks on this date as blocked
-    const allBlocked = [
-      ...blockedTimes,
+    // Build blocked list in grid minutes (0–1740) so we can schedule past midnight
+    const allBlockedGrid = [
+      ...blockedTimes
+        .filter(b => b.date === date || b.date === nextDayDate)
+        .map(b => {
+          const offset = b.date === nextDayDate ? 1440 : 0;
+          return { start: parseMinutes(b.start) + offset, end: parseMinutes(b.end) + offset };
+        }),
       ...localTasks
-        .filter(t => t.scheduled_time && t.scheduled_date === date)
-        .map(t => ({
-          date,
-          start: t.scheduled_time,
-          end: formatTime(parseMinutes(t.scheduled_time) + (t.duration || 30)),
-        })),
+        .filter(t => isOnDaysGrid(t, date))
+        .map(t => {
+          const gs = taskGridMinutes(t, date);
+          return { start: gs, end: gs + (t.duration || 30) };
+        }),
     ];
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -573,18 +572,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = [];
     for (const task of ordered) {
       const dur = task.duration || 30;
-      const slotStart = advancePastBlocked(cursor, dur, allBlocked, date);
+      const slotStart = advancePastBlockedGrid(cursor, dur, allBlockedGrid);
       if (slotStart + dur > windowEnd) continue;
-      updates.push({ id: task.id, scheduled_time: formatTime(slotStart), scheduled_date: date });
+      const scheduled = gridMinsToSchedule(slotStart, date);
+      updates.push({ id: task.id, ...scheduled });
       cursor = slotStart + dur;
-      allBlocked.push({ date, start: formatTime(slotStart), end: formatTime(slotStart + dur) });
+      allBlockedGrid.push({ start: slotStart, end: slotStart + dur });
     }
     if (updates.length === 0) return;
-    // Apply all to local state immediately — no intermediate renders, no flicker
     const updatedMap = {};
     updates.forEach(u => { updatedMap[u.id] = u; });
     setLocalTasks(prev => prev.map(t => updatedMap[t.id] ? { ...t, ...updatedMap[t.id] } : t));
-    // Save all to API in parallel, then sync parent state without an HTTP re-fetch
     await Promise.all(updates.map(u =>
       api.updateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })
     ));
@@ -1006,6 +1004,50 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   );
 }
 
+// ── SortablePoolChip ─────────────────────────────────────────────────────────
+function SortablePoolChip({ task, hats, mitIds, poolDndActiveRef, onDismiss, onEdit, onToggleMit }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const hat = hats?.find(h => h.id === task.hat_id);
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: DndCSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        ...(hat?.color ? { borderLeft: `3px solid ${hat.color}` } : {}),
+      }}
+      className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        if (poolDndActiveRef.current) { e.preventDefault(); return; }
+        e.dataTransfer.setData('application/task-json', JSON.stringify(task));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      title="Drag onto the grid to schedule"
+    >
+      <span
+        className="timebox-pool-drag-handle"
+        {...attributes}
+        {...listeners}
+        onPointerDown={() => { poolDndActiveRef.current = true; }}
+        title="Drag to reorder"
+      >⠿</span>
+      <button className="timebox-chip-dismiss" onClick={(e) => { e.stopPropagation(); onDismiss(task.id); }} title="Remove from today's pool">×</button>
+      <span className="timebox-chip-desc">{task.description}</span>
+      <div className="timebox-chip-row">
+        <span className="timebox-chip-dur">{task.duration || 30}m</span>
+        <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
+        <button
+          className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
+          onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
+          title="Toggle Most Important Task"
+        >⭐</button>
+      </div>
+    </div>
+  );
+}
+
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
 function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, maxHistoryDays = 14 }) {
   const [subView, setSubView] = useState('day');
@@ -1020,8 +1062,11 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
     return loadDismissed(toLocalDateStr(d));
   });
   const [futureTasks, setFutureTasks] = useState(null);
+  const poolDndActiveRef = useRef(false);
+  const poolSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
   const weekDates = getWeekDates(weekStartOffset);
+  const selectedDay = (() => { const d = new Date(); d.setDate(d.getDate() + dayOffset); return toLocalDateStr(d); })();
 
   const canGoBack = weekStartOffset > -maxHistoryDays;
   const canGoForward = weekStartOffset < 90; // allow up to 90 days forward for everyone
@@ -1087,6 +1132,21 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
     });
   };
 
+  const handlePoolDragEnd = useCallback((event) => {
+    poolDndActiveRef.current = false;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
+    const pool = taskSource.filter(t => !isOnDaysGrid(t, selectedDay) && !dismissed.has(t.id));
+    const oldIdx = pool.findIndex(t => t.id === active.id);
+    const newIdx = pool.findIndex(t => t.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const reordered = arrayMove(pool, oldIdx, newIdx);
+    const posUpdates = reordered.map((t, i) => ({ id: t.id, position: i }));
+    if (onApplyTaskUpdates) onApplyTaskUpdates(posUpdates);
+    api.reorder(posUpdates).catch(() => {});
+  }, [dayOffset, futureTasks, tasks, selectedDay, dismissed, onApplyTaskUpdates]);
+
   const sharedProps = {
     tasks,
     hats,
@@ -1119,8 +1179,6 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
       </div>
 
       {subView === 'day' && (() => {
-        const d = new Date(); d.setDate(d.getDate() + dayOffset);
-        const selectedDay = toLocalDateStr(d);
         return (
         <div className="timebox-day-layout">
           {/* Task pool sidebar — all tasks with no scheduled_time */}
@@ -1136,63 +1194,33 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, max
             <div className="timebox-task-sidebar-body">
               {(() => {
                 const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
-                const nextDayStr = addDays(selectedDay, 1);
-                // A task is "on today's grid" if it has a scheduled_time AND is placed on today
-                const isOnTodaysGrid = (t) => {
-                  if (!t.scheduled_time) return false;
-                  if (t.scheduled_date === selectedDay) return true;
-                  if (!t.scheduled_date && t.due === selectedDay) return true;
-                  if (t.scheduled_date === nextDayStr &&
-                      parseMinutes(t.scheduled_time) < OVERFLOW_HOURS * 60) return true;
-                  return false;
-                };
-                const pool = taskSource.filter(t => !isOnTodaysGrid(t) && !dismissed.has(t.id));
-                const hasDismissed = taskSource.filter(t => !isOnTodaysGrid(t) && dismissed.has(t.id)).length > 0;
+                const pool = taskSource.filter(t => !isOnDaysGrid(t, selectedDay) && !dismissed.has(t.id));
+                const hasDismissed = taskSource.some(t => !isOnDaysGrid(t, selectedDay) && dismissed.has(t.id));
+                if (pool.length === 0 && !hasDismissed) return <div className="timebox-pool-empty">All tasks scheduled ✓</div>;
+                if (pool.length === 0) return <div className="timebox-pool-empty">No tasks for today ✓</div>;
                 return (
-                  <>
-                    {pool.length === 0 && !hasDismissed ? (
-                      <div className="timebox-pool-empty">All tasks scheduled ✓</div>
-                    ) : pool.length === 0 && hasDismissed ? (
-                      <div className="timebox-pool-empty">No tasks for today ✓</div>
-                    ) : (
-                      pool.map(task => {
-                        const poolHat = hats.find(h => h.id === task.hat_id);
-                        return (
-                        <div
+                  <DndContext
+                    sensors={poolSensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={() => { poolDndActiveRef.current = true; }}
+                    onDragEnd={handlePoolDragEnd}
+                    onDragCancel={() => { poolDndActiveRef.current = false; }}
+                  >
+                    <SortableContext items={pool.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                      {pool.map(task => (
+                        <SortablePoolChip
                           key={task.id}
-                          className={`timebox-sidebar-chip priority-${task.priority || 'none'} ${mitIds.has(task.id) ? 'mit' : ''}`}
-                          style={poolHat?.color ? { borderLeft: `3px solid ${poolHat.color}` } : undefined}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('application/task-json', JSON.stringify(task));
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          title="Drag onto the grid to schedule"
-                        >
-                          <button
-                            className="timebox-chip-dismiss"
-                            onClick={(e) => { e.stopPropagation(); handleDismiss(task.id); }}
-                            title="Remove from today's pool"
-                          >×</button>
-                          <span className="timebox-chip-desc">{task.description}</span>
-                          <div className="timebox-chip-row">
-                            <span className="timebox-chip-dur">{task.duration || 30}m</span>
-                            <button
-                              className="timebox-task-edit-btn"
-                              onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
-                              title="Edit task"
-                            >✎</button>
-                            <button
-                              className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
-                              onClick={(e) => { e.stopPropagation(); handleToggleMit(task.id); }}
-                              title="Toggle Most Important Task"
-                            >⭐</button>
-                          </div>
-                        </div>
-                        );
-                      })
-                    )}
-                  </>
+                          task={task}
+                          hats={hats}
+                          mitIds={mitIds}
+                          poolDndActiveRef={poolDndActiveRef}
+                          onDismiss={handleDismiss}
+                          onEdit={setEditingTask}
+                          onToggleMit={handleToggleMit}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                 );
               })()}
             </div>

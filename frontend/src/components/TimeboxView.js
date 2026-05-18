@@ -518,6 +518,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
+  const blockDragRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [localTasks, setLocalTasks] = useState(tasks);
   const [localWindow, setLocalWindow] = useState(dayWindow);
@@ -716,21 +717,28 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     };
   }, [dragging, date, onWindowChange, onUpdateTask, onApplyTaskUpdates, isWeekView]);
 
+  // Keep ref in sync so onUp can read the latest position without closing over stale state
+  useEffect(() => { blockDragRef.current = blockDrag; }, [blockDrag]);
+
   // ── Grid drag (task or block creation) ───────────────────────────────────
+  // Depends only on whether drag is active (not on blockDrag itself) so that
+  // setBlockDrag calls inside onMove don't churn event listener registration.
+  const isBlockDragging = !!blockDrag;
   useEffect(() => {
-    if (!blockDrag) return;
+    if (!isBlockDragging) return;
     const onMove = (e) => {
       if (!wrapperRef.current) return;
       const y = getRelativeY(e, wrapperRef.current);
       const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
-      setBlockDrag(prev => ({ ...prev, endMin: mins, screenX: e.clientX, screenY: e.clientY }));
+      setBlockDrag(prev => prev ? { ...prev, endMin: mins, screenX: e.clientX, screenY: e.clientY } : null);
     };
     const onUp = (e) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (blockDrag) {
-        const start = Math.min(blockDrag.startMin, blockDrag.endMin);
-        const end = Math.max(blockDrag.startMin, blockDrag.endMin);
+      const bd = blockDragRef.current;
+      if (bd) {
+        const start = Math.min(bd.startMin, bd.endMin);
+        const end = Math.max(bd.startMin, bd.endMin);
         if (end - start >= SNAP) {
           // Show popup to choose: add task or block time
           setPendingSlot({
@@ -749,7 +757,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [blockDrag]);
+  }, [isBlockDragging]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGridMouseDown = (e) => {
     if (e.target !== gridRef.current) return;

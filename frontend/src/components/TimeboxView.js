@@ -125,23 +125,28 @@ function advancePastBlockedGrid(cursor, dur, blocked) {
   return c;
 }
 
-// Hop: find nearest free slot (before or after) in grid minutes
+// Hop: find nearest free slot (before or after) in grid minutes.
+// Uses a candidate-based approach to avoid the oscillation infinite loop that
+// a naive "move until no conflict" while loop produces when two blocked slots
+// are close together (hop right → now in next block → hop left → loop).
 function snapAroundBlockedGrid(desiredMin, dur, blocked) {
-  let result = desiredMin;
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const b of blocked) {
-      if (result < b.end && result + dur > b.start) {
-        const before = b.start - dur;
-        const after = b.end;
-        result = Math.abs(desiredMin - before) <= Math.abs(desiredMin - after) ? before : after;
-        changed = true;
-        break;
-      }
+  // Every valid placement must start just before or just after some blocked slot,
+  // or at desiredMin itself. Generate all such candidates and pick the closest free one.
+  const candidates = [desiredMin];
+  for (const b of blocked) {
+    candidates.push(b.start - dur); // just before this block
+    candidates.push(b.end);          // just after this block
+  }
+  let best = desiredMin;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    if (c < 0 || c + dur > MAX_GRID_MINS) continue;
+    if (!blocked.some(b => c < b.end && c + dur > b.start)) {
+      const dist = Math.abs(c - desiredMin);
+      if (dist < bestDist) { bestDist = dist; best = c; }
     }
   }
-  return result;
+  return best;
 }
 
 // Push: insert dragged task at desiredStart and cascade-shift overlapping tasks forward.

@@ -476,7 +476,7 @@ function TaskApp() {
             </button>
           </div>
 
-          {viewMode === 'active' && (
+          <div className="view-content">          {viewMode === 'active' && (
             <>
               {atLimit ? (
                 <div className="limit-banner">
@@ -539,8 +539,9 @@ function TaskApp() {
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
             />
           )}
+          </div>{/* end view-content */}
         </div>
-        <LooseThreads onBack={viewMode === 'threads' ? () => setViewMode('active') : undefined} />
+        <LooseThreads />
       </div>
     </div>
   );

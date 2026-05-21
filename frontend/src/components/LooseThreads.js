@@ -119,7 +119,7 @@ function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
   );
 }
 
-export default function LooseThreads({ onBack }) {
+export default function LooseThreads() {
   const [notes,     setNotes]     = useState(() => load(STORAGE_KEY));
   const [trash,     setTrash]     = useState(() => load(TRASH_KEY));
   const [openIds,   setOpenIds]   = useState([]);
@@ -186,9 +186,6 @@ export default function LooseThreads({ onBack }) {
   return (
     <aside className={`lt-panel${collapsed ? ' lt-panel--collapsed' : ''}`}>
       <div className="lt-panel-header">
-        {onBack && (
-          <button className="lt-back-btn" onClick={onBack} title="Back to tasks">‹ Back</button>
-        )}
         {!collapsed && <span className="lt-panel-title">Loose Threads</span>}
         <div className="lt-panel-actions">
           {!collapsed && (

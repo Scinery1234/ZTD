@@ -540,7 +540,7 @@ function TaskApp() {
             />
           )}
         </div>
-        <LooseThreads />
+        <LooseThreads onBack={viewMode === 'threads' ? () => setViewMode('active') : undefined} />
       </div>
     </div>
   );

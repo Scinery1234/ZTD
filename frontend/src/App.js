@@ -341,14 +341,14 @@ function TaskApp() {
     }
   };
 
-  const updateTask = async (taskId, taskData) => {
+  const updateTask = useCallback(async (taskId, taskData) => {
     try {
       await api.updateTask(taskId, taskData);
       await fetchTasks();
     } catch (err) {
       console.error('Error updating task:', err);
     }
-  };
+  }, [fetchTasks]);
 
   // Update task state locally without an HTTP round-trip (used by auto-schedule batch)
   const applyTaskUpdates = useCallback((updates) => {
@@ -410,8 +410,11 @@ function TaskApp() {
     return filtered;
   };
 
-  const getVisibleTasks = () =>
-    selectedHatIds.size > 0 ? tasks.filter((t) => selectedHatIds.has(t.hat_id)) : tasks;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const visibleTasks = React.useMemo(() =>
+    selectedHatIds.size > 0 ? tasks.filter((t) => selectedHatIds.has(t.hat_id)) : tasks,
+  [tasks, selectedHatIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const getVisibleTasks = () => visibleTasks;
 
   const getCategories = () => {
     const all = [...new Set(getVisibleTasks().map((t) => t.category || 'Uncategorized'))];
@@ -537,7 +540,7 @@ function TaskApp() {
             />
           )}
         </div>
-        <LooseThreads />
+        <LooseThreads onBack={viewMode === 'threads' ? () => setViewMode('active') : undefined} />
       </div>
     </div>
   );

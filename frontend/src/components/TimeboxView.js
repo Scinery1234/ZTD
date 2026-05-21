@@ -715,7 +715,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, date, onWindowChange, onUpdateTask, onApplyTaskUpdates, isWeekView]);
+  }, [dragging, date, onWindowChange, onApplyTaskUpdates, isWeekView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep ref in sync so onUp can read the latest position without closing over stale state
   useEffect(() => { blockDragRef.current = blockDrag; }, [blockDrag]);
@@ -1155,16 +1155,18 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const getWindowForDate = (date) =>
     dayWindows[date] || { start: '09:00', end: '18:00' };
 
-  const handleWindowChange = (date, newWindow) => {
-    const next = { ...dayWindows, [date]: newWindow };
-    setDayWindows(next);
-    saveDayWindows(next);
-  };
+  const handleWindowChange = useCallback((date, newWindow) => {
+    setDayWindows(prev => {
+      const next = { ...prev, [date]: newWindow };
+      saveDayWindows(next);
+      return next;
+    });
+  }, []);
 
-  const handleBlockedTimesChange = (next) => {
+  const handleBlockedTimesChange = useCallback((next) => {
     setBlockedTimes(next);
     saveBlockedTimes(next);
-  };
+  }, []);
 
   const handleToggleMit = (taskId) => {
     setMitIds(prev => {

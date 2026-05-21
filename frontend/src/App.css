@@ -233,9 +233,17 @@
     display: block;
   }
 
-  /* In Threads mode: hide the main content, reveal the panel full-width */
-  .app-body--threads .container {
+  /* In Threads mode: keep the tab bar visible but hide only the view content */
+  .app-body--threads .view-content {
     display: none;
+  }
+
+  /* LooseThreads panel goes full-width in threads mode */
+  .app-body--threads .lt-panel {
+    width: 100%;
+    max-width: 100%;
+    position: static;
+    max-height: none;
   }
 }
 

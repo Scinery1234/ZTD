@@ -1008,6 +1008,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 }}
                 onTouchStart={(e) => {
                   if (isLocked) return;
+                  if (e.target.classList.contains('timebox-task-resize-top') ||
+                    e.target.classList.contains('timebox-task-resize-bottom')) return;
                   const origTaskPositions = {};
                   localTasks.forEach(t => {
                     if (t.scheduled_time && isOnDaysGrid(t, date))

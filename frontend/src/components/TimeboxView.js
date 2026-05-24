@@ -102,6 +102,12 @@ function getRelativeY(e, el) {
   return e.clientY - rect.top + el.scrollTop;
 }
 
+function getPointerY(e) {
+  if (e.touches && e.touches.length) return e.touches[0].clientY;
+  if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0].clientY;
+  return e.clientY;
+}
+
 // Whether a task is placed on a specific day's grid (not stale from another day)
 function isOnDaysGrid(task, date) {
   if (!task.scheduled_time) return false;
@@ -618,16 +624,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   }, [localTasks, blockedTimes, date, windowStart, windowEnd, dismissedIds, onApplyTaskUpdates]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
-  const startMouseDrag = useCallback((type, extra, e) => {
+  const startPointerDrag = useCallback((type, extra, e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragging({ type, startY: e.clientY, ...extra });
+    setDragging({ type, startY: getPointerY(e), ...extra });
   }, []);
 
   useEffect(() => {
     if (!dragging) return;
     const onMove = (e) => {
-      const clientY = e.clientY;
+      const clientY = getPointerY(e);
+      if (e.cancelable) e.preventDefault();
       if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
       dragRafRef.current = requestAnimationFrame(() => {
         dragRafRef.current = null;
@@ -684,6 +691,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const onUp = async (e) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
       if (dragging.type === 'window-start' || dragging.type === 'window-end') {
         onWindowChange(date, localWindowRef.current);
       } else if (dragging.type === 'task-move' || dragging.type === 'task-resize-bottom' || dragging.type === 'task-resize-top') {
@@ -715,10 +724,14 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
     return () => {
       if (dragRafRef.current) { cancelAnimationFrame(dragRafRef.current); dragRafRef.current = null; }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
     };
   }, [dragging, date, onWindowChange, onApplyTaskUpdates, isWeekView]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -733,24 +746,31 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     if (!isBlockDragging) return;
     const onMove = (e) => {
       if (!wrapperRef.current) return;
-      const y = getRelativeY(e, wrapperRef.current);
+      if (e.cancelable) e.preventDefault();
+      const clientY = getPointerY(e);
+      const y = getRelativeY({ clientY }, wrapperRef.current);
       const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
-      setBlockDrag(prev => prev ? { ...prev, endMin: mins, screenX: e.clientX, screenY: e.clientY } : null);
+      const screenX = e.touches?.[0]?.clientX ?? e.changedTouches?.[0]?.clientX ?? (blockDragRef.current?.screenX ?? 0);
+      const screenY = e.touches?.[0]?.clientY ?? e.changedTouches?.[0]?.clientY ?? (blockDragRef.current?.screenY ?? 0);
+      setBlockDrag(prev => prev ? { ...prev, endMin: mins, screenX, screenY } : null);
     };
     const onUp = (e) => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
       const bd = blockDragRef.current;
       if (bd) {
         const start = Math.min(bd.startMin, bd.endMin);
         const end = Math.max(bd.startMin, bd.endMin);
         if (end - start >= SNAP) {
-          // Show popup to choose: add task or block time
+          const ex = e.changedTouches?.[0]?.clientX ?? e.clientX;
+          const ey = e.changedTouches?.[0]?.clientY ?? e.clientY;
           setPendingSlot({
             startMin: start,
             endMin: end,
-            screenX: e.clientX,
-            screenY: e.clientY,
+            screenX: ex,
+            screenY: ey,
           });
         }
       }
@@ -758,9 +778,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
     return () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
     };
   }, [isBlockDragging]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -770,6 +794,15 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const y = getRelativeY(e, wrapperRef.current);
     const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
     setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
+  };
+
+  const handleGridTouchStart = (e) => {
+    if (e.target !== gridRef.current) return;
+    if (!wrapperRef.current) return;
+    const touch = e.touches[0];
+    const y = getRelativeY({ clientY: touch.clientY }, wrapperRef.current);
+    const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
+    setBlockDrag({ startMin: mins, endMin: mins, screenX: touch.clientX, screenY: touch.clientY });
   };
 
   const handleConfirmBlock = (startMin, endMin) => {
@@ -858,7 +891,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         onDrop={handleGridDrop}
         onDragLeave={handleGridDragLeave}
       >
-        <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
+        <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown} onTouchStart={handleGridTouchStart}
           style={{ height: GRID_HEIGHT }}>
 
           {/* Drag-from-sidebar preview */}
@@ -929,14 +962,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           <div
             className="window-bar window-bar--start"
             style={{ top: timeToY(localWindow.start) }}
-            onMouseDown={(e) => startMouseDrag('window-start', { origMin: parseMinutes(localWindow.start) }, e)}
+            onMouseDown={(e) => startPointerDrag('window-start', { origMin: parseMinutes(localWindow.start) }, e)}
+            onTouchStart={(e) => startPointerDrag('window-start', { origMin: parseMinutes(localWindow.start) }, e)}
           >
             <span className="window-bar-label">▲ {localWindow.start}</span>
           </div>
           <div
             className="window-bar window-bar--end"
             style={{ top: timeToY(localWindow.end) }}
-            onMouseDown={(e) => startMouseDrag('window-end', { origMin: parseMinutes(localWindow.end) }, e)}
+            onMouseDown={(e) => startPointerDrag('window-end', { origMin: parseMinutes(localWindow.end) }, e)}
+            onTouchStart={(e) => startPointerDrag('window-end', { origMin: parseMinutes(localWindow.end) }, e)}
           >
             <span className="window-bar-label">▼ {formatGridTime(parseMinutes(localWindow.end))}</span>
           </div>
@@ -964,21 +999,33 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                     if (t.scheduled_time && isOnDaysGrid(t, date))
                       origTaskPositions[t.id] = taskGridMinutes(t, date);
                   });
-                  startMouseDrag('task-move', {
+                  startPointerDrag('task-move', {
                     taskId: task.id,
                     origMin: gridMins,
                     duration: task.duration || 30,
                     origTaskPositions,
                   }, e);
                 }}
+                onTouchStart={(e) => {
+                  if (isLocked) return;
+                  if (e.target.classList.contains('timebox-task-resize-top') ||
+                    e.target.classList.contains('timebox-task-resize-bottom')) return;
+                  const origTaskPositions = {};
+                  localTasks.forEach(t => {
+                    if (t.scheduled_time && isOnDaysGrid(t, date))
+                      origTaskPositions[t.id] = taskGridMinutes(t, date);
+                  });
+                  startPointerDrag('task-move', { taskId: task.id, origMin: gridMins, duration: task.duration || 30, origTaskPositions }, e);
+                }}
               >
                 <div
                   className="timebox-task-resize-top"
-                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-top', {
+                  onMouseDown={(e) => { if (isLocked) return; startPointerDrag('task-resize-top', {
                     taskId: task.id,
                     origMin: gridMins,
                     origEndMin: gridMins + (task.duration || 30),
                   }, e); }}
+                  onTouchStart={(e) => { if (isLocked) return; startPointerDrag('task-resize-top', { taskId: task.id, origMin: gridMins, origEndMin: gridMins + (task.duration || 30) }, e); }}
                 />
                 <div className="timebox-task-body">
                   <span className="timebox-task-desc">{task.description}</span>
@@ -1018,11 +1065,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 </div>
                 <div
                   className="timebox-task-resize-bottom"
-                  onMouseDown={(e) => { if (isLocked) return; startMouseDrag('task-resize-bottom', {
+                  onMouseDown={(e) => { if (isLocked) return; startPointerDrag('task-resize-bottom', {
                     taskId: task.id,
                     origMin: gridMins,
                     origEndMin: gridMins + (task.duration || 30),
                   }, e); }}
+                  onTouchStart={(e) => { if (isLocked) return; startPointerDrag('task-resize-bottom', { taskId: task.id, origMin: gridMins, origEndMin: gridMins + (task.duration || 30) }, e); }}
                 />
               </div>
             );

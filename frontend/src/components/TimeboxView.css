@@ -187,6 +187,10 @@
     height: 12px;
   }
 
+  /* Always show action buttons on touch devices (no hover state) */
+  .timebox-task .timebox-task-meta {
+    opacity: 1;
+  }
   .timebox-task-meta {
     gap: 6px;
   }
@@ -197,6 +201,8 @@
   .timebox-mit-btn {
     font-size: 14px;
     padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
   }
 
   .timebox-sidebar-chip {
@@ -533,7 +539,7 @@
   position: absolute;
   left: 36px;
   right: 0;
-  height: 3px;
+  height: 2px;
   cursor: ns-resize;
   z-index: 10;
   display: flex;
@@ -643,6 +649,14 @@
 
 .timebox-task:active { cursor: grabbing; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
 
+/* Long-press feedback on mobile — briefly shown during the 400ms hold */
+.timebox-task--pressing {
+  transform: scale(1.04);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  z-index: 20;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
 /* Priority border colors */
 .timebox-task.priority-urgent { border-left-color: #f87171; background: rgba(248, 113, 113, 0.1); }
 .timebox-task.priority-today  { border-left-color: #fbbf24; background: rgba(251, 191, 36, 0.08); }
@@ -660,9 +674,9 @@
 .timebox-task-body {
   flex: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 3px 6px;
+  padding: 4px 6px;
   gap: 4px;
   overflow: hidden;
   min-height: 0;
@@ -717,16 +731,20 @@
   white-space: nowrap;
 }
 
-/* Resize handles */
+/* Resize handles — absolutely positioned so they overlay the body without consuming height */
 .timebox-task-resize-top,
 .timebox-task-resize-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
   height: 6px;
-  width: 100%;
   cursor: ns-resize;
-  flex-shrink: 0;
   z-index: 6;
   touch-action: none;
 }
+
+.timebox-task-resize-top { top: 0; }
+.timebox-task-resize-bottom { bottom: 0; }
 
 .timebox-task-resize-top:hover,
 .timebox-task-resize-bottom:hover {

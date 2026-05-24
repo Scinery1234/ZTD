@@ -31,7 +31,7 @@ const GRID_HOURS = 24 + OVERFLOW_HOURS;
 const GRID_HEIGHT = GRID_HOURS * PX_PER_HOUR;
 const MAX_GRID_MINS = GRID_HOURS * 60; // 1740
 const SNAP = 15; // minutes
-
+const LONG_PRESS_MS = 400; // ms before a touch-hold becomes a drag
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function parseMinutes(hhmm) {
@@ -132,28 +132,6 @@ function advancePastBlockedGrid(cursor, dur, blocked) {
 }
 
 // Hop: find nearest free slot (before or after) in grid minutes.
-// Uses a candidate-based approach to avoid the oscillation infinite loop that
-// a naive "move until no conflict" while loop produces when two blocked slots
-// are close together (hop right → now in next block → hop left → loop).
-function snapAroundBlockedGrid(desiredMin, dur, blocked) {
-  // Every valid placement must start just before or just after some blocked slot,
-  // or at desiredMin itself. Generate all such candidates and pick the closest free one.
-  const candidates = [desiredMin];
-  for (const b of blocked) {
-    candidates.push(b.start - dur); // just before this block
-    candidates.push(b.end);          // just after this block
-  }
-  let best = desiredMin;
-  let bestDist = Infinity;
-  for (const c of candidates) {
-    if (c < 0 || c + dur > MAX_GRID_MINS) continue;
-    if (!blocked.some(b => c < b.end && c + dur > b.start)) {
-      const dist = Math.abs(c - desiredMin);
-      if (dist < bestDist) { bestDist = dist; best = c; }
-    }
-  }
-  return best;
-}
 
 // Push: insert dragged task at desiredStart and cascade-shift overlapping tasks forward.
 // otherTasks: [{id, origStart, dur, locked}] — original positions at drag start.
@@ -625,10 +603,84 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startPointerDrag = useCallback((type, extra, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging({ type, startY: getPointerY(e), ...extra });
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    // extra.startY is used when called from the long-press path (e is null)
+    const { startY: explicitY, ...rest } = extra;
+    const startY = explicitY !== undefined ? explicitY : getPointerY(e);
+    setDragging({ type, startY, ...rest });
   }, []);
+
+  // Long-press drag for touch: hold 400ms without moving to enter drag mode.
+  // During the hold window, finger movement is delegated to the grid's scrollTop
+  // so scrolling still works even when the finger lands on a task block.
+  const handleTaskTouchStart = useCallback((task, gridMins, e) => {
+    // Let resize handles and action buttons handle their own touches
+    if (e.target.classList.contains('timebox-task-resize-top') ||
+        e.target.classList.contains('timebox-task-resize-bottom') ||
+        e.target.closest?.('button')) return;
+
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    let prevY = startY;
+    const el = e.currentTarget;
+    let done = false;
+    let scrollMode = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      el.classList.remove('timebox-task--pressing');
+      clearTimeout(timer);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+
+    const onMove = (me) => {
+      if (done) return;
+      const t = me.touches[0];
+      if (!t) { cleanup(); return; }
+      const dy = t.clientY - prevY;
+      if (!scrollMode && (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8)) {
+        // Movement detected — cancel long press, switch to manual scroll mode
+        scrollMode = true;
+        clearTimeout(timer);
+        el.classList.remove('timebox-task--pressing');
+      }
+      if (scrollMode && wrapperRef.current) {
+        // Manually scroll the grid since touch-action:none blocks native scroll
+        wrapperRef.current.scrollTop -= dy;
+      }
+      prevY = t.clientY;
+    };
+
+    const onEnd = cleanup;
+
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      el.classList.remove('timebox-task--pressing');
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      // Compute origTaskPositions at drag-start time (most accurate)
+      const origTaskPositions = {};
+      localTasksRef.current.forEach(t => {
+        if (t.scheduled_time && isOnDaysGrid(t, date))
+          origTaskPositions[t.id] = taskGridMinutes(t, date);
+      });
+      startPointerDrag('task-move', {
+        taskId: task.id, origMin: gridMins, duration: task.duration || 30,
+        origTaskPositions, startY,
+      }, null);
+    }, LONG_PRESS_MS);
+
+    el.classList.add('timebox-task--pressing');
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd, { once: true });
+    document.addEventListener('touchcancel', onEnd, { once: true });
+  }, [date, startPointerDrag]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!dragging) return;
@@ -666,9 +718,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             finalStart = rawMin;
             siblingsMap = pushResult;
           } else {
-            const blockedGrid = otherTasks.map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
-            finalStart = snapAroundBlockedGrid(rawMin, dur, blockedGrid);
-            finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, finalStart));
+            // Push failed — follow cursor but clamp so we never overlap a locked task.
+            const lockedZones = otherTasks
+              .filter(t => t.locked)
+              .map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
+            let clamped = rawMin;
+            for (const zone of lockedZones) {
+              if (clamped < zone.end && clamped + dur > zone.start) {
+                const beforePos = Math.max(0, zone.start - dur);
+                const afterPos = zone.end;
+                clamped = Math.abs(rawMin - beforePos) <= Math.abs(rawMin - afterPos)
+                  ? beforePos : afterPos;
+              }
+            }
+            finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, clamped));
             otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; });
           }
           setLocalTasks(prev => prev.map(t => {
@@ -796,14 +859,6 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
   };
 
-  const handleGridTouchStart = (e) => {
-    if (e.target !== gridRef.current) return;
-    if (!wrapperRef.current) return;
-    const touch = e.touches[0];
-    const y = getRelativeY({ clientY: touch.clientY }, wrapperRef.current);
-    const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
-    setBlockDrag({ startMin: mins, endMin: mins, screenX: touch.clientX, screenY: touch.clientY });
-  };
 
   const handleConfirmBlock = (startMin, endMin) => {
     const next = [...blockedTimes, { date, start: formatTime(startMin), end: formatTime(endMin) }];
@@ -853,8 +908,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const handleMarkDone = async (task) => {
     setLocalTasks(prev => prev.filter(t => t.id !== task.id));
     try {
-      await api.markDone(task.id);
-      if (onMarkDone) onMarkDone(task.id);
+      if (onMarkDone) await onMarkDone(task.id);
     } catch (err) {
       setLocalTasks(prev => [...prev, task]);
     }
@@ -891,7 +945,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         onDrop={handleGridDrop}
         onDragLeave={handleGridDragLeave}
       >
-        <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown} onTouchStart={handleGridTouchStart}
+        <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
           style={{ height: GRID_HEIGHT }}>
 
           {/* Drag-from-sidebar preview */}
@@ -1008,14 +1062,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 }}
                 onTouchStart={(e) => {
                   if (isLocked) return;
-                  if (e.target.classList.contains('timebox-task-resize-top') ||
-                    e.target.classList.contains('timebox-task-resize-bottom')) return;
-                  const origTaskPositions = {};
-                  localTasks.forEach(t => {
-                    if (t.scheduled_time && isOnDaysGrid(t, date))
-                      origTaskPositions[t.id] = taskGridMinutes(t, date);
-                  });
-                  startPointerDrag('task-move', { taskId: task.id, origMin: gridMins, duration: task.duration || 30, origTaskPositions }, e);
+                  handleTaskTouchStart(task, gridMins, e);
                 }}
               >
                 <div
@@ -1034,30 +1081,35 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                     <button
                       className="timebox-task-done-btn"
                       onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); handleMarkDone(task); }}
                       title="Mark as complete"
                     >✓</button>
                     <button
                       className="timebox-task-edit-btn"
                       onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                       title="Edit task"
                     >✎</button>
                     <button
                       className={`timebox-lock-btn ${isLocked ? 'active' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); handleToggleLock(task); }}
                       title={isLocked ? 'Unlock task' : 'Lock task in time'}
                     >{isLocked ? '🔒' : '🔓'}</button>
                     <button
                       className={`timebox-mit-btn ${isMit ? 'active' : ''} ${!isMit && mitIds.size >= 3 ? 'disabled' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
                       title={isMit ? 'Remove from MIT' : 'Mark as Most Important Task'}
                     >⭐</button>
                     <button
                       className="timebox-task-unschedule"
                       onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); handleUnschedule(task); }}
                       title="Remove from schedule"
                     >×</button>

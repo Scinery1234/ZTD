@@ -342,11 +342,12 @@ function TaskApp() {
   };
 
   const updateTask = useCallback(async (taskId, taskData) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...taskData } : t));
     try {
       await api.updateTask(taskId, taskData);
-      await fetchTasks();
     } catch (err) {
       console.error('Error updating task:', err);
+      await fetchTasks();
     }
   }, [fetchTasks]);
 
@@ -368,13 +369,14 @@ function TaskApp() {
   };
 
   const markDone = async (taskId) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
       await api.markDone(taskId);
-      await fetchTasks();
       await fetchDoneTasks();
       await refreshSubscription();
     } catch (err) {
       console.error('Error marking task done:', err);
+      await fetchTasks();
     }
   };
 

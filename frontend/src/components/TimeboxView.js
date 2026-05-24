@@ -666,9 +666,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             finalStart = rawMin;
             siblingsMap = pushResult;
           } else {
-            const blockedGrid = otherTasks.map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
-            finalStart = snapAroundBlockedGrid(rawMin, dur, blockedGrid);
-            finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, finalStart));
+            // Push failed — task follows cursor, siblings stay at originals.
+            // Avoids frame-to-frame oscillation between push and snap-hop modes.
+            finalStart = rawMin;
             otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; });
           }
           setLocalTasks(prev => prev.map(t => {

@@ -187,6 +187,10 @@
     height: 12px;
   }
 
+  /* Always show action buttons on touch devices (no hover state) */
+  .timebox-task .timebox-task-meta {
+    opacity: 1;
+  }
   .timebox-task-meta {
     gap: 6px;
   }
@@ -197,6 +201,8 @@
   .timebox-mit-btn {
     font-size: 14px;
     padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
   }
 
   .timebox-sidebar-chip {
@@ -642,6 +648,14 @@
 }
 
 .timebox-task:active { cursor: grabbing; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
+
+/* Long-press feedback on mobile — briefly shown during the 400ms hold */
+.timebox-task--pressing {
+  transform: scale(1.04);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  z-index: 20;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
 
 /* Priority border colors */
 .timebox-task.priority-urgent { border-left-color: #f87171; background: rgba(248, 113, 113, 0.1); }

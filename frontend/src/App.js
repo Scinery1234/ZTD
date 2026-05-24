@@ -368,13 +368,14 @@ function TaskApp() {
   };
 
   const markDone = async (taskId) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
       await api.markDone(taskId);
-      await fetchTasks();
       await fetchDoneTasks();
       await refreshSubscription();
     } catch (err) {
       console.error('Error marking task done:', err);
+      await fetchTasks();
     }
   };
 

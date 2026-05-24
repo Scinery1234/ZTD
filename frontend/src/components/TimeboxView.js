@@ -864,8 +864,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const handleMarkDone = async (task) => {
     setLocalTasks(prev => prev.filter(t => t.id !== task.id));
     try {
-      await api.markDone(task.id);
-      if (onMarkDone) onMarkDone(task.id);
+      if (onMarkDone) await onMarkDone(task.id);
     } catch (err) {
       setLocalTasks(prev => [...prev, task]);
     }

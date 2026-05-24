@@ -342,11 +342,12 @@ function TaskApp() {
   };
 
   const updateTask = useCallback(async (taskId, taskData) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...taskData } : t));
     try {
       await api.updateTask(taskId, taskData);
-      await fetchTasks();
     } catch (err) {
       console.error('Error updating task:', err);
+      await fetchTasks();
     }
   }, [fetchTasks]);
 

@@ -660,9 +660,9 @@
 .timebox-task-body {
   flex: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 3px 6px;
+  padding: 4px 6px;
   gap: 4px;
   overflow: hidden;
   min-height: 0;
@@ -717,16 +717,20 @@
   white-space: nowrap;
 }
 
-/* Resize handles */
+/* Resize handles — absolutely positioned so they overlay the body without consuming height */
 .timebox-task-resize-top,
 .timebox-task-resize-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
   height: 6px;
-  width: 100%;
   cursor: ns-resize;
-  flex-shrink: 0;
   z-index: 6;
   touch-action: none;
 }
+
+.timebox-task-resize-top { top: 0; }
+.timebox-task-resize-bottom { bottom: 0; }
 
 .timebox-task-resize-top:hover,
 .timebox-task-resize-bottom:hover {

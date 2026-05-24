@@ -666,9 +666,20 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             finalStart = rawMin;
             siblingsMap = pushResult;
           } else {
-            // Push failed — task follows cursor, siblings stay at originals.
-            // Avoids frame-to-frame oscillation between push and snap-hop modes.
-            finalStart = rawMin;
+            // Push failed — follow cursor but clamp so we never overlap a locked task.
+            const lockedZones = otherTasks
+              .filter(t => t.locked)
+              .map(t => ({ start: t.origStart, end: t.origStart + t.dur }));
+            let clamped = rawMin;
+            for (const zone of lockedZones) {
+              if (clamped < zone.end && clamped + dur > zone.start) {
+                const beforePos = Math.max(0, zone.start - dur);
+                const afterPos = zone.end;
+                clamped = Math.abs(rawMin - beforePos) <= Math.abs(rawMin - afterPos)
+                  ? beforePos : afterPos;
+              }
+            }
+            finalStart = Math.max(0, Math.min(MAX_GRID_MINS - dur, clamped));
             otherTasks.forEach(t => { siblingsMap[t.id] = t.origStart; });
           }
           setLocalTasks(prev => prev.map(t => {

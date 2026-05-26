@@ -325,7 +325,10 @@ function TaskApp() {
   };
 
   const addTask = async (taskData) => {
-    const hat_id = selectedHatIds.size === 1 ? [...selectedHatIds][0] : null;
+    const barHatId = selectedHatIds.size === 1 ? [...selectedHatIds][0] : null;
+    const hat_id = (taskData.hat_id != null && taskData.hat_id !== '')
+      ? Number(taskData.hat_id)
+      : barHatId;
     try {
       setLimitError('');
       await api.addTask({ ...taskData, hat_id });
@@ -486,7 +489,7 @@ function TaskApp() {
                   <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
                 </div>
               ) : (
-                <TaskForm onAdd={addTask} categories={getCategories()} />
+                <TaskForm onAdd={addTask} categories={getCategories()} hats={hats} />
               )}
               <TaskFilters
                 filter={filter}
@@ -511,6 +514,7 @@ function TaskApp() {
                   }, 100);
                 }}
                 viewMode="active"
+                hats={hats}
               />
               <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
               <CompletedSection doneTasks={doneTasks} onUnmarkDone={unmarkDone} />

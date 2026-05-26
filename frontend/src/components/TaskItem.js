@@ -72,6 +72,7 @@ const TaskItem = ({
   onUnmarkDone,
   onCategoryClick,
   viewMode,
+  hats,
 }) => {
   const {
     attributes,
@@ -94,6 +95,7 @@ const TaskItem = ({
     priority: task.priority || '',
     recurring: task.recurring || '',
     due: task.due || '',
+    hat_id: task.hat_id ?? '',
     subtasks: asSubtaskList(task.subtasks),
   });
 
@@ -258,6 +260,21 @@ const TaskItem = ({
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                 />
               </div>
+              {hats && hats.length > 0 && (
+                <div className="edit-field-group">
+                  <label className="edit-field-label">Hat</label>
+                  <select
+                    className="edit-field"
+                    value={editData.hat_id}
+                    onChange={(e) => setEditData({ ...editData, hat_id: e.target.value })}
+                  >
+                    <option value="">No Hat</option>
+                    {hats.map(h => (
+                      <option key={h.id} value={h.id}>{h.emoji} {h.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 

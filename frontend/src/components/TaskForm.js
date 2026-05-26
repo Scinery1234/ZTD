@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './TaskForm.css';
 
-const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
+const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory, hats }) => {
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(defaultCategory || '');
   const [priority, setPriority] = useState('');
   const [recurring, setRecurring] = useState('');
   const [due, setDue] = useState('');
+  const [hatId, setHatId] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Update category when defaultCategory changes
@@ -37,6 +38,7 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
       priority: priority,
       recurring: recurring,
       due: due.trim() || null,
+      hat_id: hatId || null,
     });
 
     // Reset form
@@ -45,6 +47,7 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
     setPriority('');
     setRecurring('');
     setDue('');
+    setHatId('');
     setShowAdvanced(false);
   };
 
@@ -177,6 +180,22 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory }) => {
                 className="form-input"
               />
             </div>
+
+            {hats && hats.length > 0 && (
+              <div className="form-group">
+                <label>Hat</label>
+                <select
+                  value={hatId}
+                  onChange={(e) => setHatId(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">No Hat</option>
+                  {hats.map(h => (
+                    <option key={h.id} value={h.id}>{h.emoji} {h.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </form>

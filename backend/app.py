@@ -477,6 +477,12 @@ def add_task():
             description = data.get('description', '').strip()
             if not description:
                 return jsonify({'error': 'Task description is required'}), 400
+            due_raw = (data.get('due', '') or '').strip()
+            if due_raw:
+                _parsed = dateparser.parse(due_raw)
+                due_val = _parsed.strftime("%Y-%m-%d") if _parsed else due_raw
+            else:
+                due_val = None
             task = Task(
                 user_id=user_id,
                 hat_id=hat_id,
@@ -484,7 +490,7 @@ def add_task():
                 category=data.get('category', '').strip(),
                 priority=data.get('priority', '').strip(),
                 recurring=data.get('recurring', '').strip(),
-                due=data.get('due', '') or None,
+                due=due_val,
                 position=next_pos,
                 duration=int(data['duration']) if data.get('duration') else 30,
                 scheduled_time=data.get('scheduled_time') or None,

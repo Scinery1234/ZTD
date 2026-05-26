@@ -334,6 +334,14 @@ const TaskItem = ({
           </div>
         )}
 
+        {viewMode === 'active' && (
+          <button
+            className="task-done-circle"
+            onClick={(e) => { e.stopPropagation(); onMarkDone(); }}
+            title="Mark done"
+          />
+        )}
+
         <div className="task-main">
           <div className="task-description">{task.description}</div>
 
@@ -421,7 +429,6 @@ const TaskItem = ({
               onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); }}
               title="Add subtask"
             >+</button>
-            <button onClick={(e) => { e.stopPropagation(); onMarkDone(); }} className="btn-done" title="Mark done">✓</button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn-delete" title="Delete">✕</button>
           </div>
         )}

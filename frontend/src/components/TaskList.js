@@ -16,7 +16,7 @@ import {
 import TaskItem from './TaskItem';
 import './TaskList.css';
 
-const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onUnmarkDone, onReorder, onCategoryClick, viewMode }) => {
+const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onUnmarkDone, onReorder, onCategoryClick, viewMode, hats }) => {
   const [editingId, setEditingId] = useState(null);
   const [items, setItems] = useState(tasks);
 
@@ -80,6 +80,7 @@ const TaskList = ({ tasks, onUpdate, onDelete, onMarkDone, onUnmarkDone, onReord
                 onUnmarkDone={() => onUnmarkDone && onUnmarkDone(taskId)}
                 onCategoryClick={onCategoryClick}
                 viewMode={viewMode}
+                hats={hats}
               />
             );
           })}

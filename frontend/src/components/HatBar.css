@@ -36,7 +36,7 @@
 
 .hat-pill.active {
   font-weight: 600;
-  color: white;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .all-pill.active {

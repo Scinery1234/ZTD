@@ -148,8 +148,8 @@ function HatBar({ hats, selectedHatIds, onToggleHat, onHatsChange }) {
             key={hat.id}
             className={`hat-pill ${selectedHatIds.has(hat.id) ? 'active' : ''}`}
             style={selectedHatIds.has(hat.id)
-              ? { background: hat.color + '33', borderColor: hat.color + '88', color: hat.color }
-              : {}}
+              ? { background: hat.color + '22', borderColor: hat.color + '66', boxShadow: `inset 0 -3px 0 ${hat.color}` }
+              : { boxShadow: `inset 0 -3px 0 ${hat.color}55` }}
             onClick={() => onToggleHat(hat.id)}
             onDoubleClick={() => startEdit(hat)}
             title="Double-click to rename"

@@ -20,15 +20,27 @@ const TaskForm = ({ onAdd, categories, defaultCategory, hideCategory, hats }) =>
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // If using natural language input (CLI style), send that
+
+    // If using natural language input (CLI style), append any advanced fields as suffixes
     if (input.trim()) {
-      onAdd({ input: input.trim() });
+      let taskInput = input.trim();
+      if (showAdvanced) {
+        if (category.trim()) taskInput += ` @${category.trim()}`;
+        if (priority) taskInput += ` !${priority}`;
+        if (recurring) taskInput += ` ~${recurring}`;
+        if (due.trim()) taskInput += ` ^${due.trim()}`;
+      }
+      onAdd({ input: taskInput, hat_id: hatId || null });
       setInput('');
+      setCategory('');
+      setPriority('');
+      setRecurring('');
+      setDue('');
+      setHatId('');
       setShowAdvanced(false);
       return;
     }
-    
+
     // Otherwise use structured form
     if (!description.trim()) return;
 

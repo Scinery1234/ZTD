@@ -347,7 +347,9 @@ function TaskApp() {
   const updateTask = useCallback(async (taskId, taskData) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...taskData } : t));
     try {
-      await api.updateTask(taskId, taskData);
+      const updated = await api.updateTask(taskId, taskData);
+      // Apply server response so natural-language fields (e.g. due date) are stored in parsed form
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
     } catch (err) {
       console.error('Error updating task:', err);
       await fetchTasks();

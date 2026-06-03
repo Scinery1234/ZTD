@@ -165,8 +165,8 @@
     height: 20px;
     align-items: center;
   }
-  .window-bar--start { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #667eea, #764ba2) 1; }
-  .window-bar--end   { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #764ba2, #667eea) 1; }
+  .window-bar--start { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #f97316, #d97706) 1; }
+  .window-bar--end   { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #d97706, #f97316) 1; }
 
   .timebox-task {
     min-height: 32px;
@@ -550,12 +550,12 @@
 }
 
 .window-bar--start {
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: linear-gradient(90deg, #f97316, #d97706);
   box-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
 }
 
 .window-bar--end {
-  background: linear-gradient(90deg, #764ba2, #667eea);
+  background: linear-gradient(90deg, #d97706, #f97316);
   box-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
 }
 
@@ -975,7 +975,7 @@
 }
 
 .slot-popup-btn--task {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
 }
 
@@ -1227,7 +1227,7 @@
 }
 
 .tef-btn--save {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
 }
 

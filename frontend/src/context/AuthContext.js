@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('ztd_token') || sessionStorage.getItem('ztd_token');
+    const token = localStorage.getItem('mh_token') || sessionStorage.getItem('mh_token');
     if (!token) {
       setLoading(false);
       return undefined;
@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
     const t = window.setTimeout(() => {
       if (done) return;
       done = true;
-      localStorage.removeItem('ztd_token');
+      localStorage.removeItem('mh_token');
       setUser(null);
       setSubscription(null);
       setLoading(false);
@@ -56,8 +56,8 @@ export function AuthProvider({ children }) {
       } catch {
         if (done) return;
         window.clearTimeout(t);
-        localStorage.removeItem('ztd_token');
-        sessionStorage.removeItem('ztd_token');
+        localStorage.removeItem('mh_token');
+        sessionStorage.removeItem('mh_token');
       } finally {
         if (!done) {
           done = true;
@@ -79,8 +79,8 @@ export function AuthProvider({ children }) {
       setUser(null);
       setSubscription(null);
     };
-    window.addEventListener('ztd-session-expired', handleExpiry);
-    return () => window.removeEventListener('ztd-session-expired', handleExpiry);
+    window.addEventListener('mh-session-expired', handleExpiry);
+    return () => window.removeEventListener('mh-session-expired', handleExpiry);
   }, []);
 
   // Clear #register / #login from the URL after successful sign-in
@@ -98,11 +98,11 @@ export function AuthProvider({ children }) {
       throw new Error('Login succeeded but no token was returned.');
     }
     if (remember) {
-      localStorage.setItem('ztd_token', token);
-      sessionStorage.removeItem('ztd_token');
+      localStorage.setItem('mh_token', token);
+      sessionStorage.removeItem('mh_token');
     } else {
-      sessionStorage.setItem('ztd_token', token);
-      localStorage.removeItem('ztd_token');
+      sessionStorage.setItem('mh_token', token);
+      localStorage.removeItem('mh_token');
     }
     const resolvedUser = u || (await api.me());
     if (!resolvedUser) {
@@ -125,7 +125,7 @@ export function AuthProvider({ children }) {
         'instead of the API /auth/register route.'
       );
     }
-    localStorage.setItem('ztd_token', token);
+    localStorage.setItem('mh_token', token);
     const resolvedUser = u || (await api.me());
     if (!resolvedUser) {
       throw new Error('Account was created but profile loading failed.');
@@ -136,8 +136,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('ztd_token');
-    sessionStorage.removeItem('ztd_token');
+    localStorage.removeItem('mh_token');
+    sessionStorage.removeItem('mh_token');
     setUser(null);
     setSubscription(null);
   };

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './LooseThreads.css';
 
-const STORAGE_KEY = 'ztd_loose_threads';
-const TRASH_KEY   = 'ztd_loose_threads_trash';
+const STORAGE_KEY = 'mh_loose_threads';
+const TRASH_KEY   = 'mh_loose_threads_trash';
 const MAX_OPEN    = 3;
 const FONT_SIZES  = [12, 14, 16, 18, 20];
 const DEFAULT_FONT_SIZE = 14;

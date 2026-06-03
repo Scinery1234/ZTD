@@ -70,6 +70,41 @@
   cursor: grabbing;
 }
 
+.task-done-circle {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  margin-top: 2px;
+  padding: 0;
+  position: relative;
+}
+
+.task-done-circle:hover {
+  border-color: #34d399;
+  background: rgba(52, 211, 153, 0.15);
+}
+
+.task-done-circle:hover::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #34d399;
+  line-height: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+
 .drag-icon {
   font-size: 14px;
   line-height: 1;
@@ -108,9 +143,9 @@
 }
 
 .task-category {
-  background: rgba(102, 126, 234, 0.2);
-  color: rgba(180, 195, 255, 0.9);
-  border: 1px solid rgba(102, 126, 234, 0.25);
+  background: rgba(249, 115, 22, 0.18);
+  color: rgba(251, 191, 36, 0.9);
+  border: 1px solid rgba(249, 115, 22, 0.22);
 }
 
 .task-category.clickable-category {
@@ -119,7 +154,7 @@
 }
 
 .task-category.clickable-category:hover {
-  background: rgba(102, 126, 234, 0.35);
+  background: rgba(249, 115, 22, 0.30);
   color: white;
 }
 
@@ -202,8 +237,8 @@
 }
 
 .btn-edit:hover {
-  background: rgba(102, 126, 234, 0.25);
-  border-color: rgba(102, 126, 234, 0.4);
+  background: rgba(249, 115, 22, 0.22);
+  border-color: rgba(249, 115, 22, 0.35);
   transform: scale(1.05);
 }
 
@@ -227,8 +262,8 @@
 
 /* Editing mode */
 .task-item.editing {
-  background: rgba(102, 126, 234, 0.1);
-  border: 1.5px solid rgba(102, 126, 234, 0.35);
+  background: rgba(249, 115, 22, 0.08);
+  border: 1.5px solid rgba(249, 115, 22, 0.30);
 }
 
 .task-edit-form {
@@ -254,7 +289,7 @@
 .edit-input {
   padding: 11px 14px;
   background: rgba(255, 255, 255, 0.07);
-  border: 1.5px solid rgba(102, 126, 234, 0.4);
+  border: 1.5px solid rgba(249, 115, 22, 0.35);
   border-radius: 9px;
   font-size: 15px;
   font-family: inherit;
@@ -268,8 +303,8 @@
 
 .edit-input:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.7);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+  border-color: rgba(249, 115, 22, 0.65);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
 }
 
 .edit-fields {
@@ -308,12 +343,12 @@
 }
 
 .edit-field option {
-  background: #302b63;
+  background: #2a1804;
 }
 
 .edit-field:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.5);
+  border-color: rgba(249, 115, 22, 0.45);
 }
 
 .edit-actions {
@@ -344,13 +379,13 @@
 }
 
 .btn-save {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
-  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.35);
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.30);
 }
 
 .btn-save:hover {
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.45);
   transform: translateY(-1px);
 }
 
@@ -382,7 +417,7 @@
   line-height: 1;
 }
 .btn-subtask:hover {
-  background: rgba(102, 126, 234, 0.2);
+  background: rgba(249, 115, 22, 0.18);
   color: #b4c4ff;
   border-color: rgba(102,126,234,0.35);
 }
@@ -397,7 +432,7 @@
 }
 .subtask-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea, #34d399);
+  background: linear-gradient(90deg, #f97316, #34d399);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -427,7 +462,7 @@
 .subtask-item input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: #667eea;
+  accent-color: #f97316;
   cursor: pointer;
   flex-shrink: 0;
 }

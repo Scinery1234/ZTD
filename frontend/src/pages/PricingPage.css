@@ -110,7 +110,7 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
   font-size: 10px;
   font-weight: 700;
@@ -219,7 +219,7 @@
 }
 
 .tier-btn.pro {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
   box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
 }
@@ -229,7 +229,7 @@
 }
 
 .tier-btn.premium {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
+  background: linear-gradient(135deg, #fbbf24, #f97316);
   color: white;
   box-shadow: 0 4px 14px rgba(240, 147, 251, 0.3);
 }

@@ -4,8 +4,8 @@ import './Header.css';
 
 const TIER_COLORS = {
   free:    'rgba(148, 163, 184, 0.8)',
-  pro:     'linear-gradient(135deg, #667eea, #764ba2)',
-  premium: 'linear-gradient(135deg, #f093fb, #f5576c)',
+  pro:     'linear-gradient(135deg, #f97316, #d97706)',
+  premium: 'linear-gradient(135deg, #fbbf24, #f97316)',
 };
 
 const Header = ({ onShowPricing }) => {
@@ -17,8 +17,8 @@ const Header = ({ onShowPricing }) => {
     <header className="header">
       <div className="header-content">
         <div className="header-brand">
-          <h1 className="header-title">FocusFlow</h1>
-          <p className="header-subtitle">Zen To Done</p>
+          <h1 className="header-title">madeHappen</h1>
+          <p className="header-subtitle">make it happen</p>
         </div>
 
         {user && (

@@ -203,39 +203,39 @@ function useNowMinutes() {
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 function loadDayWindows() {
-  try { return JSON.parse(localStorage.getItem('ztd_day_windows') || '{}'); }
+  try { return JSON.parse(localStorage.getItem('mh_day_windows') || '{}'); }
   catch { return {}; }
 }
-function saveDayWindows(v) { localStorage.setItem('ztd_day_windows', JSON.stringify(v)); }
+function saveDayWindows(v) { localStorage.setItem('mh_day_windows', JSON.stringify(v)); }
 
 function loadBlockedTimes() {
-  try { return JSON.parse(localStorage.getItem('ztd_blocked_times') || '[]'); }
+  try { return JSON.parse(localStorage.getItem('mh_blocked_times') || '[]'); }
   catch { return []; }
 }
-function saveBlockedTimes(v) { localStorage.setItem('ztd_blocked_times', JSON.stringify(v)); }
+function saveBlockedTimes(v) { localStorage.setItem('mh_blocked_times', JSON.stringify(v)); }
 
 function loadMit() {
-  try { return JSON.parse(localStorage.getItem('ztd_mit_tasks') || '[]'); }
+  try { return JSON.parse(localStorage.getItem('mh_mit_tasks') || '[]'); }
   catch { return []; }
 }
-function saveMit(ids) { localStorage.setItem('ztd_mit_tasks', JSON.stringify([...ids])); }
+function saveMit(ids) { localStorage.setItem('mh_mit_tasks', JSON.stringify([...ids])); }
 
 function loadDismissed(dateStr) {
   try {
-    const all = JSON.parse(localStorage.getItem('ztd_dismissed') || '{}');
+    const all = JSON.parse(localStorage.getItem('mh_dismissed') || '{}');
     return new Set(all[dateStr] || []);
   } catch { return new Set(); }
 }
 function saveDismissed(dateStr, ids) {
   try {
-    const all = JSON.parse(localStorage.getItem('ztd_dismissed') || '{}');
+    const all = JSON.parse(localStorage.getItem('mh_dismissed') || '{}');
     all[dateStr] = [...ids];
     // Prune entries older than 30 days
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
     for (const key of Object.keys(all)) {
       if (key < toLocalDateStr(cutoff)) delete all[key];
     }
-    localStorage.setItem('ztd_dismissed', JSON.stringify(all));
+    localStorage.setItem('mh_dismissed', JSON.stringify(all));
   } catch {}
 }
 

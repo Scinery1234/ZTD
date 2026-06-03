@@ -32,12 +32,12 @@ function railwayApiHint() {
 const FETCH_TIMEOUT_MS = 30000;
 
 function getToken() {
-  return localStorage.getItem('ztd_token') || sessionStorage.getItem('ztd_token');
+  return localStorage.getItem('mh_token') || sessionStorage.getItem('mh_token');
 }
 
 function clearToken() {
-  localStorage.removeItem('ztd_token');
-  sessionStorage.removeItem('ztd_token');
+  localStorage.removeItem('mh_token');
+  sessionStorage.removeItem('mh_token');
 }
 
 function authHeaders() {
@@ -118,7 +118,7 @@ async function apiFetch(path, options = {}) {
     if (res.status === 401 && data.token_expired) {
       // Token expired mid-session — signal AuthContext to log out
       clearToken();
-      window.dispatchEvent(new Event('ztd-session-expired'));
+      window.dispatchEvent(new Event('mh-session-expired'));
     }
     throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data, status: res.status });
   }

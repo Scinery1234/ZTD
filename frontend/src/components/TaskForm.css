@@ -38,9 +38,9 @@
 
 .task-input:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.6);
+  border-color: rgba(249, 115, 22, 0.6);
   background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
 }
 
 .input-hint {
@@ -56,12 +56,12 @@
   border-radius: 4px;
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 10.5px;
-  color: rgba(180, 165, 255, 0.85);
+  color: rgba(251, 191, 36, 0.85);
 }
 
 .add-btn {
   padding: 13px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f97316 0%, #d97706 100%);
   color: white;
   border: none;
   border-radius: 11px;
@@ -71,12 +71,12 @@
   transition: transform 0.15s, box-shadow 0.15s;
   font-family: inherit;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);
 }
 
 .add-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.5);
 }
 
 .add-btn:active {
@@ -144,14 +144,14 @@
 }
 
 .form-select option {
-  background: #302b63;
+  background: #2a1804;
   color: white;
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
   background: rgba(255, 255, 255, 0.09);
 }
 

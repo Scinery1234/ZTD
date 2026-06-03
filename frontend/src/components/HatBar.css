@@ -148,7 +148,7 @@
   top: 36px;
   left: 0;
   z-index: 200;
-  background: #1e1b3a;
+  background: #1e1208;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px;
   padding: 12px;
@@ -225,9 +225,9 @@
 }
 
 .hat-add-btn:hover {
-  border-color: rgba(102, 126, 234, 0.5);
-  color: rgba(180, 195, 255, 0.85);
-  background: rgba(102, 126, 234, 0.08);
+  border-color: rgba(249, 115, 22, 0.45);
+  color: rgba(251, 191, 36, 0.85);
+  background: rgba(249, 115, 22, 0.08);
 }
 
 @media (max-width: 580px) {

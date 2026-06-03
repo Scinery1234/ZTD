@@ -30,7 +30,7 @@
   font-weight: 800;
   letter-spacing: -0.5px;
   margin: 0 0 4px;
-  background: linear-gradient(135deg, #fff 30%, rgba(200, 180, 255, 0.9));
+  background: linear-gradient(135deg, #fff 30%, rgba(255, 195, 80, 0.9));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -71,9 +71,9 @@
 }
 
 .auth-btn--secondary {
-  background: linear-gradient(135deg, rgba(100, 160, 255, 0.35), rgba(80, 200, 180, 0.25));
-  box-shadow: 0 2px 12px rgba(100, 160, 255, 0.2);
-  border: 1px solid rgba(100, 160, 255, 0.45);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.25), rgba(245, 158, 11, 0.20));
+  box-shadow: 0 2px 12px rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.35);
   margin-top: 0;
 }
 
@@ -136,15 +136,15 @@
 }
 
 .auth-field input:focus {
-  border-color: rgba(102, 126, 234, 0.6);
+  border-color: rgba(249, 115, 22, 0.6);
   background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
 }
 
 .auth-btn {
   width: 100%;
   padding: 13px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
   border: none;
   border-radius: 10px;
@@ -154,13 +154,13 @@
   font-family: inherit;
   margin-top: 4px;
   transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.4);
 }
 
 .auth-btn:hover:not(:disabled) {
   opacity: 0.92;
   transform: translateY(-1px);
-  box-shadow: 0 6px 22px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 22px rgba(249, 115, 22, 0.5);
 }
 
 .auth-btn:disabled {
@@ -178,7 +178,7 @@
 .auth-link {
   background: none;
   border: none;
-  color: rgba(180, 195, 255, 0.85);
+  color: rgba(251, 191, 36, 0.85);
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;
@@ -243,6 +243,6 @@
 .auth-remember input[type="checkbox"] {
   width: 15px;
   height: 15px;
-  accent-color: #667eea;
+  accent-color: #f97316;
   cursor: pointer;
 }

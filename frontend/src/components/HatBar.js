@@ -3,9 +3,9 @@ import { api } from '../api';
 import './HatBar.css';
 
 const HAT_COLORS = [
-  '#667eea', '#764ba2', '#f093fb', '#f5576c',
+  '#f97316', '#d97706', '#fbbf24', '#eab308',
   '#4facfe', '#43e97b', '#fa709a', '#fee140',
-  '#a18cd1', '#84fab0', '#fccb90', '#e0c3fc',
+  '#ef4444', '#22c55e', '#3b82f6', '#8b5cf6',
 ];
 
 const HAT_EMOJIS = ['🎩', '💼', '🏠', '❤️', '🎓', '💪', '🌿', '🎨', '🚀', '🧘', '🤝', '⭐'];
@@ -44,11 +44,11 @@ function HatBar({ hats, selectedHatIds, onToggleHat, onHatsChange }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🎩');
-  const [newColor, setNewColor] = useState('#667eea');
+  const [newColor, setNewColor] = useState('#f97316');
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('🎩');
-  const [editColor, setEditColor] = useState('#667eea');
+  const [editColor, setEditColor] = useState('#f97316');
   const [showPickerFor, setShowPickerFor] = useState(null); // 'new' | hat_id
   const inputRef = useRef(null);
   const editInputRef = useRef(null);
@@ -68,7 +68,7 @@ function HatBar({ hats, selectedHatIds, onToggleHat, onHatsChange }) {
     setAdding(false);
     setNewName('');
     setNewEmoji('🎩');
-    setNewColor('#667eea');
+    setNewColor('#f97316');
     setShowPickerFor(null);
     onToggleHat(hat.id);
   };

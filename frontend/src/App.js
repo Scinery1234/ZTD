@@ -31,8 +31,8 @@ import {
 } from '@dnd-kit/sortable';
 
 // ---- Guest mode helpers (sessionStorage, cleared on tab close) ----
-const GUEST_TASKS_KEY = 'ztd_guest_tasks';
-const GUEST_DONE_KEY = 'ztd_guest_done';
+const GUEST_TASKS_KEY = 'mh_guest_tasks';
+const GUEST_DONE_KEY = 'mh_guest_done';
 
 function loadGuest(key) {
   try { return JSON.parse(sessionStorage.getItem(key) || '[]'); } catch { return []; }
@@ -268,7 +268,7 @@ function TaskApp() {
 
   // Load category order from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('ztd_category_order');
+    const saved = localStorage.getItem('mh_category_order');
     if (saved) try { setCategoryOrder(JSON.parse(saved)); } catch {}
   }, []);
 
@@ -435,7 +435,7 @@ function TaskApp() {
 
   const saveCategoryOrder = (newOrder) => {
     setCategoryOrder(newOrder);
-    localStorage.setItem('ztd_category_order', JSON.stringify(newOrder));
+    localStorage.setItem('mh_category_order', JSON.stringify(newOrder));
   };
 
   if (showPricing) return <PricingPage onBack={() => setShowPricing(false)} />;

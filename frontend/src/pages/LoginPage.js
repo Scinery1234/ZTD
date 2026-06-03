@@ -26,8 +26,8 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-header">
-          <h1 className="auth-logo">FocusFlow</h1>
-          <p className="auth-tagline">Zen To Done Task Manager</p>
+          <h1 className="auth-logo">madeHappen</h1>
+          <p className="auth-tagline">make it happen</p>
         </div>
 
         <h2 className="auth-title">Welcome back</h2>

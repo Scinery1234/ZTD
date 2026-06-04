@@ -1,6 +1,8 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy import text
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -18,7 +20,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# Restrict CORS to the known frontend origin in production
+_frontend_origin = os.getenv('FRONTEND_URL')
+CORS(app, origins=[_frontend_origin, 'http://localhost:3000'] if _frontend_origin else '*')
 
 # --- Configuration ---
 
@@ -68,6 +73,26 @@ def missing_token_callback(error):
     return jsonify({'error': 'Authorization required', 'token_expired': True}), 401
 
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
+
+# --- Rate limiter (in-memory; swap storage_uri for Redis in production) ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri='memory://',
+)
+
+# --- Security headers ---
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=(), payment=()'
+    # HSTS only when behind HTTPS proxy (Railway sets X-Forwarded-Proto)
+    if request.headers.get('X-Forwarded-Proto') == 'https':
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains; preload'
+    return response
 
 # --- Membership Tiers ---
 TIERS = {
@@ -254,6 +279,7 @@ def check_task_limit(user):
 # === Auth Endpoints ===
 
 @app.route('/api/auth/register', methods=['POST'])
+@limiter.limit('5 per minute; 20 per hour')
 def register():
     data = request.json
     if not data or not all(k in data for k in ('email', 'password', 'name')):
@@ -285,6 +311,7 @@ def register():
 
 
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit('10 per minute; 50 per hour')
 def login():
     data = request.json
     if not data or not data.get('email') or not data.get('password'):
@@ -912,6 +939,24 @@ def migrate_db():
 
 
 _FRONTEND_BUILD = os.path.join(BASE_DIR, '..', 'frontend', 'build')
+
+@app.route('/robots.txt')
+def robots_txt():
+    return Response(
+        'User-agent: *\nAllow: /\nDisallow: /api/\n',
+        mimetype='text/plain',
+    )
+
+@app.route('/.well-known/security.txt')
+def security_txt():
+    contact = os.getenv('SECURITY_CONTACT', 'security@madehappen.app')
+    canonical = os.getenv('FRONTEND_URL', 'https://madehappen.app')
+    body = (
+        f'Contact: mailto:{contact}\n'
+        f'Canonical: {canonical}/.well-known/security.txt\n'
+        'Preferred-Languages: en\n'
+    )
+    return Response(body, mimetype='text/plain')
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

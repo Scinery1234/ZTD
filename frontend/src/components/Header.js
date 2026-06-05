@@ -10,7 +10,7 @@ const TIER_COLORS = {
   premium: 'linear-gradient(135deg, #fbbf24, #f97316)',
 };
 
-const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen }) => {
+const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics, analyticsActive }) => {
   const { user, subscription, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const tier = subscription?.tier || user?.tier || 'free';
@@ -61,6 +61,15 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen }) => {
               >
                 {theme === 'light' ? '🌙' : '☀️'}
               </button>
+              {onShowAnalytics && (tier === 'premium') && (
+                <button
+                  className={`header-btn analytics-toggle-btn${analyticsActive ? ' active' : ''}`}
+                  onClick={onShowAnalytics}
+                  title="Analytics"
+                >
+                  📊
+                </button>
+              )}
               {onTogglePomodoro && (
                 <button
                   className={`header-btn pomodoro-toggle-btn${pomodoroOpen ? ' active' : ''}`}

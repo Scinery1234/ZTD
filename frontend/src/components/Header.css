@@ -146,9 +146,15 @@
 }
 
 /* Pomodoro toggle */
+.analytics-toggle-btn,
 .pomodoro-toggle-btn {
   font-size: 15px;
   padding: 7px 10px;
+}
+
+.analytics-toggle-btn.active {
+  background: rgba(249, 115, 22, 0.2);
+  border-color: rgba(249, 115, 22, 0.35);
 }
 
 .pomodoro-toggle-btn.active {

@@ -453,6 +453,8 @@ function TaskApp() {
         onShowPricing={() => setShowPricing(true)}
         onTogglePomodoro={() => setPomodoroOpen(o => !o)}
         pomodoroOpen={pomodoroOpen}
+        onShowAnalytics={() => setViewMode(m => m === 'analytics' ? 'active' : 'analytics')}
+        analyticsActive={viewMode === 'analytics'}
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
@@ -486,9 +488,6 @@ function TaskApp() {
             </button>
             <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
               Timebox
-            </button>
-            <button className={`view-btn ${viewMode === 'analytics' ? 'active' : ''}`} onClick={() => setViewMode('analytics')}>
-              Analytics
             </button>
             <button className={`view-btn view-btn--mobile-only ${viewMode === 'threads' ? 'active' : ''}`} onClick={() => setViewMode('threads')}>
               Threads

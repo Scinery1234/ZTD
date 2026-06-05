@@ -150,27 +150,97 @@
 @media (max-width: 700px) {
   .timebox-day-layout {
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
+
+  /* ── Sidebar becomes a compact horizontal task-pool strip ── */
   .timebox-task-sidebar {
     width: 100%;
-    max-height: 160px;
+    max-height: none;
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 6px;
+    border-radius: 10px;
+    overflow: hidden;
   }
 
+  /* Day nav sits inline on the left — compact vertical arrows */
+  .timebox-day-nav {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+    flex-shrink: 0;
+    min-width: 60px;
+    width: 60px;
+    border-bottom: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    padding-right: 6px;
+    margin-right: 2px;
+    align-items: center;
+  }
+
+  .timebox-nav-date-label {
+    font-size: 11px;
+    padding: 1px 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56px;
+  }
+
+  /* Hide "Task Pool" heading — space is precious */
+  .timebox-task-sidebar-hd { display: none; }
+
+  /* Pool items scroll horizontally */
+  .timebox-task-sidebar-body {
+    flex: 1;
+    flex-direction: row;
+    overflow-y: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0;
+    gap: 6px;
+    align-items: center;
+  }
+  .timebox-task-sidebar-body::-webkit-scrollbar { display: none; }
+
+  .timebox-sidebar-chip {
+    flex-shrink: 0;
+    min-width: 120px;
+    max-width: 150px;
+    padding: 6px 8px 6px 14px;
+    border-radius: 8px;
+  }
+  .timebox-chip-desc { font-size: 12px; }
+
+  /* ── Col-header: remove the orange Today box, keep only actions ── */
+  .timebox-col-header {
+    background: none !important;
+    border-color: transparent !important;
+    padding: 2px 2px 2px 0;
+    border-radius: 0;
+    justify-content: flex-end;
+  }
+  /* Hide the date label — sidebar nav already shows it */
+  .timebox-col-date { display: none; }
+
+  /* Grid: fills the rest of the screen cleanly */
   .timebox-grid-wrapper {
-    max-height: 65vh;
+    max-height: calc(100dvh - 280px);
+    min-height: 300px;
   }
 
+  /* Window bars: taller for easier touch grab */
   .window-bar {
-    height: 20px;
+    height: 22px;
     align-items: center;
   }
   .window-bar--start { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #f97316, #d97706) 1; }
   .window-bar--end   { background: none; border-top: 3px solid; border-image: linear-gradient(90deg, #d97706, #f97316) 1; }
 
-  .timebox-task {
-    min-height: 32px;
-  }
+  .timebox-task { min-height: 32px; }
   .timebox-task-desc {
     font-size: 12px;
     -webkit-line-clamp: unset;
@@ -178,22 +248,16 @@
     overflow: visible;
     display: block;
   }
-  .timebox-task-body {
-    flex-wrap: wrap;
-  }
+  .timebox-task-body { flex-wrap: wrap; }
 
   .timebox-task-resize-top,
   .timebox-task-resize-bottom {
-    height: 12px;
+    height: 14px;
   }
 
   /* Always show action buttons on touch devices (no hover state) */
-  .timebox-task .timebox-task-meta {
-    opacity: 1;
-  }
-  .timebox-task-meta {
-    gap: 6px;
-  }
+  .timebox-task .timebox-task-meta { opacity: 1; }
+  .timebox-task-meta { gap: 6px; }
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
@@ -201,16 +265,12 @@
   .timebox-mit-btn {
     font-size: 14px;
     padding: 4px 6px;
-    min-width: 28px;
-    min-height: 28px;
+    min-width: 30px;
+    min-height: 30px;
   }
-
-  .timebox-sidebar-chip {
-    padding: 10px 12px 10px 22px;
-  }
-  .timebox-chip-desc {
-    font-size: 13px;
-  }
+  /* Pool drag handles not useful on touch */
+  .timebox-pool-drag-handle { display: none; }
+  .timebox-sidebar-chip { cursor: default; }
 }
 
 @media (max-width: 480px) {
@@ -435,6 +495,7 @@
   position: relative;
   height: 520px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
@@ -450,6 +511,7 @@
   position: relative;
   user-select: none;
   cursor: crosshair;
+  touch-action: pan-y; /* allow native vertical scroll in empty areas */
 }
 
 /* ── Hour labels + lines ───────────────────────────────────────────────────── */

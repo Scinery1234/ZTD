@@ -150,6 +150,7 @@
 @media (max-width: 700px) {
   .timebox-day-layout {
     flex-direction: column;
+    align-items: stretch; /* override flex-start so column children fill full width */
     gap: 6px;
   }
 

@@ -4,6 +4,38 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
+}
+
+.auth-theme-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  font-size: 15px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  z-index: 10;
+}
+
+.auth-theme-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="light"] .auth-theme-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="light"] .auth-theme-btn:hover {
+  background: rgba(0, 0, 0, 0.10);
 }
 
 .auth-card {
@@ -245,4 +277,75 @@
   height: 15px;
   accent-color: #f97316;
   cursor: pointer;
+}
+
+/* ---- Light mode ---- */
+[data-theme="light"] .auth-card {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .auth-tagline {
+  color: rgba(28, 18, 9, 0.38);
+}
+
+[data-theme="light"] .auth-title {
+  color: rgba(28, 18, 9, 0.90);
+}
+
+[data-theme="light"] .auth-subtitle {
+  color: rgba(28, 18, 9, 0.42);
+}
+
+[data-theme="light"] .auth-field label {
+  color: rgba(28, 18, 9, 0.45);
+}
+
+[data-theme="light"] .auth-field input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #1c1209;
+}
+
+[data-theme="light"] .auth-field input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .auth-field input:focus {
+  border-color: rgba(249, 115, 22, 0.55);
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.10);
+}
+
+[data-theme="light"] .auth-switch {
+  color: rgba(28, 18, 9, 0.42);
+}
+
+[data-theme="light"] .auth-divider {
+  color: rgba(28, 18, 9, 0.25);
+}
+
+[data-theme="light"] .auth-divider::before,
+[data-theme="light"] .auth-divider::after {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .auth-guest-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: rgba(28, 18, 9, 0.55);
+}
+
+[data-theme="light"] .auth-guest-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(28, 18, 9, 0.85);
+}
+
+[data-theme="light"] .auth-remember {
+  color: rgba(28, 18, 9, 0.52);
+}
+
+[data-theme="light"] .auth-primary-alt-label {
+  color: rgba(28, 18, 9, 0.45);
 }

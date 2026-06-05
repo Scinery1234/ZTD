@@ -55,3 +55,26 @@
   flex: 1;
   letter-spacing: -0.2px;
 }
+
+/* ---- Light mode ---- */
+[data-theme="light"] .category-section {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .category-header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .category-drag-handle {
+  color: rgba(28, 18, 9, 0.20);
+}
+
+[data-theme="light"] .category-drag-handle:hover {
+  color: rgba(28, 18, 9, 0.50);
+}
+
+[data-theme="light"] .category-title {
+  color: rgba(28, 18, 9, 0.85);
+}

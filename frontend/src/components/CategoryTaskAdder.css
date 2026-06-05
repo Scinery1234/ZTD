@@ -14,9 +14,9 @@
 }
 
 .category-add-btn:hover {
-  background: rgba(102, 126, 234, 0.12);
-  border-color: rgba(102, 126, 234, 0.35);
-  color: rgba(180, 195, 255, 0.85);
+  background: rgba(249, 115, 22, 0.10);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: rgba(251, 191, 36, 0.85);
 }
 
 .category-add-form {
@@ -48,8 +48,8 @@
 
 .category-task-input:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.5);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.10);
 }
 
 .category-form-options {
@@ -70,7 +70,8 @@
 }
 
 .category-form-select option {
-  background: #302b63;
+  background: #2a1804;
+  color: white;
 }
 
 .category-form-input::placeholder {
@@ -80,7 +81,7 @@
 .category-form-select:focus,
 .category-form-input:focus {
   outline: none;
-  border-color: rgba(102, 126, 234, 0.45);
+  border-color: rgba(249, 115, 22, 0.45);
 }
 
 .category-form-actions {
@@ -102,13 +103,13 @@
 }
 
 .category-save-btn {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
 }
 
 .category-save-btn:hover {
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.45);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.45);
   transform: translateY(-1px);
 }
 
@@ -125,4 +126,57 @@
 
 @media (max-width: 500px) {
   .category-form-options { grid-template-columns: 1fr; }
+}
+
+/* ---- Light mode ---- */
+[data-theme="light"] .category-add-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(28, 18, 9, 0.38);
+}
+
+[data-theme="light"] .category-add-form {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .category-task-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.09);
+  color: #1c1209;
+}
+
+[data-theme="light"] .category-task-input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .category-task-input:focus {
+  border-color: rgba(249, 115, 22, 0.50);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.09);
+}
+
+[data-theme="light"] .category-form-select,
+[data-theme="light"] .category-form-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1c1209;
+}
+
+[data-theme="light"] .category-form-select option {
+  background: #fff8f0;
+  color: #1c1209;
+}
+
+[data-theme="light"] .category-form-input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .category-cancel-btn {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(28, 18, 9, 0.55);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .category-cancel-btn:hover {
+  background: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.80);
 }

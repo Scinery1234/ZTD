@@ -64,3 +64,26 @@
 @media (max-width: 380px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---- Light mode ---- */
+[data-theme="light"] .stat-card {
+  background: rgba(255, 255, 255, 0.80);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .stat-card::before {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .stat-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="light"] .stat-value {
+  color: #1c1209;
+}
+
+[data-theme="light"] .stat-label {
+  color: rgba(28, 18, 9, 0.42);
+}

@@ -6,8 +6,10 @@ export const DEFAULT_TIERS = {
     max_tasks: 10,
     features: [
       'Up to 10 active tasks',
-      'All categories & priorities',
+      'Basic categories & priorities',
       'Drag & drop reordering',
+      '3 Loose Threads',
+      '30-day completed history',
     ],
   },
   pro: {
@@ -16,9 +18,10 @@ export const DEFAULT_TIERS = {
     max_tasks: null,
     features: [
       'Unlimited tasks',
-      'All Free features',
-      'Recurring tasks',
-      'Email reminders',
+      'Pomodoro focus timer',
+      'Data export (CSV & JSON)',
+      '10 Loose Threads',
+      '90-day task history',
     ],
   },
   premium: {
@@ -27,9 +30,11 @@ export const DEFAULT_TIERS = {
     max_tasks: null,
     features: [
       'Everything in Pro',
+      'Task notes (rich text per task)',
+      'Advanced analytics dashboard',
+      'Unlimited Loose Threads',
+      'Full archive — all history',
       'Priority support',
-      'Advanced analytics',
-      'Team sharing (coming soon)',
     ],
   },
 };

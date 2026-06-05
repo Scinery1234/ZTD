@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../hooks/useTheme';
 import './AuthPages.css';
 
 function RegisterPage({ onSwitch, onGuest }) {
   const { register } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -65,6 +67,9 @@ function RegisterPage({ onSwitch, onGuest }) {
 
   return (
     <div className="auth-page">
+      <button className="auth-theme-btn" onClick={toggleTheme} title="Toggle theme">
+        {theme === 'light' ? '🌙' : '☀️'}
+      </button>
       <div className="auth-card">
         <div className="auth-header">
           <h1 className="auth-logo">madeHappen</h1>

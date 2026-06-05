@@ -40,7 +40,7 @@
   color: white;
   margin: 0 0 10px;
   letter-spacing: -1px;
-  background: linear-gradient(135deg, #fff 30%, rgba(200, 180, 255, 0.85));
+  background: linear-gradient(135deg, #fff 30%, rgba(255, 195, 80, 0.9));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -95,9 +95,9 @@
 }
 
 .pricing-card.popular {
-  border-color: rgba(102, 126, 234, 0.4);
-  background: rgba(102, 126, 234, 0.1);
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+  border-color: rgba(249, 115, 22, 0.40);
+  background: rgba(249, 115, 22, 0.08);
+  box-shadow: 0 8px 32px rgba(249, 115, 22, 0.18);
 }
 
 .pricing-card.current {
@@ -119,7 +119,7 @@
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.40);
 }
 
 .current-badge {
@@ -221,21 +221,21 @@
 .tier-btn.pro {
   background: linear-gradient(135deg, #f97316, #d97706);
   color: white;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);
 }
 
 .tier-btn.pro:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.50);
 }
 
 .tier-btn.premium {
   background: linear-gradient(135deg, #fbbf24, #f97316);
   color: white;
-  box-shadow: 0 4px 14px rgba(240, 147, 251, 0.3);
+  box-shadow: 0 4px 14px rgba(251, 191, 36, 0.30);
 }
 
 .tier-btn.premium:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(240, 147, 251, 0.45);
+  box-shadow: 0 6px 20px rgba(251, 191, 36, 0.45);
 }
 
 .tier-btn:hover:not(:disabled) {
@@ -260,7 +260,7 @@
 }
 
 .manage-sub a {
-  color: rgba(180, 195, 255, 0.7);
+  color: rgba(251, 191, 36, 0.75);
   text-decoration: underline;
 }
 
@@ -268,4 +268,69 @@
   .pricing-header h1 { font-size: 30px; }
   .pricing-grid { flex-direction: column; align-items: center; }
   .pricing-card { width: 100%; max-width: 360px; }
+}
+
+/* ---- Light mode ---- */
+[data-theme="light"] .pricing-loading {
+  color: rgba(28, 18, 9, 0.55);
+}
+
+[data-theme="light"] .pricing-back {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .pricing-back:hover {
+  background: rgba(0, 0, 0, 0.10);
+  color: #1c1209;
+}
+
+[data-theme="light"] .pricing-header p {
+  color: rgba(28, 18, 9, 0.48);
+}
+
+[data-theme="light"] .pricing-card {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.09);
+  color: #1c1209;
+}
+
+[data-theme="light"] .pricing-card:hover {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] .tier-name {
+  color: rgba(28, 18, 9, 0.60);
+}
+
+[data-theme="light"] .price-currency {
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .price-amount {
+  color: #1c1209;
+}
+
+[data-theme="light"] .price-period {
+  color: rgba(28, 18, 9, 0.45);
+}
+
+[data-theme="light"] .tier-features li {
+  color: rgba(28, 18, 9, 0.70);
+}
+
+[data-theme="light"] .tier-btn.free {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(28, 18, 9, 0.50);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="light"] .pricing-footer {
+  color: rgba(28, 18, 9, 0.32);
+}
+
+[data-theme="light"] .manage-sub a {
+  color: rgba(180, 70, 0, 0.80);
 }

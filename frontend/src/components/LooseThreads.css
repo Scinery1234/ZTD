@@ -509,7 +509,53 @@
   }
 }
 
+/* ---- Thread limit ---- */
+.lt-panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lt-limit-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+}
+
+.lt-limit-badge.at-limit {
+  color: rgba(251, 191, 36, 0.8);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.lt-new-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lt-limit-banner {
+  padding: 8px 14px;
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.15);
+  font-size: 11px;
+  color: rgba(251, 191, 36, 0.75);
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.lt-limit-hint {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 /* ---- Light mode ---- */
+[data-theme="light"] .lt-limit-badge { background: rgba(0, 0, 0, 0.06); color: rgba(28, 18, 9, 0.35); }
+[data-theme="light"] .lt-limit-badge.at-limit { background: rgba(217, 119, 6, 0.12); color: rgba(180, 83, 9, 0.85); }
+[data-theme="light"] .lt-limit-banner { background: rgba(217, 119, 6, 0.07); border-bottom-color: rgba(217, 119, 6, 0.15); color: rgba(180, 83, 9, 0.8); }
+[data-theme="light"] .lt-limit-hint { color: rgba(28, 18, 9, 0.4); }
+
 [data-theme="light"] .lt-panel {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(0, 0, 0, 0.08);

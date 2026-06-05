@@ -3,6 +3,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { useSortable, SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { asSubtaskList } from '../utils/arrays';
+import { useAuth } from '../context/AuthContext';
 import './TaskItem.css';
 
 // Sensor that won't start dragging when the user clicks an input or button
@@ -71,9 +72,12 @@ const TaskItem = ({
   onMarkDone,
   onUnmarkDone,
   onCategoryClick,
+  onPinPomodoro,
   viewMode,
   hats,
 }) => {
+  const { user, subscription } = useAuth();
+  const tier = subscription?.tier || user?.tier || 'free';
   const {
     attributes,
     listeners,
@@ -97,7 +101,9 @@ const TaskItem = ({
     due: task.due || '',
     hat_id: task.hat_id ?? '',
     subtasks: asSubtaskList(task.subtasks),
+    notes: task.notes || '',
   });
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   // Local subtask state for view-mode toggling (without a full save)
   const [localSubtasks, setLocalSubtasks] = useState(() => asSubtaskList(task.subtasks));
@@ -303,6 +309,25 @@ const TaskItem = ({
             </div>
           </div>
 
+          {/* Notes (premium only) */}
+          {tier === 'premium' ? (
+            <div className="edit-section">
+              <label className="edit-label">Notes</label>
+              <textarea
+                className="edit-notes-textarea"
+                value={editData.notes}
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                placeholder="Add detailed notes, links, context…"
+                rows={4}
+              />
+            </div>
+          ) : (
+            <div className="edit-section edit-notes-upgrade">
+              <span className="edit-label">Notes</span>
+              <span className="edit-notes-upgrade-text">Premium feature — upgrade to add rich notes to tasks</span>
+            </div>
+          )}
+
           <div className="edit-actions">
             <span className="edit-hint">Enter to save · Esc to cancel</span>
             <button onClick={onCancelEdit} className="btn-cancel">Cancel</button>
@@ -377,7 +402,23 @@ const TaskItem = ({
                 {doneCount}/{totalCount}
               </span>
             )}
+            {task.notes && (
+              <button
+                className="task-notes-pill"
+                onClick={(e) => { e.stopPropagation(); setNotesExpanded(x => !x); }}
+                title={notesExpanded ? 'Hide notes' : 'Show notes'}
+              >
+                📝
+              </button>
+            )}
           </div>
+
+          {/* Notes preview */}
+          {task.notes && notesExpanded && (
+            <div className="task-notes-preview">
+              {task.notes}
+            </div>
+          )}
 
           {/* Subtask checklist */}
           {localSubtasks.length > 0 && (
@@ -424,6 +465,13 @@ const TaskItem = ({
 
         {viewMode === 'active' && (
           <div className="task-actions">
+            {(tier === 'pro' || tier === 'premium') && onPinPomodoro && (
+              <button
+                className="btn-pomodoro"
+                onClick={(e) => { e.stopPropagation(); onPinPomodoro(task); }}
+                title="Focus with Pomodoro"
+              >🍅</button>
+            )}
             <button
               className="btn-subtask"
               onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); }}

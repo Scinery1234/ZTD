@@ -594,6 +594,88 @@
   .edit-fields { grid-template-columns: 1fr; }
 }
 
+/* ---- Task notes ---- */
+.task-notes-pill {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  line-height: 1;
+}
+
+.task-notes-pill:hover { opacity: 1; }
+
+.task-notes-preview {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Notes in edit form */
+.edit-notes-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  font-size: 13px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.85);
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s, background 0.2s;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.edit-notes-textarea::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+.edit-notes-textarea:focus {
+  border-color: rgba(249, 115, 22, 0.5);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.edit-notes-upgrade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.6;
+}
+
+.edit-notes-upgrade-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* Pomodoro pin button */
+.btn-pomodoro {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.5;
+  padding: 3px 4px;
+  border-radius: 5px;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.btn-pomodoro:hover {
+  opacity: 1;
+  background: rgba(249, 115, 22, 0.12);
+}
+
 /* ---- Light mode ---- */
 [data-theme="light"] .task-item {
   background: rgba(255, 255, 255, 0.82);
@@ -773,4 +855,28 @@
 
 [data-theme="light"] .lt-toolbar-sep {
   background: rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="light"] .task-notes-preview {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.07);
+  color: rgba(28, 18, 9, 0.5);
+}
+
+[data-theme="light"] .edit-notes-textarea {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #1c1209;
+}
+
+[data-theme="light"] .edit-notes-textarea::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .edit-notes-textarea:focus {
+  border-color: rgba(249, 115, 22, 0.50);
+}
+
+[data-theme="light"] .edit-notes-upgrade-text {
+  color: rgba(28, 18, 9, 0.35);
 }

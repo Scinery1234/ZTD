@@ -102,10 +102,13 @@ TIERS = {
 }
 
 TIER_FEATURES = {
-    'free':    ['Up to 10 active tasks', 'All categories & priorities', 'Drag & drop reordering'],
-    'pro':     ['Unlimited tasks', 'All Free features', 'Recurring tasks', 'Email reminders'],
-    'premium': ['Everything in Pro', 'Priority support', 'Advanced analytics', 'Team sharing (coming soon)'],
+    'free':    ['Up to 10 active tasks', 'Basic categories & priorities', 'Drag & drop', '3 Loose Threads', '30-day history'],
+    'pro':     ['Unlimited tasks', 'Pomodoro timer', 'Data export (CSV/JSON)', '10 Loose Threads', '90-day task history'],
+    'premium': ['Everything in Pro', 'Task notes', 'Advanced analytics dashboard', 'Unlimited Loose Threads', 'Full archive (all history)', 'Priority support'],
 }
+
+ARCHIVE_DAYS = {'free': 30, 'pro': 90, 'premium': None}   # None = unlimited
+LT_LIMITS    = {'free': 3,  'pro': 10,  'premium': None}   # Loose Threads count limits
 
 
 # --- Models ---
@@ -172,6 +175,7 @@ class Task(db.Model):
     scheduled_time = db.Column(db.String(5), nullable=True)  # HH:MM
     scheduled_date = db.Column(db.String(10), nullable=True) # YYYY-MM-DD
     locked = db.Column(db.Boolean, default=False)            # locked in timebox
+    notes = db.Column(db.Text, nullable=True)                # rich notes (premium)
 
     def subtasks_list(self):
         try:
@@ -199,6 +203,7 @@ class Task(db.Model):
             'scheduled_time': self.scheduled_time,
             'scheduled_date': self.scheduled_date,
             'locked': bool(self.locked),
+            'notes': self.notes or '',
         }
 
 
@@ -214,6 +219,7 @@ class DoneTask(db.Model):
     last_done = db.Column(db.String(20), nullable=True)
     subtasks = db.Column(db.Text, default='[]')
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text, nullable=True)
 
     def subtasks_list(self):
         try:
@@ -238,6 +244,7 @@ class DoneTask(db.Model):
             'last_done': self.last_done,
             'subtasks': self.subtasks_list(),
             'completed_at': self.completed_at.isoformat(),
+            'notes': self.notes or '',
         }
 
 
@@ -522,6 +529,7 @@ def add_task():
                 duration=int(data['duration']) if data.get('duration') else 30,
                 scheduled_time=data.get('scheduled_time') or None,
                 scheduled_date=data.get('scheduled_date') or None,
+                notes=data.get('notes') or None,
             )
             db.session.add(task)
             all_tasks.append(task)
@@ -578,6 +586,8 @@ def update_task(task_id):
         task.scheduled_date = data['scheduled_date'] or None
     if 'locked' in data:
         task.locked = bool(data.get('locked', False))
+    if 'notes' in data:
+        task.notes = data.get('notes') or None
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -616,6 +626,7 @@ def mark_task_done(task_id):
         recurring=task.recurring,
         due=task.due,
         subtasks=task.subtasks,
+        notes=task.notes,
         last_done=today.strftime("%Y-%m-%d") if task.recurring else None,
     )
     db.session.add(done_task)
@@ -681,6 +692,7 @@ def restore_done_task(done_task_id):
         recurring=done_task.recurring,
         due=done_task.due,
         subtasks=done_task.subtasks,
+        notes=done_task.notes,
     )
     db.session.add(task)
     db.session.delete(done_task)
@@ -692,10 +704,16 @@ def restore_done_task(done_task_id):
 @jwt_required()
 def get_done_tasks():
     user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
     hat_id = request.args.get('hat_id', type=int)
     q = DoneTask.query.filter_by(user_id=user_id)
     if hat_id is not None:
         q = q.filter_by(hat_id=hat_id)
+    # Archive gating: limit history by tier
+    days = ARCHIVE_DAYS.get(user.tier if user else 'free', 30)
+    if days is not None:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        q = q.filter(DoneTask.completed_at >= cutoff)
     done_tasks = q.order_by(DoneTask.completed_at.desc()).all()
     return jsonify([t.to_dict() for t in done_tasks])
 
@@ -741,6 +759,120 @@ def reorder_tasks():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+# === Analytics Endpoint (premium) ===
+
+@app.route('/api/analytics', methods=['GET'])
+@jwt_required()
+def get_analytics():
+    from collections import defaultdict, Counter
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user or user.tier != 'premium':
+        return jsonify({'error': 'Premium required', 'upgrade_required': True}), 403
+
+    today = datetime.utcnow().date()
+    thirty_ago = datetime.utcnow() - timedelta(days=30)
+
+    done_all = DoneTask.query.filter_by(user_id=user_id).all()
+    done_30  = [d for d in done_all if d.completed_at and d.completed_at >= thirty_ago]
+    active   = Task.query.filter_by(user_id=user_id).all()
+
+    # Completions by day (last 30 days)
+    by_day = defaultdict(int)
+    for dt in done_30:
+        by_day[dt.completed_at.date().isoformat()] += 1
+
+    completed_by_day = [
+        {'date': (today - timedelta(days=i)).isoformat(),
+         'count': by_day.get((today - timedelta(days=i)).isoformat(), 0)}
+        for i in range(29, -1, -1)
+    ]
+
+    # Category + priority breakdowns
+    cat_done    = Counter(d.category or 'Uncategorized' for d in done_all)
+    prio_done   = Counter(d.priority or '' for d in done_all)
+    cat_active  = Counter(t.category or 'Uncategorized' for t in active)
+    prio_active = Counter(t.priority or '' for t in active)
+
+    # Streak (consecutive days ending today)
+    streak = 0
+    d = today
+    while by_day.get(d.isoformat(), 0) > 0:
+        streak += 1
+        d -= timedelta(days=1)
+
+    # Overdue
+    today_str = today.isoformat()
+    overdue = sum(1 for t in active if t.due and t.due < today_str)
+
+    return jsonify({
+        'total_completed': len(done_all),
+        'completed_last_30': len(done_30),
+        'completed_by_day': completed_by_day,
+        'completed_by_category': dict(cat_done.most_common(10)),
+        'active_by_category': dict(cat_active.most_common(10)),
+        'completed_by_priority': dict(prio_done),
+        'active_by_priority': dict(prio_active),
+        'overdue_count': overdue,
+        'avg_per_day': round(len(done_30) / 30, 1),
+        'streak': streak,
+    })
+
+
+# === Export Endpoint (pro + premium) ===
+
+@app.route('/api/export', methods=['GET'])
+@jwt_required()
+def export_tasks():
+    import csv as csvmod, io as iomod
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user or user.tier not in ('pro', 'premium'):
+        return jsonify({'error': 'Pro or Premium required', 'upgrade_required': True}), 403
+
+    fmt = request.args.get('format', 'json').lower()
+    active = Task.query.filter_by(user_id=user_id).order_by(Task.position).all()
+    done   = DoneTask.query.filter_by(user_id=user_id).order_by(DoneTask.completed_at.desc()).all()
+    hats   = {h.id: h.name for h in Hat.query.filter_by(user_id=user_id).all()}
+
+    def task_row(t, status):
+        return {
+            'status': status,
+            'description': t.description,
+            'notes': (t.notes or '').replace('\n', ' '),
+            'category': t.category or '',
+            'priority': t.priority or '',
+            'recurring': t.recurring or '',
+            'due': t.due or '',
+            'hat': hats.get(t.hat_id, ''),
+            'created_at': (t.created_at.isoformat() if hasattr(t, 'created_at') and t.created_at else ''),
+            'completed_at': (t.completed_at.isoformat() if hasattr(t, 'completed_at') and t.completed_at else ''),
+        }
+
+    rows = [task_row(t, 'active') for t in active] + [task_row(t, 'completed') for t in done]
+
+    if fmt == 'csv':
+        out = iomod.StringIO()
+        if rows:
+            writer = csvmod.DictWriter(out, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+        return Response(
+            out.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=madehappen-export.csv'},
+        )
+    return Response(
+        json.dumps(rows, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': 'attachment; filename=madehappen-export.json'},
+    )
+
+
+# === Subscription Info (includes archive days) ===
 
 # === Stripe Endpoints ===
 
@@ -929,6 +1061,8 @@ def migrate_db():
             'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
             'ALTER TABLE task ADD COLUMN scheduled_date VARCHAR(10)',
             'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
+            'ALTER TABLE task ADD COLUMN notes TEXT',
+            'ALTER TABLE done_task ADD COLUMN notes TEXT',
         ]:
             try:
                 with db.engine.connect() as conn:

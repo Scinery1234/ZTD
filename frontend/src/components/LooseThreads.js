@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
 import './LooseThreads.css';
 
 const STORAGE_KEY = 'mh_loose_threads';
@@ -6,6 +7,8 @@ const TRASH_KEY   = 'mh_loose_threads_trash';
 const MAX_OPEN    = 3;
 const FONT_SIZES  = [12, 14, 16, 18, 20];
 const DEFAULT_FONT_SIZE = 14;
+
+const LT_LIMITS = { free: 3, pro: 10, premium: null };
 
 function load(key) {
   try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
@@ -120,16 +123,23 @@ function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
 }
 
 export default function LooseThreads() {
+  const { user, subscription } = useAuth();
+  const tier  = subscription?.tier || user?.tier || 'free';
+  const limit = LT_LIMITS[tier] ?? null;
+
   const [notes,     setNotes]     = useState(() => load(STORAGE_KEY));
   const [trash,     setTrash]     = useState(() => load(TRASH_KEY));
   const [openIds,   setOpenIds]   = useState([]);
   const [collapsed, setCollapsed] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
 
+  const atLimit = limit !== null && notes.length >= limit;
+
   const saveNotes = (updated) => { setNotes(updated); persist(STORAGE_KEY, updated); };
   const saveTrash = (updated) => { setTrash(updated); persist(TRASH_KEY,   updated); };
 
   const createNote = () => {
+    if (atLimit) return;
     const now  = Date.now();
     const note = { id: generateId(), content: '', createdAt: now, updatedAt: now, fontSize: DEFAULT_FONT_SIZE };
     saveNotes([note, ...notes]);
@@ -186,10 +196,26 @@ export default function LooseThreads() {
   return (
     <aside className={`lt-panel${collapsed ? ' lt-panel--collapsed' : ''}`}>
       <div className="lt-panel-header">
-        {!collapsed && <span className="lt-panel-title">Loose Threads</span>}
+        {!collapsed && (
+          <div className="lt-panel-title-row">
+            <span className="lt-panel-title">Loose Threads</span>
+            {limit !== null && (
+              <span className={`lt-limit-badge${atLimit ? ' at-limit' : ''}`}>
+                {notes.length}/{limit}
+              </span>
+            )}
+          </div>
+        )}
         <div className="lt-panel-actions">
           {!collapsed && (
-            <button className="lt-new-btn" onClick={createNote} title="New note">+ New</button>
+            <button
+              className={`lt-new-btn${atLimit ? ' disabled' : ''}`}
+              onClick={createNote}
+              title={atLimit ? `Limit reached (${limit} threads on ${tier} plan)` : 'New note'}
+              disabled={atLimit}
+            >
+              + New
+            </button>
           )}
           <button
             className="lt-collapse-btn"
@@ -200,6 +226,14 @@ export default function LooseThreads() {
           </button>
         </div>
       </div>
+
+      {!collapsed && atLimit && (
+        <div className="lt-limit-banner">
+          <span>You've reached your {limit}-thread limit on the {tier} plan.</span>
+          {tier === 'free' && <span className="lt-limit-hint"> Upgrade to Pro for 10 threads, or Premium for unlimited.</span>}
+          {tier === 'pro'  && <span className="lt-limit-hint"> Upgrade to Premium for unlimited threads.</span>}
+        </div>
+      )}
 
       {!collapsed && (
         <div className="lt-panel-body">

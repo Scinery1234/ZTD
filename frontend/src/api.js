@@ -162,6 +162,30 @@ export const api = {
   unmarkDone: (id) => apiFetch(`/tasks/done/${id}/restore`, { method: 'POST' }),
   reorder: (tasks) => apiFetch('/tasks/reorder', { method: 'POST', body: JSON.stringify({ tasks }) }),
 
+  // Analytics (premium)
+  getAnalytics: () => apiFetch('/analytics'),
+
+  // Export (pro + premium) — triggers a file download
+  exportData: async (format = 'json') => {
+    const href = `/export?format=${format}`;
+    const url = `${API_URL}${href}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const d = await res.json(); msg = d.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `madehappen-export.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  },
+
   // Stripe / Tiers
   getTiers: () => apiFetch('/stripe/tiers'),
   getSubscription: () => apiFetch('/stripe/subscription'),

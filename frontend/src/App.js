@@ -11,6 +11,8 @@ import Stats from './components/Stats';
 import HatBar from './components/HatBar';
 import CategorySection from './components/CategorySection';
 import TimeboxView from './components/TimeboxView';
+import PomodoroTimer from './components/PomodoroTimer';
+import AnalyticsView from './components/AnalyticsView';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
@@ -256,6 +258,8 @@ function TaskApp() {
   const [categoryOrder, setCategoryOrder] = useState([]);
   const [showPricing, setShowPricing] = useState(false);
   const [limitError, setLimitError] = useState('');
+  const [pomodoroOpen, setPomodoroOpen] = useState(false);
+  const [pomodoroTask, setPomodoroTask] = useState(null);
 
   // Upgrade redirect
   useEffect(() => {
@@ -444,7 +448,11 @@ function TaskApp() {
 
   return (
     <div className="app">
-      <Header onShowPricing={() => setShowPricing(true)} />
+      <Header
+        onShowPricing={() => setShowPricing(true)}
+        onTogglePomodoro={() => setPomodoroOpen(o => !o)}
+        pomodoroOpen={pomodoroOpen}
+      />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
           {dataSyncing && (
@@ -477,6 +485,9 @@ function TaskApp() {
             </button>
             <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
               Timebox
+            </button>
+            <button className={`view-btn ${viewMode === 'analytics' ? 'active' : ''}`} onClick={() => setViewMode('analytics')}>
+              Analytics
             </button>
             <button className={`view-btn view-btn--mobile-only ${viewMode === 'threads' ? 'active' : ''}`} onClick={() => setViewMode('threads')}>
               Threads
@@ -515,6 +526,7 @@ function TaskApp() {
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }, 100);
                 }}
+                onPinPomodoro={(task) => { setPomodoroTask(task); setPomodoroOpen(true); }}
                 viewMode="active"
                 hats={hats}
               />
@@ -547,10 +559,22 @@ function TaskApp() {
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
             />
           )}
+
+          {viewMode === 'analytics' && (
+            <AnalyticsView onShowPricing={() => setShowPricing(true)} />
+          )}
           </div>{/* end view-content */}
         </div>
         <LooseThreads />
       </div>
+
+      {pomodoroOpen && (
+        <PomodoroTimer
+          pinnedTask={pomodoroTask}
+          onClose={() => setPomodoroOpen(false)}
+          onClearPin={() => setPomodoroTask(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,309 @@
+.pomodoro-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 260px;
+  background: rgba(20, 12, 4, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 18px;
+  padding: 18px 20px 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(249, 115, 22, 0.1);
+  z-index: 1000;
+  user-select: none;
+}
+
+.pomodoro-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pomodoro-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.2px;
+}
+
+.pomodoro-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.pomodoro-close:hover { color: rgba(255, 255, 255, 0.7); }
+
+/* Pinned task */
+.pomodoro-pinned {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+
+.pomodoro-pinned-label {
+  color: rgba(249, 115, 22, 0.7);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pomodoro-pinned-task {
+  color: rgba(255, 255, 255, 0.75);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pomodoro-unpin {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.pomodoro-unpin:hover { color: rgba(255, 255, 255, 0.6); }
+
+/* Mode tabs */
+.pomodoro-modes {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.pomodoro-mode-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+}
+
+.pomodoro-mode-btn.active {
+  background: rgba(249, 115, 22, 0.2);
+  color: rgba(249, 115, 22, 0.9);
+}
+
+.pomodoro-mode-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Ring timer */
+.pomodoro-ring-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pomodoro-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.pomodoro-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 5;
+}
+
+.pomodoro-ring-fill {
+  fill: none;
+  stroke: #f97316;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.pomodoro-time {
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  z-index: 1;
+  line-height: 1;
+}
+
+.pomodoro-mode-label {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* Controls */
+.pomodoro-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.pomodoro-ctrl-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.pomodoro-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pomodoro-play-btn {
+  background: linear-gradient(135deg, #f97316, #d97706);
+  border: none;
+  color: white;
+  font-size: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.4);
+  transition: opacity 0.2s, transform 0.15s;
+}
+
+.pomodoro-play-btn:hover { opacity: 0.9; transform: scale(1.05); }
+.pomodoro-play-btn.running { background: linear-gradient(135deg, #64748b, #475569); box-shadow: none; }
+
+/* Session counter */
+.pomodoro-sessions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.pomodoro-sessions-count {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pomodoro-sessions-reset {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.22);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.2s;
+}
+
+.pomodoro-sessions-reset:hover { color: rgba(255, 255, 255, 0.5); }
+
+/* Upgrade state */
+.pomodoro-upgrade {
+  text-align: center;
+  padding: 12px 0 6px;
+}
+
+.pomodoro-upgrade p {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+
+.pomodoro-upgrade strong { color: rgba(249, 115, 22, 0.9); }
+
+.pomodoro-upgrade-sub {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ---- Light mode ---- */
+[data-theme="light"] .pomodoro-widget {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: rgba(249, 115, 22, 0.2);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(249, 115, 22, 0.1);
+}
+
+[data-theme="light"] .pomodoro-title { color: rgba(28, 18, 9, 0.85); }
+[data-theme="light"] .pomodoro-close { color: rgba(28, 18, 9, 0.3); }
+[data-theme="light"] .pomodoro-close:hover { color: rgba(28, 18, 9, 0.7); }
+
+[data-theme="light"] .pomodoro-modes {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .pomodoro-mode-btn { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .pomodoro-mode-btn:hover:not(.active) {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .pomodoro-ring-bg { stroke: rgba(0, 0, 0, 0.07); }
+[data-theme="light"] .pomodoro-time { color: #1c1209; }
+[data-theme="light"] .pomodoro-mode-label { color: rgba(28, 18, 9, 0.35); }
+
+[data-theme="light"] .pomodoro-ctrl-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(28, 18, 9, 0.5);
+}
+
+[data-theme="light"] .pomodoro-ctrl-btn:hover {
+  background: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.8);
+}
+
+[data-theme="light"] .pomodoro-sessions-count { color: rgba(28, 18, 9, 0.5); }
+[data-theme="light"] .pomodoro-sessions-reset { color: rgba(28, 18, 9, 0.22); }
+[data-theme="light"] .pomodoro-sessions-reset:hover { color: rgba(28, 18, 9, 0.5); }
+
+[data-theme="light"] .pomodoro-upgrade p { color: rgba(28, 18, 9, 0.55); }
+[data-theme="light"] .pomodoro-upgrade-sub { color: rgba(28, 18, 9, 0.35) !important; }

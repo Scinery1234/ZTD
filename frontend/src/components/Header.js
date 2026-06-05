@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
+import { api } from '../api';
 import './Header.css';
 
 const TIER_COLORS = {
@@ -9,11 +10,23 @@ const TIER_COLORS = {
   premium: 'linear-gradient(135deg, #fbbf24, #f97316)',
 };
 
-const Header = ({ onShowPricing }) => {
+const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen }) => {
   const { user, subscription, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const tier = subscription?.tier || user?.tier || 'free';
   const atLimit = subscription?.at_limit;
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const canExport = tier === 'pro' || tier === 'premium';
+
+  const handleExport = async (format) => {
+    setExportOpen(false);
+    try {
+      await api.exportData(format);
+    } catch (err) {
+      alert(err.message || 'Export failed. Please try again.');
+    }
+  };
 
   return (
     <header className="header">
@@ -48,6 +61,35 @@ const Header = ({ onShowPricing }) => {
               >
                 {theme === 'light' ? '🌙' : '☀️'}
               </button>
+              {onTogglePomodoro && (
+                <button
+                  className={`header-btn pomodoro-toggle-btn${pomodoroOpen ? ' active' : ''}`}
+                  onClick={onTogglePomodoro}
+                  title="Pomodoro timer"
+                >
+                  🍅
+                </button>
+              )}
+              {canExport && (
+                <div className="export-dropdown">
+                  <button
+                    className="header-btn"
+                    onClick={() => setExportOpen(o => !o)}
+                    title="Export tasks"
+                  >
+                    Export
+                  </button>
+                  {exportOpen && (
+                    <>
+                      <div className="export-backdrop" onClick={() => setExportOpen(false)} />
+                      <div className="export-menu">
+                        <button onClick={() => handleExport('csv')}>CSV</button>
+                        <button onClick={() => handleExport('json')}>JSON</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <button className="header-btn" onClick={onShowPricing}>
                 Plans
               </button>

@@ -234,3 +234,88 @@
   .hat-bar { padding: 10px; gap: 5px; }
   .hat-edit-input { width: 110px; }
 }
+
+/* ---- Light mode ---- */
+[data-theme="light"] .hat-bar {
+  background: rgba(255, 255, 255, 0.70);
+  border-color: rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .hat-pill {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .hat-pill:hover {
+  background: rgba(255, 255, 255, 0.95);
+  color: rgba(28, 18, 9, 0.88);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] .hat-pill.active {
+  color: rgba(28, 18, 9, 0.92);
+}
+
+[data-theme="light"] .all-pill.active {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: #1c1209;
+}
+
+[data-theme="light"] .hat-emoji-trigger {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="light"] .hat-emoji-trigger:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .hat-edit-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1c1209;
+}
+
+[data-theme="light"] .hat-edit-input::placeholder {
+  color: rgba(28, 18, 9, 0.30);
+}
+
+[data-theme="light"] .hat-edit-input:focus {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .hat-cancel-btn {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(28, 18, 9, 0.50);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .hat-cancel-btn:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .hat-picker-popup {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .hat-emoji-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .hat-emoji-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .hat-emoji-btn.selected {
+  border-color: rgba(0, 0, 0, 0.30);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .hat-add-btn {
+  border-color: rgba(0, 0, 0, 0.14);
+  color: rgba(28, 18, 9, 0.38);
+}

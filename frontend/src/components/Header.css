@@ -128,3 +128,28 @@
     justify-content: space-between;
   }
 }
+
+/* ---- Light mode ---- */
+[data-theme="light"] .user-name {
+  color: rgba(28, 18, 9, 0.75);
+}
+
+[data-theme="light"] .header-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: rgba(28, 18, 9, 0.70);
+}
+
+[data-theme="light"] .header-btn:hover {
+  background: rgba(0, 0, 0, 0.10);
+  color: #1c1209;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] .logout-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .theme-toggle-btn {
+  font-size: 15px;
+}

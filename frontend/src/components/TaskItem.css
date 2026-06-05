@@ -593,3 +593,184 @@
   .task-actions { opacity: 1; }
   .edit-fields { grid-template-columns: 1fr; }
 }
+
+/* ---- Light mode ---- */
+[data-theme="light"] .task-item {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  color: #1c1209;
+}
+
+[data-theme="light"] .task-item:hover {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .task-item.overdue {
+  background: rgba(248, 113, 113, 0.06);
+}
+
+[data-theme="light"] .drag-handle {
+  color: rgba(28, 18, 9, 0.20);
+}
+
+[data-theme="light"] .drag-handle:hover {
+  color: rgba(28, 18, 9, 0.50);
+}
+
+[data-theme="light"] .task-done-circle {
+  border-color: rgba(28, 18, 9, 0.20);
+}
+
+[data-theme="light"] .task-description {
+  color: rgba(28, 18, 9, 0.90);
+}
+
+[data-theme="light"] .task-category {
+  background: rgba(249, 115, 22, 0.12);
+  color: rgba(180, 70, 0, 0.9);
+  border-color: rgba(249, 115, 22, 0.18);
+}
+
+[data-theme="light"] .task-category.clickable-category:hover {
+  background: rgba(249, 115, 22, 0.20);
+  color: #7c2d00;
+}
+
+[data-theme="light"] .task-priority.priority-later {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.45);
+}
+
+[data-theme="light"] .btn-edit,
+[data-theme="light"] .btn-done,
+[data-theme="light"] .btn-delete,
+[data-theme="light"] .btn-restore {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .task-item.editing {
+  background: rgba(249, 115, 22, 0.05);
+}
+
+[data-theme="light"] .edit-label {
+  color: rgba(28, 18, 9, 0.45);
+}
+
+[data-theme="light"] .edit-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(249, 115, 22, 0.30);
+  color: #1c1209;
+}
+
+[data-theme="light"] .edit-input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .edit-input:focus {
+  border-color: rgba(249, 115, 22, 0.60);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.10);
+}
+
+[data-theme="light"] .edit-field-label {
+  color: rgba(28, 18, 9, 0.35);
+}
+
+[data-theme="light"] .edit-field {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1c1209;
+}
+
+[data-theme="light"] .edit-field::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .edit-field option {
+  background: #fff8f0;
+  color: #1c1209;
+}
+
+[data-theme="light"] .edit-field:focus {
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+[data-theme="light"] .edit-actions {
+  border-top-color: rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .edit-hint {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .btn-cancel {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(28, 18, 9, 0.55);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .btn-cancel:hover {
+  background: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.80);
+}
+
+[data-theme="light"] .subtask-progress-bar {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .subtask-text {
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .subtask-item.done .subtask-text {
+  color: rgba(28, 18, 9, 0.30);
+}
+
+[data-theme="light"] .subtask-add-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: #1c1209;
+}
+
+[data-theme="light"] .subtask-add-input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .edit-subtask-drag {
+  color: rgba(28, 18, 9, 0.25);
+}
+
+[data-theme="light"] .edit-subtask-bullet {
+  color: rgba(28, 18, 9, 0.25);
+}
+
+[data-theme="light"] .edit-subtask-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1c1209;
+}
+
+[data-theme="light"] .edit-subtask-input::placeholder {
+  color: rgba(28, 18, 9, 0.28);
+}
+
+[data-theme="light"] .edit-subtask-input:focus {
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+[data-theme="light"] .edit-subtask-add {
+  border-color: rgba(0, 0, 0, 0.13);
+  color: rgba(28, 18, 9, 0.35);
+}
+
+[data-theme="light"] .edit-subtask-add:hover {
+  border-color: rgba(249, 115, 22, 0.35);
+  color: rgba(180, 70, 0, 0.85);
+}
+
+[data-theme="light"] .lt-toolbar-sep {
+  background: rgba(0, 0, 0, 0.10);
+}

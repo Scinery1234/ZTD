@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../hooks/useTheme';
 import './Header.css';
 
 const TIER_COLORS = {
@@ -10,6 +11,7 @@ const TIER_COLORS = {
 
 const Header = ({ onShowPricing }) => {
   const { user, subscription, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const tier = subscription?.tier || user?.tier || 'free';
   const atLimit = subscription?.at_limit;
 
@@ -38,6 +40,14 @@ const Header = ({ onShowPricing }) => {
               )}
             </div>
             <div className="header-actions">
+              <button
+                className="header-btn theme-toggle-btn"
+                onClick={toggleTheme}
+                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? '🌙' : '☀️'}
+              </button>
               <button className="header-btn" onClick={onShowPricing}>
                 Plans
               </button>

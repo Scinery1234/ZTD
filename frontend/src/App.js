@@ -482,7 +482,7 @@ function TaskApp() {
               Tasks
             </button>
             <button className={`view-btn ${viewMode === 'categories' ? 'active' : ''}`} onClick={() => setViewMode('categories')}>
-              By Category
+              Category
             </button>
             <button className={`view-btn ${viewMode === 'timebox' ? 'active' : ''}`} onClick={() => setViewMode('timebox')}>
               Timebox

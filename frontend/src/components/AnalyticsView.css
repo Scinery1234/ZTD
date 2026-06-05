@@ -205,6 +205,33 @@
   flex-shrink: 0;
 }
 
+/* ---- Mobile ---- */
+@media (max-width: 640px) {
+  .av-upgrade {
+    padding: 48px 16px;
+  }
+  .av-upgrade-title { font-size: 20px; }
+  .av-section {
+    padding: 14px 14px;
+    border-radius: 12px;
+  }
+  .av-card {
+    min-width: 90px;
+    padding: 12px 14px;
+  }
+  .av-card-value { font-size: 24px; }
+  .av-bar-label { width: 72px; font-size: 11px; }
+  .av-bar-count { width: 24px; font-size: 11px; }
+  .av-day-chart { height: 60px; }
+}
+
+@media (max-width: 380px) {
+  .av-cards { gap: 8px; }
+  .av-card { min-width: 80px; padding: 10px 10px; }
+  .av-card-value { font-size: 22px; }
+  .av-bar-label { width: 60px; }
+}
+
 /* ---- Light mode ---- */
 [data-theme="light"] .av-upgrade-title { color: rgba(28, 18, 9, 0.88); }
 [data-theme="light"] .av-upgrade-body  { color: rgba(28, 18, 9, 0.45); }

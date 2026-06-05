@@ -121,12 +121,28 @@
   .header-content {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
   }
   .header-user {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
   }
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .header-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 400px) {
+  .user-name { display: none; }
+  .header-title { font-size: 22px; }
+  .upgrade-nudge { font-size: 10px; padding: 4px 10px; }
 }
 
 /* Pomodoro toggle */

@@ -255,12 +255,29 @@
   .app-body {
     padding: 0 12px;
   }
+  /* Scrollable tab bar — prevents overflow on small phones */
   .view-controls {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
     gap: 2px;
+    padding: 4px;
+    margin-bottom: 20px;
   }
+  .view-controls::-webkit-scrollbar { display: none; }
   .view-btn {
-    font-size: 13px;
-    padding: 10px 8px;
+    font-size: 12.5px;
+    padding: 9px 10px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 400px) {
+  .view-btn {
+    font-size: 12px;
+    padding: 8px 9px;
   }
 }
 

@@ -213,6 +213,30 @@
   }
 }
 
+@media (max-width: 480px) {
+  /* Larger touch targets on small phones */
+  .timebox-task-done-btn,
+  .timebox-task-edit-btn,
+  .timebox-task-unschedule,
+  .timebox-lock-btn,
+  .timebox-mit-btn {
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 15px;
+  }
+  .timebox-task-resize-top,
+  .timebox-task-resize-bottom {
+    height: 16px;
+  }
+  .timebox-sub-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .timebox-task-sidebar {
+    max-height: 140px;
+  }
+}
+
 /* ── Sub-view toggle ───────────────────────────────────────────────────────── */
 .timebox-subview-toggle {
   display: inline-flex;

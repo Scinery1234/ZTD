@@ -592,6 +592,21 @@
 @media (max-width: 600px) {
   .task-actions { opacity: 1; }
   .edit-fields { grid-template-columns: 1fr; }
+
+  /* Bigger touch targets */
+  .btn-edit, .btn-done, .btn-delete, .btn-restore {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px 10px;
+  }
+  .task-done-circle {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .btn-pomodoro { opacity: 1; font-size: 16px; padding: 4px 6px; }
+  .task-notes-pill { opacity: 1; font-size: 15px; padding: 2px 4px; }
+  .drag-handle { display: none; }
 }
 
 /* ---- Task notes ---- */

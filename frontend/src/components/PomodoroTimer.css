@@ -265,6 +265,18 @@
   color: rgba(255, 255, 255, 0.3) !important;
 }
 
+/* ---- Mobile: full-width centered widget ---- */
+@media (max-width: 480px) {
+  .pomodoro-widget {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: 16px;
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+  }
+}
+
 /* ---- Light mode ---- */
 [data-theme="light"] .pomodoro-widget {
   background: rgba(255, 255, 255, 0.97);

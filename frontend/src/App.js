@@ -13,6 +13,7 @@ import CategorySection from './components/CategorySection';
 import TimeboxView from './components/TimeboxView';
 import PomodoroTimer from './components/PomodoroTimer';
 import AnalyticsView from './components/AnalyticsView';
+import TodayWins from './components/TodayWins';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
@@ -531,6 +532,9 @@ function TaskApp() {
                 hats={hats}
               />
               <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
+              {(subscription?.tier === 'premium') && (
+                <TodayWins doneTasks={doneTasks} onUnmarkDone={unmarkDone} />
+              )}
               <CompletedSection doneTasks={doneTasks} onUnmarkDone={unmarkDone} />
             </>
           )}

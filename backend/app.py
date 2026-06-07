@@ -1102,7 +1102,7 @@ def serve_frontend(path):
     full = os.path.join(_FRONTEND_BUILD, path)
     if os.path.isfile(full):
         return send_from_directory(_FRONTEND_BUILD, path)
-    return send_from_directory(_FRONTEND_BUILD, 'index.html')
+    return send_from_directory(_FRONTEND_BUILD, 'app.html')
 
 
 if __name__ == '__main__':

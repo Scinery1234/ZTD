@@ -31,7 +31,7 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
       </button>
       <div className="auth-card">
         <div className="auth-header">
-          <h1 className="auth-logo">madeHappen</h1>
+          <h1 className="auth-logo">happen</h1>
           <p className="auth-tagline">make it happen</p>
         </div>
 

@@ -52,7 +52,7 @@ export default function PomodoroTimer({ pinnedTask, onClose, onClearPin }) {
           }
           if ('Notification' in window && Notification.permission === 'granted') {
             // eslint-disable-next-line no-new
-            new Notification('madeHappen', {
+            new Notification('happen', {
               body: `${mode.label} session complete! 🎉`,
               icon: '/favicon.ico',
             });

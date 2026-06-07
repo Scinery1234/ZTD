@@ -1073,6 +1073,7 @@ def migrate_db():
 
 
 _FRONTEND_BUILD = os.path.join(BASE_DIR, '..', 'frontend', 'build')
+_HOMEPAGE_DIR   = os.path.join(BASE_DIR, '..', 'homepage')
 
 @app.route('/robots.txt')
 def robots_txt():
@@ -1092,11 +1093,14 @@ def security_txt():
     )
     return Response(body, mimetype='text/plain')
 
-@app.route('/', defaults={'path': ''})
+@app.route('/')
+def serve_homepage():
+    return send_from_directory(_HOMEPAGE_DIR, 'index.html')
+
 @app.route('/<path:path>')
 def serve_frontend(path):
     full = os.path.join(_FRONTEND_BUILD, path)
-    if path and os.path.isfile(full):
+    if os.path.isfile(full):
         return send_from_directory(_FRONTEND_BUILD, path)
     return send_from_directory(_FRONTEND_BUILD, 'index.html')
 

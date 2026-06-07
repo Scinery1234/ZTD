@@ -23,21 +23,33 @@
 .header-title {
   font-size: 26px;
   font-weight: 800;
-  color: white;
   letter-spacing: -0.5px;
   line-height: 1;
-  background: linear-gradient(135deg, #fff 30%, rgba(255, 195, 80, 0.9));
+  margin: 0;
+}
+
+.header-title-made {
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0;
+}
+
+.header-title-happen {
+  font-weight: 800;
+  background: linear-gradient(135deg, #f97316, #fbbf24);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: -0.5px;
 }
 
 .header-subtitle {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
   font-weight: 400;
-  margin-top: 3px;
-  letter-spacing: 0.2px;
+  margin-top: 4px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 
 /* Right: user controls */
@@ -228,14 +240,18 @@
 }
 
 /* ---- Light mode ---- */
-[data-theme="light"] .header-title {
-  background: linear-gradient(135deg, #1c1209 30%, rgba(180, 70, 0, 0.9));
+[data-theme="light"] .header-title-made {
+  color: rgba(28, 18, 9, 0.40);
+}
+
+[data-theme="light"] .header-title-happen {
+  background: linear-gradient(135deg, #ea580c, #d97706);
   -webkit-background-clip: text;
   background-clip: text;
 }
 
 [data-theme="light"] .header-subtitle {
-  color: rgba(28, 18, 9, 0.45);
+  color: rgba(28, 18, 9, 0.35);
 }
 
 [data-theme="light"] .user-name {

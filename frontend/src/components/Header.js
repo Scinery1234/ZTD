@@ -38,9 +38,7 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
                 <polyline points="1.5,6.5 5,10 11.5,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </span>
-            <h1 className="header-title">
-              <span className="logo-made">made</span><span className="logo-happen">Happen</span>
-            </h1>
+            <h1 className="header-title">Happen</h1>
           </div>
         </div>
 

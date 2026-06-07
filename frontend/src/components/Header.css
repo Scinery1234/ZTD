@@ -228,6 +228,16 @@
 }
 
 /* ---- Light mode ---- */
+[data-theme="light"] .header-title {
+  background: linear-gradient(135deg, #1c1209 30%, rgba(180, 70, 0, 0.9));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="light"] .header-subtitle {
+  color: rgba(28, 18, 9, 0.45);
+}
+
 [data-theme="light"] .user-name {
   color: rgba(28, 18, 9, 0.75);
 }

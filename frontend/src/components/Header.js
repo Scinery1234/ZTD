@@ -32,19 +32,8 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
     <header className="header">
       <div className="header-content">
         <div className="header-brand">
-          <div className="header-logo">
-            <div className="header-logo-mark">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <polyline points="3,9 7,13 15,5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="header-logo-text">
-              <h1 className="header-title">
-                <span className="header-title-made">made</span><span className="header-title-happen">Happen</span>
-              </h1>
-              <p className="header-subtitle">make it happen</p>
-            </div>
-          </div>
+          <h1 className="header-title">madeHappen</h1>
+          <p className="header-subtitle">make it happen</p>
         </div>
 
         {user && (

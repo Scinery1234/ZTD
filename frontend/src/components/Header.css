@@ -39,24 +39,12 @@
 }
 
 .header-title {
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.3px;
-  line-height: 1;
-  margin: 0;
-}
-
-.logo-made {
-  font-size: 13px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.45);
-  letter-spacing: 0;
-}
-
-.logo-happen {
+  font-size: 20px;
   font-weight: 800;
   color: #f97316;
   letter-spacing: -0.4px;
+  line-height: 1;
+  margin: 0;
 }
 
 /* Right: user controls */
@@ -247,11 +235,7 @@
 }
 
 /* ---- Light mode ---- */
-[data-theme="light"] .logo-made {
-  color: rgba(28, 18, 9, 0.40);
-}
-
-[data-theme="light"] .logo-happen {
+[data-theme="light"] .header-title {
   color: #ea580c;
 }
 

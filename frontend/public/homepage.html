@@ -98,11 +98,27 @@
       padding: 16px 0; gap: 32px;
     }
     .nav-logo {
-      font-size: 20px; font-weight: 800;
-      color: var(--text-dark); text-decoration: none;
-      letter-spacing: -.3px; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 9px;
+      text-decoration: none; white-space: nowrap;
     }
     .nav-logo span { color: var(--orange); }
+    /* ── Shared logo mark ───────────────────────────────────────── */
+    .logo-mark {
+      width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+      background: linear-gradient(140deg, #f97316 0%, #fbbf24 100%);
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(249,115,22,.30);
+    }
+    .logo-word {
+      font-size: 18px; font-weight: 300; letter-spacing: -.15px;
+      color: rgba(28,18,9,.45);
+    }
+    .logo-word strong {
+      font-weight: 800; color: var(--text-dark); letter-spacing: -.4px;
+    }
+    .footer-logo .logo-word { color: rgba(255,255,255,.40); }
+    .footer-logo .logo-word strong { color: white; }
+
     .nav-links { display: flex; align-items: center; gap: 28px; }
     .nav-links a {
       color: var(--text-mid); font-size: 14px; font-weight: 500;
@@ -867,10 +883,10 @@
       gap: 48px; margin-bottom: 48px;
     }
     .footer-logo {
-      font-size: 20px; font-weight: 800;
-      color: white; text-decoration: none; display: block; margin-bottom: 14px;
+      display: inline-flex; align-items: center; gap: 9px;
+      text-decoration: none; margin-bottom: 14px;
     }
-    .footer-logo span { color: var(--orange); }
+    .footer-logo span { color: rgba(255,255,255,0.55); }
     .footer-tagline {
       font-size: 13px; color: rgba(255,255,255,.3);
       line-height: 1.65; max-width: 260px; margin-bottom: 20px;
@@ -932,7 +948,10 @@
 <nav class="nav">
   <div class="container">
     <div class="nav-inner">
-      <a href="/" class="nav-logo">made<span>Happen</span></a>
+      <a href="/" class="nav-logo">
+        <span class="logo-mark"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><polyline points="1.5,6.5 5,10 11.5,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="logo-word">made<strong>Happen</strong></span>
+      </a>
 
       <div class="nav-links">
         <a href="#features">Features</a>
@@ -1565,7 +1584,10 @@
   <div class="container">
     <div class="footer-grid">
       <div>
-        <a href="/" class="footer-logo">made<span>Happen</span></a>
+        <a href="/" class="footer-logo">
+          <span class="logo-mark"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><polyline points="1.5,6.5 5,10 11.5,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="logo-word">made<strong>Happen</strong></span>
+        </a>
         <p class="footer-tagline">Make it happen. A personal productivity app for solopreneurs and professionals who own their day.</p>
         <div class="footer-social" style="margin-top:0">
           <a href="#">Twitter</a>

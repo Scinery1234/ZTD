@@ -32,7 +32,9 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
     <header className="header">
       <div className="header-content">
         <div className="header-brand">
-          <h1 className="header-title">madeHappen</h1>
+          <h1 className="header-title">
+            <span className="header-title-made">made</span><span className="header-title-happen">Happen</span>
+          </h1>
           <p className="header-subtitle">make it happen</p>
         </div>
 

@@ -47,14 +47,15 @@
 }
 
 .logo-made {
-  font-weight: 300;
+  font-size: 13px;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.45);
   letter-spacing: 0;
 }
 
 .logo-happen {
   font-weight: 800;
-  color: white;
+  color: #f97316;
   letter-spacing: -0.4px;
 }
 
@@ -251,7 +252,7 @@
 }
 
 [data-theme="light"] .logo-happen {
-  color: #1c1209;
+  color: #ea580c;
 }
 
 [data-theme="light"] .user-name {

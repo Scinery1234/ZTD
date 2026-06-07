@@ -402,6 +402,11 @@ const TaskItem = ({
                 {doneCount}/{totalCount}
               </span>
             )}
+            {tier === 'premium' && task.pomodoro_count > 0 && (
+              <span className="task-pomodoro-pill" title="Focus sessions logged">
+                🍅 ×{task.pomodoro_count}
+              </span>
+            )}
             {task.notes && (
               <button
                 className="task-notes-pill"

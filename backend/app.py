@@ -176,6 +176,7 @@ class Task(db.Model):
     scheduled_date = db.Column(db.String(10), nullable=True) # YYYY-MM-DD
     locked = db.Column(db.Boolean, default=False)            # locked in timebox
     notes = db.Column(db.Text, nullable=True)                # rich notes (premium)
+    pomodoro_count = db.Column(db.Integer, default=0)        # focus sessions logged (premium)
 
     def subtasks_list(self):
         try:
@@ -204,6 +205,7 @@ class Task(db.Model):
             'scheduled_date': self.scheduled_date,
             'locked': bool(self.locked),
             'notes': self.notes or '',
+            'pomodoro_count': self.pomodoro_count or 0,
         }
 
 
@@ -760,6 +762,23 @@ def reorder_tasks():
         return jsonify({'error': str(e)}), 500
 
 
+# === Pomodoro count (premium) ===
+
+@app.route('/api/tasks/<int:task_id>/pomodoro', methods=['POST'])
+@jwt_required()
+def increment_pomodoro(task_id):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user or user.tier != 'premium':
+        return jsonify({'error': 'Premium subscription required'}), 403
+    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    task.pomodoro_count = (task.pomodoro_count or 0) + 1
+    db.session.commit()
+    return jsonify({'pomodoro_count': task.pomodoro_count}), 200
+
+
 # === Analytics Endpoint (premium) ===
 
 @app.route('/api/analytics', methods=['GET'])
@@ -1063,6 +1082,7 @@ def migrate_db():
             'ALTER TABLE task ADD COLUMN locked BOOLEAN DEFAULT FALSE',
             'ALTER TABLE task ADD COLUMN notes TEXT',
             'ALTER TABLE done_task ADD COLUMN notes TEXT',
+            'ALTER TABLE task ADD COLUMN pomodoro_count INTEGER DEFAULT 0',
         ]:
             try:
                 with db.engine.connect() as conn:

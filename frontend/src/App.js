@@ -262,6 +262,16 @@ function TaskApp() {
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState(null);
 
+  const handlePomodoroComplete = useCallback(async (taskId) => {
+    try {
+      const { pomodoro_count } = await api.incrementPomodoro(taskId);
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, pomodoro_count } : t));
+      setPomodoroTask(prev => prev?.id === taskId ? { ...prev, pomodoro_count } : prev);
+    } catch (err) {
+      console.error('Failed to record pomodoro:', err);
+    }
+  }, []);
+
   // Upgrade redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -576,6 +586,7 @@ function TaskApp() {
           pinnedTask={pomodoroTask}
           onClose={() => setPomodoroOpen(false)}
           onClearPin={() => setPomodoroTask(null)}
+          onSessionComplete={handlePomodoroComplete}
         />
       )}
     </div>

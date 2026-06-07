@@ -15,7 +15,7 @@ function loadSessions() {
 }
 function saveSessions(n) { localStorage.setItem(SESSION_KEY, String(n)); }
 
-export default function PomodoroTimer({ pinnedTask, onClose, onClearPin }) {
+export default function PomodoroTimer({ pinnedTask, onClose, onClearPin, onSessionComplete }) {
   const { user, subscription } = useAuth();
   const tier = subscription?.tier || user?.tier || 'free';
   const [modeIdx, setModeIdx]     = useState(0);
@@ -49,6 +49,7 @@ export default function PomodoroTimer({ pinnedTask, onClose, onClearPin }) {
             const next = loadSessions() + 1;
             saveSessions(next);
             setSessions(next);
+            if (pinnedTask && onSessionComplete) onSessionComplete(pinnedTask.id);
           }
           if ('Notification' in window && Notification.permission === 'granted') {
             // eslint-disable-next-line no-new

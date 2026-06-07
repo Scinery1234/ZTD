@@ -609,6 +609,17 @@
   .drag-handle { display: none; }
 }
 
+/* ---- Pomodoro badge ---- */
+.task-pomodoro-pill {
+  font-size: 11px;
+  color: rgba(249, 115, 22, 0.9);
+  background: rgba(249, 115, 22, 0.12);
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 /* ---- Task notes ---- */
 .task-notes-pill {
   background: none;

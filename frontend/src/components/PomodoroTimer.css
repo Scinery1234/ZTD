@@ -317,5 +317,9 @@
 [data-theme="light"] .pomodoro-sessions-reset { color: rgba(28, 18, 9, 0.22); }
 [data-theme="light"] .pomodoro-sessions-reset:hover { color: rgba(28, 18, 9, 0.5); }
 
+[data-theme="light"] .pomodoro-pinned { background: rgba(249, 115, 22, 0.08); border-color: rgba(249, 115, 22, 0.2); }
+[data-theme="light"] .pomodoro-pinned-task { color: rgba(28, 18, 9, 0.8); }
+[data-theme="light"] .pomodoro-unpin { color: rgba(28, 18, 9, 0.3); }
+
 [data-theme="light"] .pomodoro-upgrade p { color: rgba(28, 18, 9, 0.55); }
 [data-theme="light"] .pomodoro-upgrade-sub { color: rgba(28, 18, 9, 0.35) !important; }

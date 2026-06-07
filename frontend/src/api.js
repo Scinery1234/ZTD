@@ -161,6 +161,7 @@ export const api = {
   markDone: (id) => apiFetch(`/tasks/${id}/done`, { method: 'POST' }),
   unmarkDone: (id) => apiFetch(`/tasks/done/${id}/restore`, { method: 'POST' }),
   reorder: (tasks) => apiFetch('/tasks/reorder', { method: 'POST', body: JSON.stringify({ tasks }) }),
+  incrementPomodoro: (taskId) => apiFetch(`/tasks/${taskId}/pomodoro`, { method: 'POST' }),
 
   // Analytics (premium)
   getAnalytics: () => apiFetch('/analytics'),

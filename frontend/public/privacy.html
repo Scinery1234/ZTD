@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — happen</title>
+  <meta name="description" content="Privacy Policy for happen — how we collect, use, and protect your data." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange:     #f97316;
+      --amber:      #fbbf24;
+      --orange-dk:  #ea580c;
+      --bg-dark:    #141008;
+      --bg-dark2:   #1a1208;
+      --bg-warm:    #faf7f2;
+      --bg-warm2:   #f3ede4;
+      --text-dark:  #1c1209;
+      --text-mid:   rgba(28,18,9,.55);
+      --text-faint: rgba(28,18,9,.38);
+      --white:      #ffffff;
+      --grad:       linear-gradient(135deg, var(--orange), var(--amber));
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text-dark);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .container-narrow { width: 100%; max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.9); backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(28,18,9,.07);
+      padding: 14px 0;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; }
+    .logo-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--orange), var(--amber));
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-word { font-weight: 700; font-size: 17px; color: var(--text-dark); letter-spacing: -.3px; }
+    .nav-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--orange); color: white; font-size: 14px; font-weight: 600;
+      padding: 8px 18px; border-radius: 8px; text-decoration: none;
+      transition: background .2s;
+    }
+    .nav-cta:hover { background: var(--orange-dk); }
+
+    /* Page header */
+    .page-header {
+      background: var(--bg-dark);
+      padding: 72px 0 56px;
+      text-align: center;
+    }
+    .page-header-label {
+      font-size: 12px; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--orange);
+      margin-bottom: 14px;
+    }
+    .page-header h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(32px, 5vw, 52px);
+      color: #fff;
+      margin-bottom: 16px;
+      line-height: 1.15;
+    }
+    .page-header-meta { font-size: 14px; color: rgba(255,255,255,.35); }
+
+    /* Content */
+    .legal-body { padding: 64px 0 96px; }
+
+    .legal-body h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 22px;
+      color: var(--text-dark);
+      margin: 48px 0 12px;
+      padding-top: 48px;
+      border-top: 1px solid var(--bg-warm2);
+    }
+    .legal-body h2:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+
+    .legal-body h3 {
+      font-size: 15px; font-weight: 600;
+      color: var(--text-dark);
+      margin: 24px 0 8px;
+    }
+
+    .legal-body p {
+      font-size: 15px; color: var(--text-mid);
+      line-height: 1.75; margin-bottom: 14px;
+    }
+
+    .legal-body ul, .legal-body ol {
+      padding-left: 22px; margin-bottom: 14px;
+    }
+    .legal-body li {
+      font-size: 15px; color: var(--text-mid);
+      line-height: 1.75; margin-bottom: 6px;
+    }
+
+    .legal-body a { color: var(--orange); text-decoration: none; }
+    .legal-body a:hover { text-decoration: underline; }
+
+    .highlight-box {
+      background: var(--bg-warm); border-left: 3px solid var(--orange);
+      border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 20px 0;
+    }
+    .highlight-box p { margin-bottom: 0; }
+
+    /* Footer */
+    footer {
+      background: var(--bg-dark);
+      border-top: 1px solid rgba(255,255,255,.06);
+      padding: 40px 0 28px;
+    }
+    .footer-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .footer-copy { font-size: 12px; color: rgba(255,255,255,.22); }
+    .footer-links-row { display: flex; gap: 24px; }
+    .footer-links-row a {
+      font-size: 12px; color: rgba(255,255,255,.28);
+      text-decoration: none; transition: color .2s;
+    }
+    .footer-links-row a:hover { color: rgba(249,115,22,.8); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <a href="/" class="logo">
+        <span class="logo-mark">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <polyline points="1.5,6.5 5,10 11.5,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="logo-word">happen</span>
+      </a>
+      <a href="/app" class="nav-cta">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="container">
+    <p class="page-header-label">Legal</p>
+    <h1>Privacy Policy</h1>
+    <p class="page-header-meta">Last updated: June 2026 &nbsp;·&nbsp; Effective date: June 2026</p>
+  </div>
+</div>
+
+<div class="legal-body">
+  <div class="container-narrow">
+
+    <div class="highlight-box">
+      <p>We respect your privacy. This policy explains clearly what data we collect, why we collect it, and how you can control it. We do not sell your personal data.</p>
+    </div>
+
+    <h2>1. Who We Are</h2>
+    <p>happen ("we", "us", or "our") is a personal productivity application that helps you manage tasks, schedule your day, and organise your goals. References to "the Service" mean the happen web application available at this domain.</p>
+    <p>For privacy enquiries, contact us at: <a href="mailto:privacy@happen.app">privacy@happen.app</a></p>
+
+    <h2>2. Information We Collect</h2>
+
+    <h3>2.1 Information you provide</h3>
+    <ul>
+      <li><strong>Account information:</strong> your email address and a hashed password when you register for an account.</li>
+      <li><strong>Task and productivity data:</strong> tasks, categories, hat labels, timebox schedules, loose threads, and any other content you enter into the Service.</li>
+      <li><strong>Payment information:</strong> if you subscribe to a paid plan, your payment is processed by <a href="https://stripe.com/gb/privacy" target="_blank" rel="noopener">Stripe</a>. We do not receive or store your full card number — we only store your Stripe customer ID and subscription status.</li>
+    </ul>
+
+    <h3>2.2 Information collected automatically</h3>
+    <ul>
+      <li><strong>Usage data:</strong> Pomodoro counts, analytics data you generate through the app (task completion rates, etc.), stored server-side and associated with your account.</li>
+      <li><strong>Log data:</strong> standard server logs including IP address, browser type, pages visited, and timestamps. Logs are retained for up to 90 days for security and debugging purposes.</li>
+      <li><strong>Cookies and local storage:</strong> we use a session cookie to keep you logged in (JWT token). No third-party advertising cookies are set by us.</li>
+    </ul>
+
+    <h3>2.3 Guest mode</h3>
+    <p>If you use the app without registering ("guest mode"), all data is stored only in your browser's session storage and is permanently deleted when you close your browser tab. We do not receive or store guest data on our servers.</p>
+
+    <h2>3. How We Use Your Information</h2>
+    <ul>
+      <li>To create and manage your account.</li>
+      <li>To provide, maintain, and improve the Service.</li>
+      <li>To process payments and manage your subscription via Stripe.</li>
+      <li>To enforce our Terms of Service and detect abuse.</li>
+      <li>To respond to support requests you send us.</li>
+      <li>To send transactional emails (account creation, password reset, subscription receipts). We do not send marketing emails without your explicit opt-in.</li>
+    </ul>
+
+    <h2>4. Legal Basis for Processing (GDPR)</h2>
+    <p>If you are located in the UK or European Economic Area, we process your personal data under the following legal bases:</p>
+    <ul>
+      <li><strong>Contract:</strong> processing necessary to deliver the Service you signed up for (account data, task data, payment processing).</li>
+      <li><strong>Legitimate interests:</strong> server logging and security monitoring to protect the Service.</li>
+      <li><strong>Legal obligation:</strong> retaining certain financial records as required by law.</li>
+      <li><strong>Consent:</strong> optional communications where you have opted in.</li>
+    </ul>
+
+    <h2>5. Data Sharing</h2>
+    <p>We do not sell, trade, or rent your personal data. We share data only with:</p>
+    <ul>
+      <li><strong>Stripe:</strong> payment processing. Governed by <a href="https://stripe.com/gb/privacy" target="_blank" rel="noopener">Stripe's Privacy Policy</a>.</li>
+      <li><strong>Railway (hosting):</strong> our infrastructure provider. Your data resides on Railway servers. See <a href="https://railway.app/legal/privacy" target="_blank" rel="noopener">Railway's Privacy Policy</a>.</li>
+      <li><strong>Law enforcement:</strong> when required by valid legal process or to protect the safety of users or the public.</li>
+    </ul>
+
+    <h2>6. Data Retention</h2>
+    <p>We retain your account and task data for as long as your account is active. If you delete your account, we will delete your personal data within 30 days, except where we are required to retain it for legal or financial compliance (typically up to 7 years for billing records).</p>
+
+    <h2>7. Your Rights</h2>
+    <p>Depending on your location, you may have the right to:</p>
+    <ul>
+      <li><strong>Access:</strong> request a copy of the personal data we hold about you.</li>
+      <li><strong>Rectification:</strong> correct inaccurate data.</li>
+      <li><strong>Erasure ("right to be forgotten"):</strong> request deletion of your account and associated data.</li>
+      <li><strong>Portability:</strong> export your task data using the in-app export feature (CSV or JSON).</li>
+      <li><strong>Restriction:</strong> ask us to stop certain processing of your data.</li>
+      <li><strong>Objection:</strong> object to processing based on legitimate interests.</li>
+      <li><strong>Withdrawal of consent:</strong> where processing is based on consent, you may withdraw it at any time.</li>
+    </ul>
+    <p>To exercise any of these rights, email <a href="mailto:privacy@happen.app">privacy@happen.app</a>. We will respond within 30 days. If you are unhappy with our response, you have the right to lodge a complaint with the UK Information Commissioner's Office (ICO) or your local supervisory authority.</p>
+
+    <h2>8. Cookies</h2>
+    <p>We use the following cookies:</p>
+    <ul>
+      <li><strong>Authentication cookie (essential):</strong> stores your JWT session token so you stay logged in. This is strictly necessary for the Service to function and cannot be disabled.</li>
+    </ul>
+    <p>We do not use analytics cookies (e.g. Google Analytics), advertising cookies, or any other non-essential tracking technologies at this time. If this changes, we will update this policy and ask for your consent where required.</p>
+
+    <h2>9. Security</h2>
+    <p>We implement appropriate technical and organisational measures to protect your data, including:</p>
+    <ul>
+      <li>Passwords stored as salted hashes (never in plain text).</li>
+      <li>HTTPS encryption for all data in transit.</li>
+      <li>JWT tokens with a 30-day expiry for session management.</li>
+      <li>Rate limiting on authentication endpoints to prevent brute-force attacks.</li>
+    </ul>
+    <p>No system is 100% secure. If you discover a security vulnerability, please report it responsibly by emailing <a href="mailto:security@happen.app">security@happen.app</a>.</p>
+
+    <h2>10. Children's Privacy</h2>
+    <p>The Service is not directed at children under 16. We do not knowingly collect personal data from children under 16. If you believe a child has provided us with personal data, please contact us and we will delete it promptly.</p>
+
+    <h2>11. International Transfers</h2>
+    <p>Your data may be processed in the United States (our infrastructure provider Railway is based there). Where required, we rely on appropriate safeguards such as standard contractual clauses to ensure your data is protected.</p>
+
+    <h2>12. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we make material changes, we will notify you by email (if you have an account) and update the "Last updated" date at the top of this page. Continued use of the Service after changes are posted constitutes your acceptance of the updated policy.</p>
+
+    <h2>13. Contact Us</h2>
+    <p>For any privacy-related questions or requests:</p>
+    <ul>
+      <li>Email: <a href="mailto:privacy@happen.app">privacy@happen.app</a></li>
+    </ul>
+
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom">
+      <p class="footer-copy">© <span id="year"></span> happen. All rights reserved.</p>
+      <div class="footer-links-row">
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/">Home</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

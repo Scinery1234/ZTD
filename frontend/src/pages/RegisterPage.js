@@ -140,6 +140,13 @@ function RegisterPage({ onSwitch, onGuest }) {
           </button>
         </p>
 
+        <p className="auth-legal">
+          By creating an account you agree to our{' '}
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer">Terms</a>
+          {' '}and{' '}
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+        </p>
+
         <div className="auth-divider">or</div>
         <button type="button" className="auth-guest-btn" onClick={onGuest}>
           Continue without account

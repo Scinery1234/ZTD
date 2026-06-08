@@ -259,6 +259,24 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.auth-legal {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.28);
+  line-height: 1.5;
+}
+
+.auth-legal a {
+  color: rgba(255, 255, 255, 0.40);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.auth-legal a:hover {
+  color: rgba(249, 115, 22, 0.75);
+}
+
 .auth-row {
   display: flex;
   align-items: center;
@@ -360,6 +378,18 @@
 
 [data-theme="light"] .auth-forgot-link {
   color: rgba(28, 18, 9, 0.35);
+}
+
+[data-theme="light"] .auth-legal {
+  color: rgba(28, 18, 9, 0.32);
+}
+
+[data-theme="light"] .auth-legal a {
+  color: rgba(28, 18, 9, 0.42);
+}
+
+[data-theme="light"] .auth-legal a:hover {
+  color: #ea580c;
 }
 
 [data-theme="light"] .auth-forgot-link:hover {

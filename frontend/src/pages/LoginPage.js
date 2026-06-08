@@ -183,6 +183,12 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
             <button type="button" className="auth-guest-btn" onClick={onGuest}>
               Continue without account
             </button>
+
+            <p className="auth-legal">
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer">Terms</a>
+              {' · '}
+              <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy</a>
+            </p>
           </>
         )}
       </div>

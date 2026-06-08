@@ -15,6 +15,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timedelta
 import dateparser
 import stripe
+import resend
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -335,6 +337,80 @@ def login():
     token = create_access_token(identity=str(user.id))
     # Return both keys for compatibility across mixed frontend/backend deploys.
     return jsonify({'token': token, 'access_token': token, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+@limiter.limit('3 per minute; 10 per hour')
+def forgot_password():
+    data = request.json or {}
+    email = data.get('email', '').lower().strip()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    # Always return the same message — don't leak whether the email exists
+    if user:
+        s = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
+        token = s.dumps(email, salt='pw-reset')
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        reset_url = f"{frontend_url}/app#reset-password?token={token}"
+
+        resend_key = os.getenv('RESEND_API_KEY', '')
+        if resend_key:
+            resend.api_key = resend_key
+            from_addr = os.getenv('RESEND_FROM_EMAIL', 'happen <noreply@happen.app>')
+            try:
+                resend.Emails.send({
+                    'from': from_addr,
+                    'to': [email],
+                    'subject': 'Reset your happen password',
+                    'html': (
+                        f'<p>Hi {user.name},</p>'
+                        f'<p>Click the link below to reset your password. '
+                        f'The link expires in 1 hour.</p>'
+                        f'<p><a href="{reset_url}" style="color:#f97316;font-weight:600">'
+                        f'Reset my password</a></p>'
+                        f'<p style="color:#888;font-size:13px">If you didn\'t request this, '
+                        f'you can safely ignore this email.</p>'
+                    ),
+                })
+            except Exception as exc:
+                app.logger.error('Resend error: %s', exc)
+        else:
+            # Dev fallback: print the link so it can be tested without Resend
+            app.logger.warning('[forgot-password] RESEND_API_KEY not set. Reset URL: %s', reset_url)
+            print(f'[forgot-password] reset URL: {reset_url}', flush=True)
+
+    return jsonify({'message': 'If an account exists with that email, a reset link has been sent.'}), 200
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+@limiter.limit('5 per minute')
+def reset_password():
+    data = request.json or {}
+    token = data.get('token', '').strip()
+    new_password = data.get('password', '')
+
+    if not token or not new_password:
+        return jsonify({'error': 'Token and new password are required'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    s = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
+    try:
+        email = s.loads(token, salt='pw-reset', max_age=3600)  # 1-hour expiry
+    except SignatureExpired:
+        return jsonify({'error': 'Reset link has expired. Please request a new one.'}), 400
+    except BadSignature:
+        return jsonify({'error': 'Invalid reset link.'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': 'Account not found.'}), 404
+
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+    return jsonify({'message': 'Password updated successfully.'}), 200
 
 
 @app.route('/api/auth/me', methods=['GET'])

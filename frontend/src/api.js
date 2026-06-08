@@ -139,6 +139,18 @@ export const api = {
       body: JSON.stringify({ email, password }),
       skipAuth: true,
     }),
+  forgotPassword: (email) =>
+    apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+      skipAuth: true,
+    }),
+  resetPassword: (token, password) =>
+    apiFetch('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+      skipAuth: true,
+    }),
   me: () => apiFetch('/auth/me'),
 
   // Hats

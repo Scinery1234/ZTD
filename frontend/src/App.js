@@ -17,6 +17,7 @@ import TodayWins from './components/TodayWins';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import LooseThreads from './components/LooseThreads';
 import {
   DndContext,
@@ -596,32 +597,42 @@ function TaskApp() {
 // URL hash so register/login/guest is bookmarkable and obvious (#register, #login, #guest)
 function readAuthFromHash() {
   if (typeof window === 'undefined') {
-    return { guestMode: false, authView: 'login' };
+    return { guestMode: false, authView: 'login', resetToken: null };
   }
-  const raw = (window.location.hash || '').replace(/^#/, '').toLowerCase();
-  if (raw === 'register' || raw === 'signup') {
-    return { guestMode: false, authView: 'register' };
+  const raw = (window.location.hash || '').replace(/^#/, '');
+  const [path, query] = raw.split('?');
+  const pathLower = path.toLowerCase();
+
+  if (pathLower === 'reset-password') {
+    const params = new URLSearchParams(query || '');
+    const token = params.get('token') || null;
+    return { guestMode: false, authView: 'reset-password', resetToken: token };
   }
-  if (raw === 'guest') {
-    return { guestMode: true, authView: 'login' };
+  if (pathLower === 'register' || pathLower === 'signup') {
+    return { guestMode: false, authView: 'register', resetToken: null };
   }
-  return { guestMode: false, authView: 'login' };
+  if (pathLower === 'guest') {
+    return { guestMode: true, authView: 'login', resetToken: null };
+  }
+  return { guestMode: false, authView: 'login', resetToken: null };
 }
 
 // ---- Root with auth gate ----
 function AppRoot() {
   const { user, loading } = useAuth();
-  const { guestMode: hGuest, authView: hView } = readAuthFromHash();
+  const { guestMode: hGuest, authView: hView, resetToken: hToken } = readAuthFromHash();
   const [authView, setAuthView] = useState(hView);
   const [guestMode, setGuestMode] = useState(hGuest);
+  const [resetToken, setResetToken] = useState(hToken);
 
   // Keep guest/login/register in sync with #guest / #register / #login (hooks must run before any return)
   useEffect(() => {
     if (user) return;
     const onHash = () => {
-      const { guestMode: g, authView: v } = readAuthFromHash();
+      const { guestMode: g, authView: v, resetToken: t } = readAuthFromHash();
       setGuestMode(g);
       setAuthView(v);
+      setResetToken(t);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -665,6 +676,9 @@ function AppRoot() {
   }
 
   if (!user) {
+    if (authView === 'reset-password' && resetToken) {
+      return <ResetPasswordPage token={resetToken} onGoLogin={goLogin} />;
+    }
     if (guestMode) {
       return (
         <GuestTaskApp

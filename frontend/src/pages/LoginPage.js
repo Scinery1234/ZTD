@@ -1,7 +1,74 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
+import { api } from '../api';
 import './AuthPages.css';
+
+function ForgotPasswordView({ onBack }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await api.forgotPassword(email);
+      setSent(true);
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <>
+        <div className="auth-info">
+          Check your inbox — if an account exists for <strong>{email}</strong>, a reset link is on its way. Check your spam folder too.
+        </div>
+        <button type="button" className="auth-btn" onClick={onBack}>
+          Back to sign in
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2 className="auth-title">Forgot password?</h2>
+      <p className="auth-subtitle">Enter your email and we'll send a reset link</p>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="auth-field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            autoFocus
+          />
+        </div>
+        <button type="submit" className="auth-btn" disabled={loading}>
+          {loading ? 'Sending...' : 'Send reset link'}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        <button type="button" className="auth-link" onClick={onBack}>
+          ← Back to sign in
+        </button>
+      </p>
+    </>
+  );
+}
 
 function LoginPage({ onSwitch, onGuest, onRegister }) {
   const { login } = useAuth();
@@ -10,6 +77,7 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,73 +103,88 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
           <p className="auth-tagline">make it happen</p>
         </div>
 
-        <h2 className="auth-title">Welcome back</h2>
-        <p className="auth-subtitle">Sign in to access your tasks</p>
+        {showForgot ? (
+          <ForgotPasswordView onBack={() => setShowForgot(false)} />
+        ) : (
+          <>
+            <h2 className="auth-title">Welcome back</h2>
+            <p className="auth-subtitle">Sign in to access your tasks</p>
 
-        {onRegister && (
-          <div className="auth-primary-alt">
-            <p className="auth-primary-alt-label">New here?</p>
-            <button
-              type="button"
-              className="auth-btn auth-btn--secondary"
-              onClick={onRegister}
-            >
-              Create free account
+            {onRegister && (
+              <div className="auth-primary-alt">
+                <p className="auth-primary-alt-label">New here?</p>
+                <button
+                  type="button"
+                  className="auth-btn auth-btn--secondary"
+                  onClick={onRegister}
+                >
+                  Create free account
+                </button>
+              </div>
+            )}
+
+            {error && <div className="auth-error">{error}</div>}
+
+            <form onSubmit={handleSubmit} className="auth-form">
+              <div className="auth-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="you@example.com"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="auth-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Your password"
+                  required
+                />
+              </div>
+
+              <div className="auth-row">
+                <label className="auth-remember">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={e => setRemember(e.target.checked)}
+                  />
+                  Stay signed in
+                </label>
+                <button
+                  type="button"
+                  className="auth-link auth-forgot-link"
+                  onClick={() => setShowForgot(true)}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <button type="submit" className="auth-btn" disabled={loading}>
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
+
+            <p className="auth-switch">
+              Don't have an account?{' '}
+              <button type="button" className="auth-link" onClick={() => onSwitch('register')}>
+                Create one for free
+              </button>
+            </p>
+
+            <div className="auth-divider">or</div>
+            <button type="button" className="auth-guest-btn" onClick={onGuest}>
+              Continue without account
             </button>
-          </div>
+          </>
         )}
-
-        {error && <div className="auth-error">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="auth-field">
-            <label>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="you@example.com"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div className="auth-field">
-            <label>Password</label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="Your password"
-              required
-            />
-          </div>
-
-          <label className="auth-remember">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={e => setRemember(e.target.checked)}
-            />
-            Stay signed in
-          </label>
-
-          <button type="submit" className="auth-btn" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <p className="auth-switch">
-          Don't have an account?{' '}
-          <button type="button" className="auth-link" onClick={() => onSwitch('register')}>
-            Create one for free
-          </button>
-        </p>
-
-        <div className="auth-divider">or</div>
-        <button type="button" className="auth-guest-btn" onClick={onGuest}>
-          Continue without account
-        </button>
       </div>
     </div>
   );

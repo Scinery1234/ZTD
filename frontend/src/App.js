@@ -647,6 +647,9 @@ function TaskApp() {
               onSyncToCalendar={subscription?.tier === 'premium' ? handleSyncToCalendar : null}
               onCalendarDeleteEvent={subscription?.tier === 'premium' ? handleCalendarDeleteEvent : null}
               calendarConnected={calendarConnected}
+              onPinPomodoro={subscription?.tier && subscription.tier !== 'free'
+                ? (task) => { setPomodoroTask(task); setPomodoroOpen(true); }
+                : null}
             />
           )}
 

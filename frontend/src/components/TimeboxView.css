@@ -284,6 +284,7 @@
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
+  .timebox-task-pom-btn,
   .timebox-lock-btn,
   .timebox-mit-btn {
     font-size: 14px;
@@ -291,6 +292,7 @@
     min-width: 30px;
     min-height: 30px;
   }
+  .timebox-task-pom-btn { opacity: 1; }
   /* Pool drag handles not useful on touch */
   .timebox-pool-drag-handle { display: none; }
   .timebox-sidebar-chip { cursor: default; }
@@ -301,6 +303,7 @@
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
+  .timebox-task-pom-btn,
   .timebox-lock-btn,
   .timebox-mit-btn {
     min-width: 36px;
@@ -802,6 +805,21 @@
   -webkit-box-orient: vertical;
   flex: 1;
 }
+
+.timebox-task-pom-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+
+.timebox-task-pom-btn:hover { opacity: 1; }
 
 .timebox-task-done-btn,
 .timebox-task-edit-btn,

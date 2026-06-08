@@ -503,7 +503,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
@@ -1117,6 +1117,15 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
                       title={isMit ? 'Remove from MIT' : 'Mark as Most Important Task'}
                     >⭐</button>
+                    {onPinPomodoro && (
+                      <button
+                        className="timebox-task-pom-btn"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onPinPomodoro(task); }}
+                        title="Start Pomodoro for this task"
+                      >🍅</button>
+                    )}
                     <button
                       className="timebox-task-unschedule"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -1246,7 +1255,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, 
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected, onPinPomodoro }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1394,6 +1403,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     onMarkDone,
     onEditTask: setEditingTask,
     onCalendarDeleteEvent,
+    onPinPomodoro,
   };
 
   return (

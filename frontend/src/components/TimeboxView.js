@@ -1265,7 +1265,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   })();
 
   const getWindowForDate = (date) =>
-    dayWindows[date] || { start: '09:00', end: '18:00' };
+    dayWindows[date] || { start: '07:00', end: '24:00' };
 
   const handleWindowChange = useCallback((date, newWindow) => {
     setDayWindows(prev => {

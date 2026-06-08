@@ -696,10 +696,14 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         const wEnd = parseMinutes(localWindowRef.current.end);
         if (dragging.type === 'window-start') {
           const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
-          setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
+          const newW = { ...localWindowRef.current, start: formatTime(newMin) };
+          localWindowRef.current = newW;
+          setLocalWindow(newW);
         } else if (dragging.type === 'window-end') {
           const newMin = Math.max(wStart + 60, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origMin + deltaMins)));
-          setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
+          const newW = { ...localWindowRef.current, end: formatExtendedTime(newMin) };
+          localWindowRef.current = newW;
+          setLocalWindow(newW);
         } else if (dragging.type === 'task-move') {
           const dur = dragging.duration || 30;
           const rawMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));

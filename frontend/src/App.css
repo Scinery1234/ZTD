@@ -262,7 +262,7 @@
 
 @media (max-width: 640px) {
   .app {
-    padding-top: 16px;
+    padding-top: 8px;
     padding-bottom: 40px;
   }
   .app-body {
@@ -276,7 +276,7 @@
     flex-wrap: nowrap;
     gap: 2px;
     padding: 4px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
   .view-controls::-webkit-scrollbar { display: none; }
   .view-btn {

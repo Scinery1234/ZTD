@@ -1193,7 +1193,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }) {
+function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const handleRef = useRef(null);
   const lastMouseDownTarget = useRef(null);
@@ -1225,6 +1225,15 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
       <span className="timebox-chip-desc">{task.description}</span>
       <div className="timebox-chip-row">
         <span className="timebox-chip-dur">{task.duration || 30}m</span>
+        {onScheduleNow && (
+          <button
+            className="timebox-chip-schedule-btn"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onScheduleNow(task); }}
+            title="Schedule at next available slot"
+          >⚡</button>
+        )}
         <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
         <button
           className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
@@ -1245,12 +1254,24 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
+  const containerRef = useRef(null);
   const [dismissed, setDismissed] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 0);
     return loadDismissed(toLocalDateStr(d));
   });
   const [futureTasks, setFutureTasks] = useState(null);
   const poolSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // On mobile, scroll to bring the grid into view when this view first mounts
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 700px)').matches) return;
+    const grid = containerRef.current?.querySelector('.timebox-grid-wrapper');
+    if (!grid) return;
+    const rect = grid.getBoundingClientRect();
+    if (rect.top > window.innerHeight - 80) {
+      grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weekDates = getWeekDates(weekStartOffset);
   const selectedDay = (() => { const d = new Date(); d.setDate(d.getDate() + dayOffset); return toLocalDateStr(d); })();
@@ -1283,6 +1304,31 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     setBlockedTimes(next);
     saveBlockedTimes(next);
   }, []);
+
+  const handleQuickSchedule = useCallback(async (task) => {
+    const date = selectedDay;
+    const win = dayWindows[date] || { start: '07:00', end: '24:00' };
+    const wStart = parseMinutes(win.start);
+    const wEnd = parseMinutes(win.end);
+    const now = new Date();
+    const isToday = date === toLocalDateStr(now);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
+    const allBlocked = [
+      ...blockedTimes
+        .filter(b => b.date === date)
+        .map(b => ({ start: parseMinutes(b.start), end: parseMinutes(b.end) })),
+      ...taskSource
+        .filter(t => isOnDaysGrid(t, date))
+        .map(t => { const gs = taskGridMinutes(t, date); return { start: gs, end: gs + (t.duration || 30) }; }),
+    ];
+    const cursor = isToday ? Math.max(wStart, snapMinutes(nowMins)) : wStart;
+    const dur = task.duration || 30;
+    const slot = advancePastBlockedGrid(cursor, dur, allBlocked);
+    if (slot + dur > wEnd) return;
+    const scheduled = gridMinsToSchedule(slot, date);
+    await onUpdate(task.id, { scheduled_time: scheduled.scheduled_time, scheduled_date: scheduled.scheduled_date });
+  }, [selectedDay, dayWindows, blockedTimes, tasks, futureTasks, dayOffset, onUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMit = (taskId) => {
     setMitIds(prev => {
@@ -1351,7 +1397,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   };
 
   return (
-    <div className="timebox-container">
+    <div className="timebox-container" ref={containerRef}>
       {editingTask && (
         <TaskEditModal
           task={editingTask}
@@ -1413,6 +1459,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
                           onDismiss={handleDismiss}
                           onEdit={setEditingTask}
                           onToggleMit={handleToggleMit}
+                          onScheduleNow={handleQuickSchedule}
                         />
                       ))}
                     </SortableContext>

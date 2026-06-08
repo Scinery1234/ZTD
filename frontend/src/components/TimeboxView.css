@@ -147,6 +147,24 @@
   gap: 4px;
 }
 
+.timebox-chip-schedule-btn {
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: rgba(249, 115, 22, 0.8);
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.timebox-chip-schedule-btn:hover {
+  background: rgba(249, 115, 22, 0.25);
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
 @media (max-width: 700px) {
   .timebox-day-layout {
     flex-direction: column;
@@ -259,6 +277,10 @@
   /* Always show action buttons on touch devices (no hover state) */
   .timebox-task .timebox-task-meta { opacity: 1; }
   .timebox-task-meta { gap: 6px; }
+
+  /* Always show chip dismiss and schedule buttons on touch */
+  .timebox-chip-dismiss { opacity: 1; }
+  .timebox-chip-schedule-btn { font-size: 12px; padding: 3px 7px; }
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
@@ -1676,4 +1698,14 @@
 [data-theme="light"] .timebox-sync-btn:hover {
   color: #f97316 !important;
   background: rgba(249, 115, 22, 0.08) !important;
+}
+
+[data-theme="light"] .timebox-chip-schedule-btn {
+  background: rgba(249, 115, 22, 0.08);
+  border-color: rgba(249, 115, 22, 0.2);
+  color: rgba(234, 88, 12, 0.85);
+}
+[data-theme="light"] .timebox-chip-schedule-btn:hover {
+  background: rgba(249, 115, 22, 0.15);
+  color: #ea580c;
 }

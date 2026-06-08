@@ -208,4 +208,18 @@ export const api = {
   getSubscription: () => apiFetch('/stripe/subscription'),
   createCheckoutSession: (tier) =>
     apiFetch('/stripe/create-checkout-session', { method: 'POST', body: JSON.stringify({ tier }) }),
+
+  // Calendar sync (premium)
+  calendarAuth: (provider) =>
+    apiFetch(`/calendar/auth/${provider}`, { method: 'POST' }),
+  calendarConnections: () => apiFetch('/calendar/connections'),
+  calendarPush: (timezone, task_ids) =>
+    apiFetch('/calendar/push', {
+      method: 'POST',
+      body: JSON.stringify({ timezone, ...(task_ids ? { task_ids } : {}) }),
+    }),
+  calendarDisconnect: (provider) =>
+    apiFetch(`/calendar/disconnect/${provider}`, { method: 'DELETE' }),
+  calendarDeleteEvent: (taskId) =>
+    apiFetch(`/calendar/event/${taskId}`, { method: 'DELETE' }),
 };

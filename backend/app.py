@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
@@ -192,6 +192,8 @@ class Task(db.Model):
     locked = db.Column(db.Boolean, default=False)            # locked in timebox
     notes = db.Column(db.Text, nullable=True)                # rich notes (premium)
     pomodoro_count = db.Column(db.Integer, default=0)        # focus sessions logged (premium)
+    gcal_event_id = db.Column(db.String(200), nullable=True) # Google Calendar event id
+    ms_event_id   = db.Column(db.String(200), nullable=True) # Microsoft Outlook event id
 
     def subtasks_list(self):
         try:
@@ -221,6 +223,8 @@ class Task(db.Model):
             'locked': bool(self.locked),
             'notes': self.notes or '',
             'pomodoro_count': self.pomodoro_count or 0,
+            'gcal_event_id': self.gcal_event_id,
+            'ms_event_id': self.ms_event_id,
         }
 
 
@@ -262,6 +266,26 @@ class DoneTask(db.Model):
             'subtasks': self.subtasks_list(),
             'completed_at': self.completed_at.isoformat(),
             'notes': self.notes or '',
+        }
+
+
+class CalendarConnection(db.Model):
+    """One row per (user, provider) pair. Stores OAuth tokens."""
+    __tablename__ = 'calendar_connection'
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    provider      = db.Column(db.String(20), nullable=False)   # 'google' | 'microsoft'
+    access_token  = db.Column(db.Text, nullable=False)
+    refresh_token = db.Column(db.Text, nullable=True)
+    expires_at    = db.Column(db.DateTime, nullable=True)
+    calendar_id   = db.Column(db.String(200), default='primary')
+    __table_args__ = (db.UniqueConstraint('user_id', 'provider', name='uq_cal_user_provider'),)
+
+    def to_dict(self):
+        return {
+            'provider': self.provider,
+            'calendar_id': self.calendar_id,
+            'connected': True,
         }
 
 
@@ -327,6 +351,138 @@ def _load_signed_token(token: str, salt: str, max_age: int) -> str:
     """Returns the decoded value, or raises SignatureExpired / BadSignature."""
     s = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
     return s.loads(token, salt=salt, max_age=max_age)
+
+
+# === Calendar helpers ===
+
+def _task_event_times(task, timezone='UTC'):
+    """Return (start_dt_str, end_dt_str) as ISO-8601 for a scheduled task."""
+    start_min = int(task.scheduled_time.split(':')[0]) * 60 + int(task.scheduled_time.split(':')[1])
+    end_min = start_min + (task.duration or 30)
+    end_h, end_m = divmod(end_min % (24 * 60), 60)
+    # If task bleeds past midnight, clamp to 23:59
+    if end_min >= 24 * 60:
+        end_h, end_m = 23, 59
+    date = task.scheduled_date
+    start_dt = f"{date}T{task.scheduled_time}:00"
+    end_dt   = f"{date}T{end_h:02d}:{end_m:02d}:00"
+    return start_dt, end_dt
+
+
+# ── Google Calendar ───────────────────────────────────────────────────────────
+
+def _google_credentials(conn):
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request as GRequest
+    creds = Credentials(
+        token=conn.access_token,
+        refresh_token=conn.refresh_token,
+        token_uri='https://oauth2.googleapis.com/token',
+        client_id=os.getenv('GOOGLE_CLIENT_ID'),
+        client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    )
+    if creds.expired and creds.refresh_token:
+        creds.refresh(GRequest())
+        conn.access_token = creds.token
+        if creds.expiry:
+            conn.expires_at = creds.expiry
+        db.session.commit()
+    return creds
+
+
+def _google_push(task, conn, timezone='UTC'):
+    from googleapiclient.discovery import build
+    svc = build('calendar', 'v3', credentials=_google_credentials(conn), cache_discovery=False)
+    start_dt, end_dt = _task_event_times(task, timezone)
+    body = {
+        'summary': task.description,
+        'start':   {'dateTime': start_dt, 'timeZone': timezone},
+        'end':     {'dateTime': end_dt,   'timeZone': timezone},
+        'status':  'confirmed',
+        'transparency': 'opaque',   # shows as "Busy"
+    }
+    cal = conn.calendar_id or 'primary'
+    if task.gcal_event_id:
+        try:
+            svc.events().update(calendarId=cal, eventId=task.gcal_event_id, body=body).execute()
+            return task.gcal_event_id
+        except Exception:
+            task.gcal_event_id = None  # stale id — fall through to create
+    event = svc.events().insert(calendarId=cal, body=body).execute()
+    return event['id']
+
+
+def _google_delete(task, conn):
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+    if not task.gcal_event_id:
+        return
+    try:
+        svc = build('calendar', 'v3', credentials=_google_credentials(conn), cache_discovery=False)
+        svc.events().delete(calendarId=conn.calendar_id or 'primary', eventId=task.gcal_event_id).execute()
+    except HttpError:
+        pass  # already deleted
+    task.gcal_event_id = None
+
+
+# ── Microsoft / Outlook ───────────────────────────────────────────────────────
+
+def _ms_access_token(conn):
+    import msal, requests as req
+    if conn.expires_at and datetime.utcnow() < conn.expires_at - timedelta(seconds=60):
+        return conn.access_token
+    authority = 'https://login.microsoftonline.com/common'
+    app_ms = msal.ConfidentialClientApplication(
+        os.getenv('MICROSOFT_CLIENT_ID'),
+        authority=authority,
+        client_credential=os.getenv('MICROSOFT_CLIENT_SECRET'),
+    )
+    result = app_ms.acquire_token_by_refresh_token(
+        conn.refresh_token,
+        scopes=['https://graph.microsoft.com/Calendars.ReadWrite'],
+    )
+    if 'access_token' not in result:
+        raise RuntimeError(f"MS token refresh failed: {result.get('error_description')}")
+    conn.access_token = result['access_token']
+    conn.expires_at = datetime.utcnow() + timedelta(seconds=result.get('expires_in', 3600))
+    db.session.commit()
+    return conn.access_token
+
+
+def _ms_push(task, conn, timezone='UTC'):
+    import requests as req
+    token = _ms_access_token(conn)
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    start_dt, end_dt = _task_event_times(task, timezone)
+    body = {
+        'subject': task.description,
+        'start':   {'dateTime': start_dt, 'timeZone': timezone},
+        'end':     {'dateTime': end_dt,   'timeZone': timezone},
+        'showAs':  'busy',
+        'isAllDay': False,
+    }
+    base = 'https://graph.microsoft.com/v1.0'
+    if task.ms_event_id:
+        r = req.patch(f'{base}/me/events/{task.ms_event_id}', headers=headers, json=body, timeout=10)
+        if r.ok:
+            return task.ms_event_id
+        task.ms_event_id = None  # stale id — fall through
+    r = req.post(f'{base}/me/events', headers=headers, json=body, timeout=10)
+    r.raise_for_status()
+    return r.json()['id']
+
+
+def _ms_delete(task, conn):
+    import requests as req
+    if not task.ms_event_id:
+        return
+    try:
+        token = _ms_access_token(conn)
+        headers = {'Authorization': f'Bearer {token}'}
+        req.delete(f'https://graph.microsoft.com/v1.0/me/events/{task.ms_event_id}', headers=headers, timeout=10)
+    except Exception:
+        pass
+    task.ms_event_id = None
 
 
 # === Auth Endpoints ===
@@ -1246,11 +1402,251 @@ def admin_set_tier():
     return jsonify({'ok': True, 'email': user.email, 'tier': user.tier})
 
 
+# === Calendar OAuth & Sync Endpoints (premium) ===
+
+@app.route('/api/calendar/auth/<provider>', methods=['POST'])
+@jwt_required()
+def calendar_auth_start(provider):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user or user.tier != 'premium':
+        return jsonify({'error': 'Premium subscription required'}), 403
+    if provider not in ('google', 'microsoft'):
+        return jsonify({'error': 'Provider must be google or microsoft'}), 400
+
+    base_url = os.getenv('FRONTEND_URL', 'http://localhost:5001').rstrip('/')
+    redirect_uri = f"{base_url}/api/calendar/callback/{provider}"
+    state = _make_signed_token(str(user_id), 'cal-oauth-state')
+
+    if provider == 'google':
+        from google_auth_oauthlib.flow import Flow
+        client_config = {
+            'web': {
+                'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
+                'client_secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'redirect_uris': [redirect_uri],
+            }
+        }
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=['https://www.googleapis.com/auth/calendar.events'],
+            redirect_uri=redirect_uri,
+        )
+        auth_url, _ = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent',
+            state=state,
+        )
+        return jsonify({'url': auth_url})
+
+    import msal
+    authority = 'https://login.microsoftonline.com/common'
+    app_ms = msal.ConfidentialClientApplication(
+        os.getenv('MICROSOFT_CLIENT_ID', ''),
+        authority=authority,
+        client_credential=os.getenv('MICROSOFT_CLIENT_SECRET', ''),
+    )
+    auth_url = app_ms.get_authorization_request_url(
+        scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
+        redirect_uri=redirect_uri,
+        state=state,
+    )
+    return jsonify({'url': auth_url})
+
+
+@app.route('/api/calendar/callback/<provider>', methods=['GET'])
+def calendar_auth_callback(provider):
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    error_redirect = f"{frontend_url}/app#calendar-connected?error=1"
+
+    code = request.args.get('code')
+    state = request.args.get('state', '')
+
+    if not code:
+        return redirect(error_redirect)
+
+    try:
+        user_id_str = _load_signed_token(state, 'cal-oauth-state', max_age=600)
+        user_id = int(user_id_str)
+    except Exception:
+        return redirect(error_redirect)
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return redirect(error_redirect)
+
+    base_url = os.getenv('FRONTEND_URL', 'http://localhost:5001').rstrip('/')
+    redirect_uri = f"{base_url}/api/calendar/callback/{provider}"
+
+    # Allow insecure transport in dev (Google rejects http:// otherwise)
+    if not base_url.startswith('https://'):
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+    try:
+        if provider == 'google':
+            from google_auth_oauthlib.flow import Flow
+            client_config = {
+                'web': {
+                    'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
+                    'client_secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
+                    'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                    'token_uri': 'https://oauth2.googleapis.com/token',
+                    'redirect_uris': [redirect_uri],
+                }
+            }
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=['https://www.googleapis.com/auth/calendar.events'],
+                redirect_uri=redirect_uri,
+            )
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            conn = CalendarConnection.query.filter_by(user_id=user_id, provider='google').first()
+            if not conn:
+                conn = CalendarConnection(user_id=user_id, provider='google')
+                db.session.add(conn)
+            conn.access_token = creds.token
+            conn.refresh_token = creds.refresh_token or getattr(conn, 'refresh_token', None) or ''
+            conn.expires_at = creds.expiry
+
+        elif provider == 'microsoft':
+            import msal
+            authority = 'https://login.microsoftonline.com/common'
+            app_ms = msal.ConfidentialClientApplication(
+                os.getenv('MICROSOFT_CLIENT_ID', ''),
+                authority=authority,
+                client_credential=os.getenv('MICROSOFT_CLIENT_SECRET', ''),
+            )
+            result = app_ms.acquire_token_by_authorization_code(
+                code=code,
+                scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
+                redirect_uri=redirect_uri,
+            )
+            if 'access_token' not in result:
+                app.logger.error('MS token exchange failed: %s', result.get('error_description'))
+                return redirect(error_redirect)
+            conn = CalendarConnection.query.filter_by(user_id=user_id, provider='microsoft').first()
+            if not conn:
+                conn = CalendarConnection(user_id=user_id, provider='microsoft')
+                db.session.add(conn)
+            conn.access_token = result['access_token']
+            conn.refresh_token = result.get('refresh_token', conn.refresh_token if conn.id else '')
+            conn.expires_at = datetime.utcnow() + timedelta(seconds=result.get('expires_in', 3600))
+        else:
+            return redirect(error_redirect)
+
+        db.session.commit()
+        return redirect(f"{frontend_url}/app#calendar-connected?provider={provider}")
+
+    except Exception as exc:
+        app.logger.error('Calendar auth callback error (%s): %s', provider, exc)
+        return redirect(error_redirect)
+
+
+@app.route('/api/calendar/connections', methods=['GET'])
+@jwt_required()
+def get_calendar_connections():
+    user_id = int(get_jwt_identity())
+    connections = CalendarConnection.query.filter_by(user_id=user_id).all()
+    return jsonify([c.to_dict() for c in connections])
+
+
+@app.route('/api/calendar/push', methods=['POST'])
+@jwt_required()
+def calendar_push():
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user or user.tier != 'premium':
+        return jsonify({'error': 'Premium subscription required'}), 403
+
+    connections = CalendarConnection.query.filter_by(user_id=user_id).all()
+    if not connections:
+        return jsonify({'error': 'No calendar connected', 'no_connection': True}), 400
+
+    data = request.json or {}
+    timezone = data.get('timezone', 'UTC')
+    task_ids = data.get('task_ids')
+
+    q = Task.query.filter_by(user_id=user_id).filter(
+        Task.scheduled_date.isnot(None),
+        Task.scheduled_time.isnot(None),
+    )
+    if task_ids:
+        q = q.filter(Task.id.in_(task_ids))
+    tasks_to_sync = q.all()
+
+    pushed = 0
+    errors = []
+    for task in tasks_to_sync:
+        for conn in connections:
+            try:
+                if conn.provider == 'google':
+                    event_id = _google_push(task, conn, timezone)
+                    task.gcal_event_id = event_id
+                elif conn.provider == 'microsoft':
+                    event_id = _ms_push(task, conn, timezone)
+                    task.ms_event_id = event_id
+                pushed += 1
+            except Exception as exc:
+                errors.append({'task_id': task.id, 'provider': conn.provider, 'error': str(exc)})
+
+    db.session.commit()
+    return jsonify({'pushed': pushed, 'errors': errors, 'tasks': [t.to_dict() for t in tasks_to_sync]})
+
+
+@app.route('/api/calendar/disconnect/<provider>', methods=['DELETE'])
+@jwt_required()
+def calendar_disconnect(provider):
+    user_id = int(get_jwt_identity())
+    conn = CalendarConnection.query.filter_by(user_id=user_id, provider=provider).first()
+    if not conn:
+        return jsonify({'error': 'Not connected'}), 404
+
+    if provider == 'google':
+        Task.query.filter_by(user_id=user_id).filter(
+            Task.gcal_event_id.isnot(None)
+        ).update({'gcal_event_id': None})
+    elif provider == 'microsoft':
+        Task.query.filter_by(user_id=user_id).filter(
+            Task.ms_event_id.isnot(None)
+        ).update({'ms_event_id': None})
+
+    db.session.delete(conn)
+    db.session.commit()
+    return jsonify({'message': f'Disconnected {provider}'})
+
+
+@app.route('/api/calendar/event/<int:task_id>', methods=['DELETE'])
+@jwt_required()
+def calendar_delete_event(task_id):
+    user_id = int(get_jwt_identity())
+    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+
+    connections = CalendarConnection.query.filter_by(user_id=user_id).all()
+    for conn in connections:
+        try:
+            if conn.provider == 'google' and task.gcal_event_id:
+                _google_delete(task, conn)
+            elif conn.provider == 'microsoft' and task.ms_event_id:
+                _ms_delete(task, conn)
+        except Exception:
+            pass
+
+    db.session.commit()
+    return jsonify({'task': task.to_dict()})
+
+
 def migrate_db():
     # Each statement runs in its own connection/transaction so a "column already
     # exists" failure on one doesn't abort and roll back the others (PostgreSQL
     # marks the whole transaction as aborted on any error).
     with app.app_context():
+        db.create_all()   # creates any tables not yet in the DB (safe, idempotent)
         for stmt in [
             'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
             'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',
@@ -1260,6 +1656,8 @@ def migrate_db():
             'ALTER TABLE done_task ADD COLUMN notes TEXT',
             'ALTER TABLE task ADD COLUMN pomodoro_count INTEGER DEFAULT 0',
             'ALTER TABLE "user" ADD COLUMN email_verified BOOLEAN DEFAULT FALSE',
+            'ALTER TABLE task ADD COLUMN gcal_event_id VARCHAR(200)',
+            'ALTER TABLE task ADD COLUMN ms_event_id VARCHAR(200)',
         ]:
             try:
                 with db.engine.connect() as conn:

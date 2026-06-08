@@ -503,7 +503,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
@@ -903,6 +903,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = { scheduled_time: null, scheduled_date: null };
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
     await onUpdateTask(task.id, updates);
+    const hasCalEvent = task.gcal_event_id || task.ms_event_id;
+    if (hasCalEvent && onCalendarDeleteEvent) {
+      const calName = task.gcal_event_id ? 'Google Calendar' : 'Outlook';
+      if (window.confirm(`Also remove this event from ${calName}?`)) {
+        await onCalendarDeleteEvent(task.id);
+      }
+    }
   };
 
   const handleMarkDone = async (task) => {
@@ -1226,7 +1233,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1336,6 +1343,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     onApplyTaskUpdates,
     onMarkDone,
     onEditTask: setEditingTask,
+    onCalendarDeleteEvent,
   };
 
   return (
@@ -1354,6 +1362,15 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       <div className="timebox-subview-toggle">
         <button className={`timebox-sub-btn ${subView === 'day' ? 'active' : ''}`} onClick={() => setSubView('day')}>Day</button>
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
+        {onSyncToCalendar && (
+          <button
+            className={`timebox-sub-btn timebox-sync-btn${calendarConnected ? ' connected' : ''}`}
+            onClick={onSyncToCalendar}
+            title={calendarConnected ? 'Sync scheduled tasks to calendar' : 'Connect a calendar'}
+          >
+            {calendarConnected ? '📅 Sync' : '📅 Connect'}
+          </button>
+        )}
       </div>
 
       {subView === 'day' && (() => {

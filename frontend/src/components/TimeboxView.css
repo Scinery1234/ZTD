@@ -1653,3 +1653,27 @@
 [data-theme="light"] .timebox-week-wrapper::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.12);
 }
+
+/* ── Calendar sync button ──────────────────────────────────────────────────── */
+.timebox-sync-btn {
+  color: rgba(249, 115, 22, 0.7) !important;
+  margin-left: 4px;
+}
+
+.timebox-sync-btn:hover {
+  color: #f97316 !important;
+  background: rgba(249, 115, 22, 0.1) !important;
+}
+
+.timebox-sync-btn.connected {
+  color: #f97316 !important;
+}
+
+[data-theme="light"] .timebox-sync-btn {
+  color: rgba(249, 115, 22, 0.75) !important;
+}
+
+[data-theme="light"] .timebox-sync-btn:hover {
+  color: #f97316 !important;
+  background: rgba(249, 115, 22, 0.08) !important;
+}

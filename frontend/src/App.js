@@ -20,6 +20,7 @@ import PricingPage from './pages/PricingPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyBanner from './components/VerifyBanner';
+import CalendarSync from './components/CalendarSync';
 import LooseThreads from './components/LooseThreads';
 import {
   DndContext,
@@ -264,6 +265,9 @@ function TaskApp() {
   const [limitError, setLimitError] = useState('');
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState(null);
+  const [showCalendarSync, setShowCalendarSync] = useState(false);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarConnectNotice, setCalendarConnectNotice] = useState(null);
 
   const handlePomodoroComplete = useCallback(async (taskId) => {
     try {
@@ -283,6 +287,66 @@ function TaskApp() {
       window.history.replaceState({}, '', '/');
     }
   }, [refreshSubscription]);
+
+  // Calendar OAuth return — detected via #calendar-connected hash
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#calendar-connected')) {
+      const qs = hash.split('?')[1] || '';
+      const params = new URLSearchParams(qs);
+      const provider = params.get('provider');
+      const hasError = params.get('error') === '1';
+      window.history.replaceState({}, '', window.location.pathname);
+      if (!hasError && provider) {
+        setCalendarConnectNotice(provider);
+        setCalendarConnected(true);
+        setTimeout(() => setCalendarConnectNotice(null), 5000);
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load calendar connection status (premium only)
+  useEffect(() => {
+    if (subscription?.tier === 'premium') {
+      api.calendarConnections()
+        .then(conns => setCalendarConnected(conns.length > 0))
+        .catch(() => {});
+    }
+  }, [subscription?.tier]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSyncToCalendar = useCallback(async () => {
+    if (!calendarConnected) {
+      setShowCalendarSync(true);
+      return;
+    }
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const result = await api.calendarPush(timezone);
+      if (result.tasks) {
+        const map = {};
+        result.tasks.forEach(t => { map[t.id] = t; });
+        setTasks(prev => prev.map(t => map[t.id] ? { ...t, ...map[t.id] } : t));
+      }
+      alert(`Synced ${result.pushed} task${result.pushed !== 1 ? 's' : ''} to your calendar.`);
+    } catch (err) {
+      if (err.data?.no_connection) {
+        setShowCalendarSync(true);
+      } else {
+        alert(err.message || 'Sync failed');
+      }
+    }
+  }, [calendarConnected]);
+
+  const handleCalendarDeleteEvent = useCallback(async (taskId) => {
+    try {
+      const result = await api.calendarDeleteEvent(taskId);
+      if (result.task) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...result.task } : t));
+      }
+    } catch (err) {
+      console.error('Failed to remove calendar event:', err);
+    }
+  }, []);
 
   // Load category order from localStorage
   useEffect(() => {
@@ -468,10 +532,16 @@ function TaskApp() {
         pomodoroOpen={pomodoroOpen}
         onShowAnalytics={() => setViewMode(m => m === 'analytics' ? 'active' : 'analytics')}
         analyticsActive={viewMode === 'analytics'}
+        onShowCalendarSync={() => setShowCalendarSync(true)}
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
           {user && user.email_verified === false && <VerifyBanner />}
+          {calendarConnectNotice && (
+            <div className="calendar-connected-banner">
+              📅 {calendarConnectNotice === 'google' ? 'Google Calendar' : 'Microsoft Outlook'} connected successfully!
+            </div>
+          )}
           {dataSyncing && (
             <div className="sync-banner" role="status">
               Syncing your tasks…
@@ -574,6 +644,9 @@ function TaskApp() {
               onApplyTaskUpdates={applyTaskUpdates}
               onMarkDone={markDone}
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
+              onSyncToCalendar={subscription?.tier === 'premium' ? handleSyncToCalendar : null}
+              onCalendarDeleteEvent={subscription?.tier === 'premium' ? handleCalendarDeleteEvent : null}
+              calendarConnected={calendarConnected}
             />
           )}
 
@@ -584,6 +657,20 @@ function TaskApp() {
         </div>
         <LooseThreads />
       </div>
+
+      {showCalendarSync && (
+        <CalendarSync
+          onClose={() => setShowCalendarSync(false)}
+          onSyncComplete={(updatedTasks) => {
+            if (updatedTasks?.length) {
+              const map = {};
+              updatedTasks.forEach(t => { map[t.id] = t; });
+              setTasks(prev => prev.map(t => map[t.id] ? { ...t, ...map[t.id] } : t));
+            }
+            setCalendarConnected(true);
+          }}
+        />
+      )}
 
       {pomodoroOpen && (
         <PomodoroTimer

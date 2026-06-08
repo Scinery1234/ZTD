@@ -1,0 +1,80 @@
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.verify-banner-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.verify-banner-text {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 0;
+}
+
+.verify-banner-btn {
+  background: rgba(249, 115, 22, 0.2);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: #f97316;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.verify-banner-btn:hover:not(:disabled) {
+  background: rgba(249, 115, 22, 0.3);
+}
+
+.verify-banner-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.verify-banner-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.verify-banner-close:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Light mode */
+[data-theme="light"] .verify-banner {
+  background: rgba(249, 115, 22, 0.07);
+  border-color: rgba(249, 115, 22, 0.2);
+}
+
+[data-theme="light"] .verify-banner-text {
+  color: rgba(28, 18, 9, 0.65);
+}
+
+[data-theme="light"] .verify-banner-close {
+  color: rgba(28, 18, 9, 0.25);
+}
+
+[data-theme="light"] .verify-banner-close:hover {
+  color: rgba(28, 18, 9, 0.55);
+}

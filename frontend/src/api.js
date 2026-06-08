@@ -151,6 +151,10 @@ export const api = {
       body: JSON.stringify({ token, password }),
       skipAuth: true,
     }),
+  verifyEmail: (token) =>
+    apiFetch(`/auth/verify-email?token=${encodeURIComponent(token)}`, { skipAuth: true }),
+  resendVerification: () =>
+    apiFetch('/auth/resend-verification', { method: 'POST' }),
   me: () => apiFetch('/auth/me'),
 
   // Hats

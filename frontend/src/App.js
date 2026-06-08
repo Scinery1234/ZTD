@@ -18,6 +18,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import VerifyBanner from './components/VerifyBanner';
 import LooseThreads from './components/LooseThreads';
 import {
   DndContext,
@@ -247,7 +249,7 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
 
 // ---- Main authenticated app ----
 function TaskApp() {
-  const { subscription, refreshSubscription } = useAuth();
+  const { user, subscription, refreshSubscription } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
   const [hats, setHats] = useState([]);
@@ -469,6 +471,7 @@ function TaskApp() {
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
+          {user && user.email_verified === false && <VerifyBanner />}
           {dataSyncing && (
             <div className="sync-banner" role="status">
               Syncing your tasks…
@@ -608,6 +611,11 @@ function readAuthFromHash() {
     const token = params.get('token') || null;
     return { guestMode: false, authView: 'reset-password', resetToken: token };
   }
+  if (pathLower === 'verify-email') {
+    const params = new URLSearchParams(query || '');
+    const token = params.get('token') || null;
+    return { guestMode: false, authView: 'verify-email', resetToken: token };
+  }
   if (pathLower === 'register' || pathLower === 'signup') {
     return { guestMode: false, authView: 'register', resetToken: null };
   }
@@ -675,7 +683,15 @@ function AppRoot() {
     );
   }
 
+  // Allow verify-email page even when logged in (user clicks link from inbox)
+  if (authView === 'verify-email' && resetToken) {
+    return <VerifyEmailPage token={resetToken} onGoLogin={goLogin} />;
+  }
+
   if (!user) {
+    if (authView === 'verify-email' && resetToken) {
+      return <VerifyEmailPage token={resetToken} onGoLogin={goLogin} />;
+    }
     if (authView === 'reset-password' && resetToken) {
       return <ResetPasswordPage token={resetToken} onGoLogin={goLogin} />;
     }

@@ -18,6 +18,17 @@ import stripe
 import resend
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from dotenv import load_dotenv
+try:
+    from emails import verify_html, VERIFY_SUBJECT, welcome_html, WELCOME_SUBJECT
+except ImportError:
+    # When run as `python -m flask --app backend.app`, backend/ isn't on sys.path
+    import importlib.util as _ilu, os as _os
+    _spec = _ilu.spec_from_file_location(
+        'emails', _os.path.join(_os.path.dirname(__file__), 'emails.py')
+    )
+    _mod = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_mod)
+    verify_html = _mod.verify_html; VERIFY_SUBJECT = _mod.VERIFY_SUBJECT
+    welcome_html = _mod.welcome_html; WELCOME_SUBJECT = _mod.WELCOME_SUBJECT
 
 load_dotenv()
 
@@ -123,6 +134,7 @@ class User(db.Model):
     stripe_customer_id = db.Column(db.String(100), nullable=True)
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    email_verified = db.Column(db.Boolean, default=False)
 
     tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
     done_tasks = db.relationship('DoneTask', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -136,6 +148,7 @@ class User(db.Model):
             'tier': self.tier,
             'tier_name': TIERS[self.tier]['name'],
             'created_at': self.created_at.isoformat(),
+            'email_verified': bool(self.email_verified),
         }
 
 
@@ -287,6 +300,35 @@ def check_task_limit(user):
     return None
 
 
+# === Email helpers ===
+
+def _send_email(to: str, subject: str, html: str) -> bool:
+    """Send an email via Resend. Returns True on success, False if key not set."""
+    key = os.getenv('RESEND_API_KEY', '')
+    if not key:
+        app.logger.warning('[email] RESEND_API_KEY not set — skipping send to %s', to)
+        return False
+    resend.api_key = key
+    from_addr = os.getenv('RESEND_FROM_EMAIL', 'happen <noreply@happen.app>')
+    try:
+        resend.Emails.send({'from': from_addr, 'to': [to], 'subject': subject, 'html': html})
+        return True
+    except Exception as exc:
+        app.logger.error('[email] Resend error: %s', exc)
+        return False
+
+
+def _make_signed_token(value: str, salt: str) -> str:
+    s = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
+    return s.dumps(value, salt=salt)
+
+
+def _load_signed_token(token: str, salt: str, max_age: int) -> str:
+    """Returns the decoded value, or raises SignatureExpired / BadSignature."""
+    s = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
+    return s.loads(token, salt=salt, max_age=max_age)
+
+
 # === Auth Endpoints ===
 
 @app.route('/api/auth/register', methods=['POST'])
@@ -316,9 +358,17 @@ def register():
     db.session.add(main_hat)
     db.session.commit()
 
-    token = create_access_token(identity=str(user.id))
-    # Return both keys for compatibility across mixed frontend/backend deploys.
-    return jsonify({'token': token, 'access_token': token, 'user': user.to_dict()}), 201
+    # Send email verification
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    verify_token = _make_signed_token(email, 'email-verify')
+    verify_url = f"{frontend_url}/app#verify-email?token={verify_token}"
+    html = verify_html(user.name, verify_url, frontend_url)
+    if not _send_email(email, VERIFY_SUBJECT, html):
+        # Dev fallback: print the link so it can be tested without Resend
+        print(f'[register] verify URL (set RESEND_API_KEY to email instead): {verify_url}', flush=True)
+
+    access_token = create_access_token(identity=str(user.id))
+    return jsonify({'token': access_token, 'access_token': access_token, 'user': user.to_dict()}), 201
 
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -411,6 +461,56 @@ def reset_password():
     user.password_hash = generate_password_hash(new_password)
     db.session.commit()
     return jsonify({'message': 'Password updated successfully.'}), 200
+
+
+@app.route('/api/auth/verify-email', methods=['GET'])
+def verify_email():
+    token = request.args.get('token', '').strip()
+    if not token:
+        return jsonify({'error': 'Verification token is required'}), 400
+
+    try:
+        email = _load_signed_token(token, 'email-verify', max_age=86400)  # 24 h
+    except SignatureExpired:
+        return jsonify({'error': 'Verification link has expired. Please request a new one.'}), 400
+    except BadSignature:
+        return jsonify({'error': 'Invalid verification link.'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': 'Account not found.'}), 404
+
+    already_verified = bool(user.email_verified)
+    if not already_verified:
+        user.email_verified = True
+        db.session.commit()
+        # Send welcome email
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        app_url = f"{frontend_url}/app"
+        _send_email(email, WELCOME_SUBJECT, welcome_html(user.name, app_url, frontend_url))
+
+    return jsonify({'message': 'Email verified successfully.', 'already_verified': already_verified}), 200
+
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+@jwt_required()
+@limiter.limit('3 per hour')
+def resend_verification():
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    if user.email_verified:
+        return jsonify({'message': 'Email is already verified.'}), 200
+
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    verify_token = _make_signed_token(user.email, 'email-verify')
+    verify_url = f"{frontend_url}/app#verify-email?token={verify_token}"
+    html = verify_html(user.name, verify_url, frontend_url)
+    if not _send_email(user.email, VERIFY_SUBJECT, html):
+        print(f'[resend-verification] verify URL: {verify_url}', flush=True)
+
+    return jsonify({'message': 'Verification email sent.'}), 200
 
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -1159,6 +1259,7 @@ def migrate_db():
             'ALTER TABLE task ADD COLUMN notes TEXT',
             'ALTER TABLE done_task ADD COLUMN notes TEXT',
             'ALTER TABLE task ADD COLUMN pomodoro_count INTEGER DEFAULT 0',
+            'ALTER TABLE "user" ADD COLUMN email_verified BOOLEAN DEFAULT FALSE',
         ]:
             try:
                 with db.engine.connect() as conn:

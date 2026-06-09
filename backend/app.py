@@ -91,7 +91,7 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=[],
+    default_limits=['200 per day', '60 per hour'],
     storage_uri='memory://',
 )
 
@@ -102,6 +102,17 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=(), payment=()'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://api.stripe.com; "
+        "frame-src https://js.stripe.com; "
+        "object-src 'none'; "
+        "base-uri 'self'"
+    )
     # HSTS only when behind HTTPS proxy (Railway sets X-Forwarded-Proto)
     if request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains; preload'
@@ -494,12 +505,16 @@ def register():
     if not data or not all(k in data for k in ('email', 'password', 'name')):
         return jsonify({'error': 'Email, name, and password are required'}), 400
 
+    # Honeypot: bots fill hidden fields; humans leave them blank
+    if data.get('website') or data.get('phone_number'):
+        return jsonify({'message': 'Account created successfully'}), 201
+
     email = data['email'].lower().strip()
     if len(data['password']) < 8:
         return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
     if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'An account with this email already exists'}), 409
+        return jsonify({'error': 'Unable to create account. Try signing in instead.'}), 409
 
     user = User(
         email=email,

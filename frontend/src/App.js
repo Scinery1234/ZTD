@@ -17,6 +17,10 @@ import TodayWins from './components/TodayWins';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import VerifyBanner from './components/VerifyBanner';
+import CalendarSync from './components/CalendarSync';
 import LooseThreads from './components/LooseThreads';
 import {
   DndContext,
@@ -246,7 +250,7 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
 
 // ---- Main authenticated app ----
 function TaskApp() {
-  const { subscription, refreshSubscription } = useAuth();
+  const { user, subscription, refreshSubscription } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
   const [hats, setHats] = useState([]);
@@ -261,6 +265,9 @@ function TaskApp() {
   const [limitError, setLimitError] = useState('');
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState(null);
+  const [showCalendarSync, setShowCalendarSync] = useState(false);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarConnectNotice, setCalendarConnectNotice] = useState(null);
 
   const handlePomodoroComplete = useCallback(async (taskId) => {
     try {
@@ -280,6 +287,66 @@ function TaskApp() {
       window.history.replaceState({}, '', '/');
     }
   }, [refreshSubscription]);
+
+  // Calendar OAuth return — detected via #calendar-connected hash
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#calendar-connected')) {
+      const qs = hash.split('?')[1] || '';
+      const params = new URLSearchParams(qs);
+      const provider = params.get('provider');
+      const hasError = params.get('error') === '1';
+      window.history.replaceState({}, '', window.location.pathname);
+      if (!hasError && provider) {
+        setCalendarConnectNotice(provider);
+        setCalendarConnected(true);
+        setTimeout(() => setCalendarConnectNotice(null), 5000);
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load calendar connection status (premium only)
+  useEffect(() => {
+    if (subscription?.tier === 'premium') {
+      api.calendarConnections()
+        .then(conns => setCalendarConnected(conns.length > 0))
+        .catch(() => {});
+    }
+  }, [subscription?.tier]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSyncToCalendar = useCallback(async () => {
+    if (!calendarConnected) {
+      setShowCalendarSync(true);
+      return;
+    }
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const result = await api.calendarPush(timezone);
+      if (result.tasks) {
+        const map = {};
+        result.tasks.forEach(t => { map[t.id] = t; });
+        setTasks(prev => prev.map(t => map[t.id] ? { ...t, ...map[t.id] } : t));
+      }
+      alert(`Synced ${result.pushed} task${result.pushed !== 1 ? 's' : ''} to your calendar.`);
+    } catch (err) {
+      if (err.data?.no_connection) {
+        setShowCalendarSync(true);
+      } else {
+        alert(err.message || 'Sync failed');
+      }
+    }
+  }, [calendarConnected]);
+
+  const handleCalendarDeleteEvent = useCallback(async (taskId) => {
+    try {
+      const result = await api.calendarDeleteEvent(taskId);
+      if (result.task) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...result.task } : t));
+      }
+    } catch (err) {
+      console.error('Failed to remove calendar event:', err);
+    }
+  }, []);
 
   // Load category order from localStorage
   useEffect(() => {
@@ -465,9 +532,16 @@ function TaskApp() {
         pomodoroOpen={pomodoroOpen}
         onShowAnalytics={() => setViewMode(m => m === 'analytics' ? 'active' : 'analytics')}
         analyticsActive={viewMode === 'analytics'}
+        onShowCalendarSync={() => setShowCalendarSync(true)}
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className="container">
+          {user && user.email_verified === false && <VerifyBanner />}
+          {calendarConnectNotice && (
+            <div className="calendar-connected-banner">
+              📅 {calendarConnectNotice === 'google' ? 'Google Calendar' : 'Microsoft Outlook'} connected successfully!
+            </div>
+          )}
           {dataSyncing && (
             <div className="sync-banner" role="status">
               Syncing your tasks…
@@ -570,6 +644,12 @@ function TaskApp() {
               onApplyTaskUpdates={applyTaskUpdates}
               onMarkDone={markDone}
               maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
+              onSyncToCalendar={subscription?.tier === 'premium' ? handleSyncToCalendar : null}
+              onCalendarDeleteEvent={subscription?.tier === 'premium' ? handleCalendarDeleteEvent : null}
+              calendarConnected={calendarConnected}
+              onPinPomodoro={subscription?.tier && subscription.tier !== 'free'
+                ? (task) => { setPomodoroTask(task); setPomodoroOpen(true); }
+                : null}
             />
           )}
 
@@ -580,6 +660,20 @@ function TaskApp() {
         </div>
         <LooseThreads />
       </div>
+
+      {showCalendarSync && (
+        <CalendarSync
+          onClose={() => setShowCalendarSync(false)}
+          onSyncComplete={(updatedTasks) => {
+            if (updatedTasks?.length) {
+              const map = {};
+              updatedTasks.forEach(t => { map[t.id] = t; });
+              setTasks(prev => prev.map(t => map[t.id] ? { ...t, ...map[t.id] } : t));
+            }
+            setCalendarConnected(true);
+          }}
+        />
+      )}
 
       {pomodoroOpen && (
         <PomodoroTimer
@@ -596,32 +690,47 @@ function TaskApp() {
 // URL hash so register/login/guest is bookmarkable and obvious (#register, #login, #guest)
 function readAuthFromHash() {
   if (typeof window === 'undefined') {
-    return { guestMode: false, authView: 'login' };
+    return { guestMode: false, authView: 'login', resetToken: null };
   }
-  const raw = (window.location.hash || '').replace(/^#/, '').toLowerCase();
-  if (raw === 'register' || raw === 'signup') {
-    return { guestMode: false, authView: 'register' };
+  const raw = (window.location.hash || '').replace(/^#/, '');
+  const [path, query] = raw.split('?');
+  const pathLower = path.toLowerCase();
+
+  if (pathLower === 'reset-password') {
+    const params = new URLSearchParams(query || '');
+    const token = params.get('token') || null;
+    return { guestMode: false, authView: 'reset-password', resetToken: token };
   }
-  if (raw === 'guest') {
-    return { guestMode: true, authView: 'login' };
+  if (pathLower === 'verify-email') {
+    const params = new URLSearchParams(query || '');
+    const token = params.get('token') || null;
+    return { guestMode: false, authView: 'verify-email', resetToken: token };
   }
-  return { guestMode: false, authView: 'login' };
+  if (pathLower === 'register' || pathLower === 'signup') {
+    return { guestMode: false, authView: 'register', resetToken: null };
+  }
+  if (pathLower === 'guest') {
+    return { guestMode: true, authView: 'login', resetToken: null };
+  }
+  return { guestMode: false, authView: 'login', resetToken: null };
 }
 
 // ---- Root with auth gate ----
 function AppRoot() {
   const { user, loading } = useAuth();
-  const { guestMode: hGuest, authView: hView } = readAuthFromHash();
+  const { guestMode: hGuest, authView: hView, resetToken: hToken } = readAuthFromHash();
   const [authView, setAuthView] = useState(hView);
   const [guestMode, setGuestMode] = useState(hGuest);
+  const [resetToken, setResetToken] = useState(hToken);
 
   // Keep guest/login/register in sync with #guest / #register / #login (hooks must run before any return)
   useEffect(() => {
     if (user) return;
     const onHash = () => {
-      const { guestMode: g, authView: v } = readAuthFromHash();
+      const { guestMode: g, authView: v, resetToken: t } = readAuthFromHash();
       setGuestMode(g);
       setAuthView(v);
+      setResetToken(t);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -664,7 +773,18 @@ function AppRoot() {
     );
   }
 
+  // Allow verify-email page even when logged in (user clicks link from inbox)
+  if (authView === 'verify-email' && resetToken) {
+    return <VerifyEmailPage token={resetToken} onGoLogin={goLogin} />;
+  }
+
   if (!user) {
+    if (authView === 'verify-email' && resetToken) {
+      return <VerifyEmailPage token={resetToken} onGoLogin={goLogin} />;
+    }
+    if (authView === 'reset-password' && resetToken) {
+      return <ResetPasswordPage token={resetToken} onGoLogin={goLogin} />;
+    }
     if (guestMode) {
       return (
         <GuestTaskApp

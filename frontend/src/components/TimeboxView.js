@@ -503,7 +503,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
@@ -696,10 +696,14 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         const wEnd = parseMinutes(localWindowRef.current.end);
         if (dragging.type === 'window-start') {
           const newMin = Math.max(0, Math.min(wEnd - 60, snapMinutes(dragging.origMin + deltaMins)));
-          setLocalWindow(w => ({ ...w, start: formatTime(newMin) }));
+          const newW = { ...localWindowRef.current, start: formatTime(newMin) };
+          localWindowRef.current = newW;
+          setLocalWindow(newW);
         } else if (dragging.type === 'window-end') {
           const newMin = Math.max(wStart + 60, Math.min(MAX_GRID_MINS, snapMinutes(dragging.origMin + deltaMins)));
-          setLocalWindow(w => ({ ...w, end: formatExtendedTime(newMin) }));
+          const newW = { ...localWindowRef.current, end: formatExtendedTime(newMin) };
+          localWindowRef.current = newW;
+          setLocalWindow(newW);
         } else if (dragging.type === 'task-move') {
           const dur = dragging.duration || 30;
           const rawMin = Math.max(0, Math.min(MAX_GRID_MINS - dur, snapMinutes(dragging.origMin + deltaMins)));
@@ -903,6 +907,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const updates = { scheduled_time: null, scheduled_date: null };
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
     await onUpdateTask(task.id, updates);
+    const hasCalEvent = task.gcal_event_id || task.ms_event_id;
+    if (hasCalEvent && onCalendarDeleteEvent) {
+      const calName = task.gcal_event_id ? 'Google Calendar' : 'Outlook';
+      if (window.confirm(`Also remove this event from ${calName}?`)) {
+        await onCalendarDeleteEvent(task.id);
+      }
+    }
   };
 
   const handleMarkDone = async (task) => {
@@ -1106,6 +1117,15 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                       onClick={(e) => { e.stopPropagation(); onToggleMit(task.id); }}
                       title={isMit ? 'Remove from MIT' : 'Mark as Most Important Task'}
                     >⭐</button>
+                    {onPinPomodoro && (
+                      <button
+                        className="timebox-task-pom-btn"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onPinPomodoro(task); }}
+                        title="Start Pomodoro for this task"
+                      >🍅</button>
+                    )}
                     <button
                       className="timebox-task-unschedule"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -1182,7 +1202,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }) {
+function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const handleRef = useRef(null);
   const lastMouseDownTarget = useRef(null);
@@ -1214,6 +1234,15 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
       <span className="timebox-chip-desc">{task.description}</span>
       <div className="timebox-chip-row">
         <span className="timebox-chip-dur">{task.duration || 30}m</span>
+        {onScheduleNow && (
+          <button
+            className="timebox-chip-schedule-btn"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onScheduleNow(task); }}
+            title="Schedule at next available slot"
+          >⚡</button>
+        )}
         <button className="timebox-task-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit(task); }} title="Edit task">✎</button>
         <button
           className={`timebox-mit-btn ${mitIds.has(task.id) ? 'active' : ''} ${!mitIds.has(task.id) && mitIds.size >= 3 ? 'disabled' : ''}`}
@@ -1226,7 +1255,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit }
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14 }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected, onPinPomodoro }) {
   const [subView, setSubView] = useState('day');
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
@@ -1234,12 +1263,24 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
+  const containerRef = useRef(null);
   const [dismissed, setDismissed] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 0);
     return loadDismissed(toLocalDateStr(d));
   });
   const [futureTasks, setFutureTasks] = useState(null);
   const poolSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // On mobile, scroll to bring the grid into view when this view first mounts
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 700px)').matches) return;
+    const grid = containerRef.current?.querySelector('.timebox-grid-wrapper');
+    if (!grid) return;
+    const rect = grid.getBoundingClientRect();
+    if (rect.top > window.innerHeight - 80) {
+      grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weekDates = getWeekDates(weekStartOffset);
   const selectedDay = (() => { const d = new Date(); d.setDate(d.getDate() + dayOffset); return toLocalDateStr(d); })();
@@ -1258,7 +1299,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   })();
 
   const getWindowForDate = (date) =>
-    dayWindows[date] || { start: '09:00', end: '18:00' };
+    dayWindows[date] || { start: '07:00', end: '24:00' };
 
   const handleWindowChange = useCallback((date, newWindow) => {
     setDayWindows(prev => {
@@ -1272,6 +1313,31 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     setBlockedTimes(next);
     saveBlockedTimes(next);
   }, []);
+
+  const handleQuickSchedule = useCallback(async (task) => {
+    const date = selectedDay;
+    const win = dayWindows[date] || { start: '07:00', end: '24:00' };
+    const wStart = parseMinutes(win.start);
+    const wEnd = parseMinutes(win.end);
+    const now = new Date();
+    const isToday = date === toLocalDateStr(now);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
+    const allBlocked = [
+      ...blockedTimes
+        .filter(b => b.date === date)
+        .map(b => ({ start: parseMinutes(b.start), end: parseMinutes(b.end) })),
+      ...taskSource
+        .filter(t => isOnDaysGrid(t, date))
+        .map(t => { const gs = taskGridMinutes(t, date); return { start: gs, end: gs + (t.duration || 30) }; }),
+    ];
+    const cursor = isToday ? Math.max(wStart, snapMinutes(nowMins)) : wStart;
+    const dur = task.duration || 30;
+    const slot = advancePastBlockedGrid(cursor, dur, allBlocked);
+    if (slot + dur > wEnd) return;
+    const scheduled = gridMinsToSchedule(slot, date);
+    await onUpdate(task.id, { scheduled_time: scheduled.scheduled_time, scheduled_date: scheduled.scheduled_date });
+  }, [selectedDay, dayWindows, blockedTimes, tasks, futureTasks, dayOffset, onUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMit = (taskId) => {
     setMitIds(prev => {
@@ -1336,10 +1402,12 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     onApplyTaskUpdates,
     onMarkDone,
     onEditTask: setEditingTask,
+    onCalendarDeleteEvent,
+    onPinPomodoro,
   };
 
   return (
-    <div className="timebox-container">
+    <div className="timebox-container" ref={containerRef}>
       {editingTask && (
         <TaskEditModal
           task={editingTask}
@@ -1354,6 +1422,15 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       <div className="timebox-subview-toggle">
         <button className={`timebox-sub-btn ${subView === 'day' ? 'active' : ''}`} onClick={() => setSubView('day')}>Day</button>
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
+        {onSyncToCalendar && (
+          <button
+            className={`timebox-sub-btn timebox-sync-btn${calendarConnected ? ' connected' : ''}`}
+            onClick={onSyncToCalendar}
+            title={calendarConnected ? 'Sync scheduled tasks to calendar' : 'Connect a calendar'}
+          >
+            {calendarConnected ? '📅 Sync' : '📅 Connect'}
+          </button>
+        )}
       </div>
 
       {subView === 'day' && (() => {
@@ -1392,6 +1469,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
                           onDismiss={handleDismiss}
                           onEdit={setEditingTask}
                           onToggleMit={handleToggleMit}
+                          onScheduleNow={handleQuickSchedule}
                         />
                       ))}
                     </SortableContext>

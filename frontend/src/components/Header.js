@@ -10,7 +10,7 @@ const TIER_COLORS = {
   premium: 'linear-gradient(135deg, #fbbf24, #f97316)',
 };
 
-const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics, analyticsActive }) => {
+const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics, analyticsActive, onShowCalendarSync }) => {
   const { user, subscription, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const tier = subscription?.tier || user?.tier || 'free';
@@ -74,6 +74,15 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
                   title="Analytics"
                 >
                   📊
+                </button>
+              )}
+              {onShowCalendarSync && (tier === 'premium') && (
+                <button
+                  className="header-btn calendar-sync-btn"
+                  onClick={onShowCalendarSync}
+                  title="Calendar Sync"
+                >
+                  📅
                 </button>
               )}
               {onTogglePomodoro && (

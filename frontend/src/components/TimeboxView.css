@@ -147,6 +147,24 @@
   gap: 4px;
 }
 
+.timebox-chip-schedule-btn {
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: rgba(249, 115, 22, 0.8);
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.timebox-chip-schedule-btn:hover {
+  background: rgba(249, 115, 22, 0.25);
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
 @media (max-width: 700px) {
   .timebox-day-layout {
     flex-direction: column;
@@ -259,9 +277,14 @@
   /* Always show action buttons on touch devices (no hover state) */
   .timebox-task .timebox-task-meta { opacity: 1; }
   .timebox-task-meta { gap: 6px; }
+
+  /* Always show chip dismiss and schedule buttons on touch */
+  .timebox-chip-dismiss { opacity: 1; }
+  .timebox-chip-schedule-btn { font-size: 12px; padding: 3px 7px; }
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
+  .timebox-task-pom-btn,
   .timebox-lock-btn,
   .timebox-mit-btn {
     font-size: 14px;
@@ -269,6 +292,7 @@
     min-width: 30px;
     min-height: 30px;
   }
+  .timebox-task-pom-btn { opacity: 1; }
   /* Pool drag handles not useful on touch */
   .timebox-pool-drag-handle { display: none; }
   .timebox-sidebar-chip { cursor: default; }
@@ -279,6 +303,7 @@
   .timebox-task-done-btn,
   .timebox-task-edit-btn,
   .timebox-task-unschedule,
+  .timebox-task-pom-btn,
   .timebox-lock-btn,
   .timebox-mit-btn {
     min-width: 36px;
@@ -780,6 +805,21 @@
   -webkit-box-orient: vertical;
   flex: 1;
 }
+
+.timebox-task-pom-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+
+.timebox-task-pom-btn:hover { opacity: 1; }
 
 .timebox-task-done-btn,
 .timebox-task-edit-btn,
@@ -1652,4 +1692,38 @@
 
 [data-theme="light"] .timebox-week-wrapper::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Calendar sync button ──────────────────────────────────────────────────── */
+.timebox-sync-btn {
+  color: rgba(249, 115, 22, 0.7) !important;
+  margin-left: 4px;
+}
+
+.timebox-sync-btn:hover {
+  color: #f97316 !important;
+  background: rgba(249, 115, 22, 0.1) !important;
+}
+
+.timebox-sync-btn.connected {
+  color: #f97316 !important;
+}
+
+[data-theme="light"] .timebox-sync-btn {
+  color: rgba(249, 115, 22, 0.75) !important;
+}
+
+[data-theme="light"] .timebox-sync-btn:hover {
+  color: #f97316 !important;
+  background: rgba(249, 115, 22, 0.08) !important;
+}
+
+[data-theme="light"] .timebox-chip-schedule-btn {
+  background: rgba(249, 115, 22, 0.08);
+  border-color: rgba(249, 115, 22, 0.2);
+  color: rgba(234, 88, 12, 0.85);
+}
+[data-theme="light"] .timebox-chip-schedule-btn:hover {
+  background: rgba(249, 115, 22, 0.15);
+  color: #ea580c;
 }

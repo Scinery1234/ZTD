@@ -683,6 +683,14 @@ function TaskApp() {
           onSessionComplete={handlePomodoroComplete}
         />
       )}
+
+      <footer className="app-footer">
+        <span>© {new Date().getFullYear()} happen</span>
+        <span className="app-footer-sep">·</span>
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy</a>
+        <span className="app-footer-sep">·</span>
+        <a href="/terms.html" target="_blank" rel="noopener noreferrer">Terms</a>
+      </footer>
     </div>
   );
 }

@@ -5,8 +5,9 @@ import './LooseThreads.css';
 const STORAGE_KEY = 'mh_loose_threads';
 const TRASH_KEY   = 'mh_loose_threads_trash';
 const MAX_OPEN    = 3;
-const FONT_SIZES  = [12, 14, 16, 18, 20];
+const FONT_SIZES  = [8, 10, 12, 14, 16, 18, 20];
 const DEFAULT_FONT_SIZE = 14;
+const OPACITIES = [1, 0.55, 0.25];
 
 const LT_LIMITS = { free: 3, pro: 10, premium: null };
 
@@ -41,10 +42,13 @@ function getSnippet(html) {
   return text.slice(0, 38) || null;
 }
 
-function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
+function NoteEditor({ note, onUpdate, onClose, onFontSize, onTextOpacity }) {
   const editorRef = useRef(null);
   const fontSize = note.fontSize || DEFAULT_FONT_SIZE;
   const sizeIdx = FONT_SIZES.indexOf(fontSize);
+  const textOpacity = note.textOpacity ?? 1;
+  const opacityIdx = OPACITIES.findIndex(o => Math.abs(o - textOpacity) < 0.05);
+  const nextOpacityIdx = ((opacityIdx < 0 ? 0 : opacityIdx) + 1) % OPACITIES.length;
 
   useEffect(() => {
     if (editorRef.current) {
@@ -108,6 +112,12 @@ function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
           disabled={sizeIdx === FONT_SIZES.length - 1}
           title="Larger text"
         >A+</button>
+        <div className="lt-toolbar-sep" />
+        <button
+          className={`lt-toolbar-btn lt-toolbar-btn--opacity${textOpacity < 1 ? ' faint' : ''}`}
+          onMouseDown={(e) => { e.preventDefault(); onTextOpacity(note.id, OPACITIES[nextOpacityIdx]); }}
+          title={`Text opacity: ${Math.round(textOpacity * 100)}% (click to cycle)`}
+        >Aa</button>
       </div>
       <div
         ref={editorRef}
@@ -116,7 +126,7 @@ function NoteEditor({ note, onUpdate, onClose, onFontSize }) {
         suppressContentEditableWarning
         onInput={handleInput}
         data-placeholder="Write here…"
-        style={{ fontSize: `${fontSize}px` }}
+        style={{ fontSize: `${fontSize}px`, opacity: textOpacity }}
       />
     </div>
   );
@@ -165,6 +175,14 @@ export default function LooseThreads() {
   const updateFontSize = useCallback((id, fontSize) => {
     setNotes(prev => {
       const updated = prev.map(n => n.id === id ? { ...n, fontSize } : n);
+      persist(STORAGE_KEY, updated);
+      return updated;
+    });
+  }, []);
+
+  const updateTextOpacity = useCallback((id, textOpacity) => {
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, textOpacity } : n);
       persist(STORAGE_KEY, updated);
       return updated;
     });
@@ -256,6 +274,7 @@ export default function LooseThreads() {
                 onUpdate={updateNote}
                 onClose={closeNote}
                 onFontSize={updateFontSize}
+                onTextOpacity={updateTextOpacity}
               />
             ))}
           </div>

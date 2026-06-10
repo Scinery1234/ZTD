@@ -316,6 +316,70 @@
 
 .pomodoro-sessions-reset:hover { color: rgba(255, 255, 255, 0.5); }
 
+/* Cycle position indicator */
+.pomodoro-cycle-indicator {
+  font-size: 10px;
+  color: rgba(249, 115, 22, 0.5);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Manual task input */
+.pomodoro-manual-task {
+  margin-bottom: 12px;
+}
+
+.pomodoro-manual-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.pomodoro-manual-input::placeholder { color: rgba(255, 255, 255, 0.22); }
+
+.pomodoro-manual-input:focus {
+  border-color: rgba(249, 115, 22, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Settings divider + toggle */
+.pomodoro-settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 4px 0;
+}
+
+.pomodoro-settings-row--toggle {
+  align-items: center;
+}
+
+.pomodoro-toggle-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.pomodoro-toggle-btn.active {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: rgba(249, 115, 22, 0.9);
+}
+
 /* Upgrade state */
 .pomodoro-upgrade {
   text-align: center;
@@ -407,3 +471,29 @@
 }
 [data-theme="light"] .pomodoro-settings-row input:focus { border-color: rgba(234, 88, 12, 0.5); }
 [data-theme="light"] .pomodoro-settings-row span { color: rgba(28, 18, 9, 0.32); }
+
+[data-theme="light"] .pomodoro-settings-divider { background: rgba(0, 0, 0, 0.08); }
+
+[data-theme="light"] .pomodoro-toggle-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: rgba(28, 18, 9, 0.35);
+}
+[data-theme="light"] .pomodoro-toggle-btn.active {
+  background: rgba(234, 88, 12, 0.10);
+  border-color: rgba(234, 88, 12, 0.25);
+  color: #ea580c;
+}
+
+[data-theme="light"] .pomodoro-manual-input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: rgba(28, 18, 9, 0.65);
+}
+[data-theme="light"] .pomodoro-manual-input::placeholder { color: rgba(28, 18, 9, 0.25); }
+[data-theme="light"] .pomodoro-manual-input:focus {
+  border-color: rgba(234, 88, 12, 0.35);
+  color: rgba(28, 18, 9, 0.85);
+}
+
+[data-theme="light"] .pomodoro-cycle-indicator { color: rgba(234, 88, 12, 0.6); }

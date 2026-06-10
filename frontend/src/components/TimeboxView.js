@@ -243,6 +243,7 @@ function saveDismissed(dateStr, ids) {
 function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   const [desc, setDesc] = useState('');
   const [priority, setPriority] = useState('');
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -252,7 +253,8 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   const duration = slot.endMin - slot.startMin;
 
   const handleAddTask = async () => {
-    if (!desc.trim()) return;
+    if (!desc.trim() || loading) return;
+    setLoading(true);
     const { scheduled_time, scheduled_date } = gridMinsToSchedule(slot.startMin, date);
     await onAddTask({
       description: desc.trim(),
@@ -266,7 +268,7 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   };
 
   const handleBlockTime = () => {
-    onBlockTime(slot.startMin, slot.endMin);
+    onBlockTime(slot.startMin, slot.endMin, desc.trim() || null);
     onCancel();
   };
 
@@ -285,7 +287,7 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
         <input
           ref={inputRef}
           className="slot-popup-input"
-          placeholder="Task name…"
+          placeholder="Title…"
           value={desc}
           onChange={e => setDesc(e.target.value)}
           onKeyDown={e => {
@@ -308,9 +310,9 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
           <button
             className="slot-popup-btn slot-popup-btn--task"
             onClick={handleAddTask}
-            disabled={!desc.trim()}
+            disabled={!desc.trim() || loading}
           >
-            + Add Task
+            {loading ? 'Adding…' : '+ Add Task'}
           </button>
           <button className="slot-popup-btn slot-popup-btn--block" onClick={handleBlockTime}>
             Block Time
@@ -864,8 +866,10 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   };
 
 
-  const handleConfirmBlock = (startMin, endMin) => {
-    const next = [...blockedTimes, { date, start: formatTime(startMin), end: formatTime(endMin) }];
+  const handleConfirmBlock = (startMin, endMin, title) => {
+    const entry = { date, start: formatTime(startMin), end: formatTime(endMin) };
+    if (title) entry.title = title;
+    const next = [...blockedTimes, entry];
     onBlockedTimesChange(next);
   };
 
@@ -1001,7 +1005,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
               onClick={() => removeBlocked(blockedTimes.indexOf(b))}
               title="Click to remove blocked time"
             >
-              <span className="timebox-blocked-label">Blocked · {b.start}–{b.end}</span>
+              <span className="timebox-blocked-label">{b.title || 'Blocked'} · {b.start}–{b.end}</span>
             </div>
           ))}
 

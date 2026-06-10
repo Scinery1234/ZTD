@@ -262,6 +262,18 @@
   align-self: center;
 }
 
+.lt-toolbar-btn--opacity {
+  font-size: 11px;
+  letter-spacing: -0.3px;
+  min-width: 24px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.lt-toolbar-btn--opacity.faint {
+  color: rgba(249, 115, 22, 0.7);
+  background: rgba(249, 115, 22, 0.08);
+}
+
 /* Contenteditable body */
 .lt-editor-body {
   padding: 4px 12px 14px;

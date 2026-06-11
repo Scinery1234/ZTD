@@ -521,8 +521,21 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
   const localWindowRef = useRef(localWindow);
+  // Track tasks marked done this session so they stay on the grid
+  const doneOnGrid = useRef(new Map()); // id → task snapshot
 
-  useEffect(() => { setLocalTasks(tasks); }, [tasks]);
+  useEffect(() => {
+    setLocalTasks(() => {
+      const base = tasks.map(t =>
+        doneOnGrid.current.has(t.id) ? { ...t, _doneOnGrid: true } : t
+      );
+      // Re-inject tasks that were marked done and are no longer in tasks prop
+      doneOnGrid.current.forEach((snapshot, id) => {
+        if (!base.some(t => t.id === id)) base.push({ ...snapshot, _doneOnGrid: true });
+      });
+      return base;
+    });
+  }, [tasks]);
   useEffect(() => { setLocalWindow(dayWindow); }, [dayWindow]);
   useEffect(() => { localTasksRef.current = localTasks; }, [localTasks]);
   useEffect(() => { localWindowRef.current = localWindow; }, [localWindow]);
@@ -921,11 +934,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   };
 
   const handleMarkDone = async (task) => {
-    setLocalTasks(prev => prev.filter(t => t.id !== task.id));
+    doneOnGrid.current.set(task.id, task);
+    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, _doneOnGrid: true } : t));
     try {
       if (onMarkDone) await onMarkDone(task.id);
     } catch (err) {
-      setLocalTasks(prev => [...prev, task]);
+      doneOnGrid.current.delete(task.id);
+      setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, _doneOnGrid: false } : t));
     }
   };
 
@@ -1049,6 +1064,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           {scheduled.map(task => {
             const isMit = mitIds.has(task.id);
             const isLocked = Boolean(task.locked);
+            const isDone = Boolean(task._doneOnGrid);
             const gridMins = taskGridMinutes(task, date);
             const taskTop = gridMins * PX_PER_MIN;
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
@@ -1056,7 +1072,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             return (
               <div
                 key={task.id}
-                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''}`}
+                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''} ${isDone ? 'done' : ''}`}
                 style={{ top: taskTop, height: taskHeight, ...(taskHat?.color ? { borderLeft: `3px solid ${taskHat.color}` } : {}) }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
@@ -1094,11 +1110,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                   <div className="timebox-task-meta">
                     <span className="timebox-task-duration">{task.duration || 30}m</span>
                     <button
-                      className="timebox-task-done-btn"
+                      className={`timebox-task-done-btn${isDone ? ' done' : ''}`}
                       onMouseDown={(e) => e.stopPropagation()}
                       onTouchStart={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); handleMarkDone(task); }}
-                      title="Mark as complete"
+                      onClick={(e) => { e.stopPropagation(); if (!isDone) handleMarkDone(task); }}
+                      title={isDone ? 'Completed' : 'Mark as complete'}
                     >✓</button>
                     <button
                       className="timebox-task-edit-btn"

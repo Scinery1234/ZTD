@@ -504,6 +504,91 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
   );
 }
 
+// ── MobileTaskSheet (bottom sheet for tap-to-edit on touch devices) ──────────
+function MobileTaskSheet({ task, date, mitIds, onApply, onMarkDone, onEdit, onToggleMit, onPinPomodoro, onUnschedule, onClose }) {
+  const isDone = Boolean(task._doneOnGrid);
+  const isMit = mitIds.has(task.id);
+  const origGridMins = taskGridMinutes(task, date);
+  const origDuration = task.duration || 30;
+  const [gridMins, setGridMins] = useState(origGridMins);
+  const [duration, setDuration] = useState(origDuration);
+
+  const moveBy = (delta) =>
+    setGridMins(prev => Math.max(0, Math.min(MAX_GRID_MINS - duration, snapMinutes(prev + delta))));
+
+  const resizeBy = (delta) =>
+    setDuration(prev => Math.max(SNAP, prev + delta));
+
+  const hasChanges = gridMins !== origGridMins || duration !== origDuration;
+
+  const handleApplyClose = () => {
+    if (hasChanges) onApply(task, gridMins, duration);
+    onClose();
+  };
+
+  return (
+    <>
+      <div className="mts-backdrop" onClick={handleApplyClose} />
+      <div className="mts-sheet">
+        <div className="mts-handle" onClick={handleApplyClose} />
+        <div className="mts-task-name">{task.description}</div>
+        <div className="mts-time-display">
+          <span>{formatGridTime(gridMins)} – {formatGridTime(gridMins + duration)}</span>
+          <span className="mts-dur-chip">{duration}m</span>
+        </div>
+
+        <div className="mts-section-label">Move</div>
+        <div className="mts-btn-row">
+          <button className="mts-btn" onClick={() => moveBy(-60)}>−1h</button>
+          <button className="mts-btn" onClick={() => moveBy(-30)}>−30m</button>
+          <button className="mts-btn" onClick={() => moveBy(-15)}>−15m</button>
+          <button className="mts-btn" onClick={() => moveBy(+15)}>+15m</button>
+          <button className="mts-btn" onClick={() => moveBy(+30)}>+30m</button>
+          <button className="mts-btn" onClick={() => moveBy(+60)}>+1h</button>
+        </div>
+
+        <div className="mts-section-label">Duration</div>
+        <div className="mts-btn-row">
+          <button className="mts-btn" onClick={() => resizeBy(-30)}>−30m</button>
+          <button className="mts-btn" onClick={() => resizeBy(-15)}>−15m</button>
+          <button className="mts-btn" onClick={() => resizeBy(+15)}>+15m</button>
+          <button className="mts-btn" onClick={() => resizeBy(+30)}>+30m</button>
+        </div>
+
+        <div className="mts-divider" />
+
+        <div className="mts-actions">
+          {!isDone && (
+            <button className="mts-action-btn mts-action-done"
+              onClick={() => { handleApplyClose(); onMarkDone(task); }}>
+              ✓ Done
+            </button>
+          )}
+          <button className="mts-action-btn" onClick={() => { onClose(); onEdit(task); }}>✎ Edit</button>
+          <button className={`mts-action-btn${isMit ? ' active' : ''}`}
+            onClick={() => onToggleMit(task.id)}>
+            ⭐{isMit ? ' ✓' : ' MIT'}
+          </button>
+          {onPinPomodoro && (
+            <button className="mts-action-btn"
+              onClick={() => { handleApplyClose(); onPinPomodoro(task); }}>
+              🍅 Pomo
+            </button>
+          )}
+          <button className="mts-action-btn mts-action-remove"
+            onClick={() => { onClose(); onUnschedule(task); }}>
+            × Remove
+          </button>
+        </div>
+
+        <button className="mts-confirm-btn" onClick={handleApplyClose}>
+          {hasChanges ? 'Save & Close' : 'Close'}
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
 function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro }) {
   const gridRef = useRef(null);
@@ -518,6 +603,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
   const [dragOverMins, setDragOverMins] = useState(null);
   const [isBlockMode, setIsBlockMode] = useState(false);
+  const [mobileTappedTask, setMobileTappedTask] = useState(null);
 
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
@@ -630,6 +716,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   // During the hold window, finger movement is delegated to the grid's scrollTop
   // so scrolling still works even when the finger lands on a task block.
   const handleTaskTouchStart = useCallback((task, gridMins, e) => {
+    // Touch devices use the tap sheet — long-press drag is desktop-only
+    if (window.matchMedia('(pointer: coarse)').matches) return;
     // Let resize handles and action buttons handle their own touches
     if (e.target.classList.contains('timebox-task-resize-top') ||
         e.target.classList.contains('timebox-task-resize-bottom') ||
@@ -944,6 +1032,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     }
   };
 
+  const handleMobileApply = useCallback(async (task, newGridMins, newDuration) => {
+    const updates = { ...gridMinsToSchedule(newGridMins, date), duration: newDuration };
+    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+    await onUpdateTask(task.id, updates);
+    if (onApplyTaskUpdates) onApplyTaskUpdates([{ id: task.id, ...updates }]);
+  }, [date, onUpdateTask, onApplyTaskUpdates]);
+
   const handleMarkDone = async (task) => {
     doneOnGrid.current.set(task.id, task);
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, _doneOnGrid: true } : t));
@@ -1093,6 +1188,12 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
                 className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''} ${isDone ? 'done' : ''}`}
                 style={{ top: taskTop, height: taskHeight, ...(taskHat?.color ? { borderLeft: `3px solid ${taskHat.color}` } : {}) }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
+                onClick={(e) => {
+                  if (window.matchMedia('(pointer: coarse)').matches) {
+                    e.stopPropagation();
+                    setMobileTappedTask(task);
+                  }
+                }}
                 onMouseDown={(e) => {
                   if (isLocked) return;
                   if (e.target.classList.contains('timebox-task-resize-top') ||
@@ -1198,6 +1299,25 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           onCancel={() => { setPendingSlot(null); setIsBlockMode(false); }}
         />
       )}
+
+      {/* Mobile task sheet — shown on tap on touch devices */}
+      {mobileTappedTask && (() => {
+        const liveTask = localTasks.find(t => t.id === mobileTappedTask.id) || mobileTappedTask;
+        return (
+          <MobileTaskSheet
+            task={liveTask}
+            date={date}
+            mitIds={mitIds}
+            onApply={handleMobileApply}
+            onMarkDone={handleMarkDone}
+            onEdit={onEditTask}
+            onToggleMit={onToggleMit}
+            onPinPomodoro={onPinPomodoro}
+            onUnschedule={handleUnschedule}
+            onClose={() => setMobileTappedTask(null)}
+          />
+        );
+      })()}
 
 
       {/* Task pool — all unscheduled tasks (always shown in day view / today's week col) */}

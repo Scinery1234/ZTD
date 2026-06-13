@@ -517,6 +517,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const [pendingSlot, setPendingSlot] = useState(null);
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
   const [dragOverMins, setDragOverMins] = useState(null);
+  const [isBlockMode, setIsBlockMode] = useState(false);
 
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
@@ -878,6 +879,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
   };
 
+  const handleGridTouchStart = (e) => {
+    if (!isBlockMode) return;
+    if (e.target !== gridRef.current) return;
+    if (!wrapperRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const y = getRelativeY({ clientY: touch.clientY }, wrapperRef.current);
+    const mins = snapMinutes(Math.max(0, Math.min(MAX_GRID_MINS, yToMinutes(y))));
+    setBlockDrag({ startMin: mins, endMin: mins, screenX: touch.clientX, screenY: touch.clientY });
+  };
 
   const handleConfirmBlock = (startMin, endMin, title) => {
     const entry = { date, start: formatTime(startMin), end: formatTime(endMin) };
@@ -963,6 +974,11 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         <div className="timebox-col-date">{formatDateLabel(date)}</div>
         <div className="timebox-col-actions">
           <span className="timebox-mit-count">⭐ {[...mitIds].filter(id => columnTasks.some(t => t.id === id)).length}/3</span>
+          <button
+            className={`timebox-block-btn${isBlockMode ? ' active' : ''}`}
+            onClick={() => setIsBlockMode(m => !m)}
+            title={isBlockMode ? 'Exit block mode' : 'Block time — tap and drag on grid'}
+          >⊘ Block</button>
           <button className="timebox-auto-btn" onClick={handleAutoSchedule} title="Auto-schedule tasks">
             ⚡ Auto
           </button>
@@ -975,7 +991,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         onDrop={handleGridDrop}
         onDragLeave={handleGridDragLeave}
       >
-        <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
+        <div className={`timebox-grid${isBlockMode ? ' block-mode' : ''}`} ref={gridRef}
+          onMouseDown={handleGridMouseDown}
+          onTouchStart={handleGridTouchStart}
           style={{ height: GRID_HEIGHT }}>
 
           {/* Drag-from-sidebar preview */}
@@ -1177,7 +1195,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           date={date}
           onAddTask={onAddTask}
           onBlockTime={handleConfirmBlock}
-          onCancel={() => setPendingSlot(null)}
+          onCancel={() => { setPendingSlot(null); setIsBlockMode(false); }}
         />
       )}
 

@@ -549,6 +549,35 @@
   border-color: rgba(249, 115, 22, 0.65);
 }
 
+.timebox-block-btn {
+  padding: 5px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.timebox-block-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.timebox-block-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: rgba(167, 139, 250, 0.95);
+}
+
+.timebox-block-btn.active:hover {
+  background: rgba(99, 102, 241, 0.3);
+}
+
 /* ── Grid wrapper ──────────────────────────────────────────────────────────── */
 .timebox-grid-wrapper {
   position: relative;
@@ -572,6 +601,10 @@
   user-select: none;
   cursor: crosshair;
   touch-action: pan-y; /* allow native vertical scroll in empty areas */
+}
+
+.timebox-grid.block-mode {
+  touch-action: none; /* capture touch drag for block-time gesture */
 }
 
 /* ── Hour labels + lines ───────────────────────────────────────────────────── */

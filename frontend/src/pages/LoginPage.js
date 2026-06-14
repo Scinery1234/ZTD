@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import { api } from '../api';
+import { track } from '../analytics';
 import './AuthPages.css';
 
 function ForgotPasswordView({ onBack }) {
@@ -85,6 +86,7 @@ function LoginPage({ onSwitch, onGuest, onRegister }) {
     setLoading(true);
     try {
       await login(form.email, form.password, remember);
+      track('login');
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {

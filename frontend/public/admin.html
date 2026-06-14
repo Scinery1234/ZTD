@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>happen · Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0e17;
+    color: rgba(255,255,255,0.85);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── Auth gate ────────────────────────────────────────────────────── */
+  #gate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 16px;
+  }
+  #gate h1 { font-size: 22px; color: rgba(255,255,255,0.9); }
+  #gate p  { color: rgba(255,255,255,0.4); font-size: 13px; }
+  #gate input, #api-url {
+    width: 320px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  #gate input:focus, #api-url:focus { border-color: rgba(249,115,22,0.5); }
+  #gate button {
+    width: 320px;
+    padding: 12px;
+    background: rgba(249,115,22,0.25);
+    border: 1px solid rgba(249,115,22,0.4);
+    border-radius: 10px;
+    color: rgba(251,191,36,0.95);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  #gate button:hover { background: rgba(249,115,22,0.38); }
+  #gate .err { color: #f87171; font-size: 12px; }
+
+  /* ── Dashboard ────────────────────────────────────────────────────── */
+  #dash { display: none; max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+  #dash.visible { display: block; }
+
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .dash-title { font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.9); }
+  .dash-sub   { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+  .dash-refresh {
+    padding: 7px 14px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .dash-refresh:hover { background: rgba(255,255,255,0.1); }
+
+  /* ── Metric cards ─────────────────────────────────────────────────── */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .metric {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .metric-label { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 6px; }
+  .metric-value { font-size: 28px; font-weight: 700; color: rgba(251,191,36,0.9); line-height: 1; }
+  .metric-sub   { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+  .metric.highlight { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
+
+  /* ── Sections ─────────────────────────────────────────────────────── */
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 12px;
+  }
+
+  /* ── Search ───────────────────────────────────────────────────────── */
+  .search-bar {
+    width: 100%;
+    max-width: 320px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    margin-bottom: 12px;
+  }
+  .search-bar:focus { border-color: rgba(249,115,22,0.4); }
+
+  /* ── Table ────────────────────────────────────────────────────────── */
+  .tbl-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { color: rgba(255,255,255,0.6); }
+  thead th.sort-asc::after  { content: ' ↑'; }
+  thead th.sort-desc::after { content: ' ↓'; }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  td { padding: 9px 14px; font-size: 13px; white-space: nowrap; color: rgba(255,255,255,0.75); }
+  td.email { color: rgba(255,255,255,0.9); font-weight: 500; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-free     { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5); }
+  .badge-pro      { background: rgba(99,102,241,0.2);   color: rgba(167,139,250,0.9); }
+  .badge-premium  { background: rgba(249,115,22,0.2);   color: rgba(251,191,36,0.9); }
+  .badge-ok       { background: rgba(34,197,94,0.12);   color: rgba(74,222,128,0.85); }
+
+  /* ── Events grid ──────────────────────────────────────────────────── */
+  .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .event-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+  }
+  .event-name { font-size: 12px; color: rgba(255,255,255,0.7); }
+  .event-count { font-size: 14px; font-weight: 700; color: rgba(251,191,36,0.85); }
+
+  /* ── Loading ──────────────────────────────────────────────────────── */
+  .loading { text-align: center; padding: 40px; color: rgba(255,255,255,0.35); }
+  #last-updated { font-size: 11px; color: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<!-- ── Auth gate ──────────────────────────────────────────────────────────── -->
+<div id="gate">
+  <h1>happen · Admin</h1>
+  <p>Internal analytics &amp; CRM</p>
+  <input id="api-url" type="text" placeholder="API URL  (default: /api)" />
+  <input id="key-input" type="password" placeholder="Admin secret key" autocomplete="current-password" />
+  <button onclick="tryLogin()">Sign in</button>
+  <div class="err" id="gate-err"></div>
+</div>
+
+<!-- ── Dashboard ─────────────────────────────────────────────────────────── -->
+<div id="dash">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">happen · Admin</div>
+      <div class="dash-sub" id="last-updated"></div>
+    </div>
+    <button class="dash-refresh" onclick="loadData()">↺ Refresh</button>
+  </div>
+
+  <div class="loading" id="loading">Loading…</div>
+
+  <div id="content" style="display:none">
+    <!-- Overview metrics -->
+    <div class="metrics" id="metrics"></div>
+
+    <!-- Feature usage events (last 30 days) -->
+    <div class="section">
+      <div class="section-title">Feature usage — last 30 days</div>
+      <div class="events-grid" id="events-grid"></div>
+    </div>
+
+    <!-- User table -->
+    <div class="section">
+      <div class="section-title">All users</div>
+      <input class="search-bar" id="user-search" placeholder="Search email or name…" oninput="filterUsers()" />
+      <div class="tbl-wrap">
+        <table id="user-table">
+          <thead>
+            <tr>
+              <th onclick="sortBy('email')">Email</th>
+              <th onclick="sortBy('name')">Name</th>
+              <th onclick="sortBy('tier')">Tier</th>
+              <th onclick="sortBy('joined')">Joined</th>
+              <th onclick="sortBy('last_seen')">Last seen</th>
+              <th onclick="sortBy('tasks_active')">Active</th>
+              <th onclick="sortBy('tasks_done')">Done</th>
+              <th>✓</th>
+            </tr>
+          </thead>
+          <tbody id="user-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let API_BASE = '/api';
+  let ADMIN_KEY = '';
+  let ALL_USERS = [];
+  let SORT_COL  = 'joined';
+  let SORT_DIR  = -1; // -1 = desc
+
+  function tryLogin() {
+    const keyInput = document.getElementById('key-input').value.trim();
+    const urlInput = document.getElementById('api-url').value.trim();
+    if (!keyInput) { showErr('Enter your admin key.'); return; }
+    ADMIN_KEY = keyInput;
+    if (urlInput) API_BASE = urlInput.replace(/\/$/, '');
+    loadData();
+  }
+
+  document.getElementById('key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryLogin();
+  });
+
+  function showErr(msg) {
+    document.getElementById('gate-err').textContent = msg;
+  }
+
+  async function loadData() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('content').style.display = 'none';
+    try {
+      const res = await fetch(`${API_BASE}/admin/analytics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_key: ADMIN_KEY }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        if (res.status === 403) { showErr(d.error || 'Wrong key.'); return; }
+        throw new Error(d.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      render(data);
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('dash').classList.add('visible');
+      document.getElementById('last-updated').textContent =
+        'Updated ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      showErr(err.message);
+    } finally {
+      document.getElementById('loading').style.display = 'none';
+    }
+  }
+
+  function render(data) {
+    const ov = data.overview;
+    const paying = (ov.tiers.pro || 0) + (ov.tiers.premium || 0);
+    document.getElementById('metrics').innerHTML = `
+      <div class="metric highlight">
+        <div class="metric-label">Total users</div>
+        <div class="metric-value">${ov.total_users}</div>
+        <div class="metric-sub">${paying} paying</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">New today</div>
+        <div class="metric-value">${ov.new_today}</div>
+        <div class="metric-sub">${ov.new_week} this week</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">New month</div>
+        <div class="metric-value">${ov.new_month}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">DAU</div>
+        <div class="metric-value">${ov.dau}</div>
+        <div class="metric-sub">active in 24h</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">WAU</div>
+        <div class="metric-value">${ov.wau}</div>
+        <div class="metric-sub">active in 7d</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">MAU</div>
+        <div class="metric-value">${ov.mau}</div>
+        <div class="metric-sub">active in 30d</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Free</div>
+        <div class="metric-value">${ov.tiers.free || 0}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Pro</div>
+        <div class="metric-value">${ov.tiers.pro || 0}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Premium</div>
+        <div class="metric-value">${ov.tiers.premium || 0}</div>
+      </div>
+    `;
+
+    // Events
+    const evGrid = document.getElementById('events-grid');
+    evGrid.innerHTML = data.top_events.length
+      ? data.top_events.map(e => `
+          <div class="event-chip">
+            <span class="event-name">${e.event}</span>
+            <span class="event-count">${e.count.toLocaleString()}</span>
+          </div>`).join('')
+      : '<div style="color:rgba(255,255,255,.3);font-size:13px">No events recorded yet — events will appear after users interact with the app.</div>';
+
+    ALL_USERS = data.users;
+    renderUsers();
+    document.getElementById('content').style.display = 'block';
+  }
+
+  function tierBadge(t) {
+    const cls = { free:'badge-free', pro:'badge-pro', premium:'badge-premium' }[t] || 'badge-free';
+    return `<span class="badge ${cls}">${t}</span>`;
+  }
+
+  function relTime(iso) {
+    if (!iso) return '<span style="color:rgba(255,255,255,.25)">—</span>';
+    const diff = Date.now() - new Date(iso).getTime();
+    const h = diff / 3600000;
+    if (h < 1)  return Math.round(diff/60000) + 'm ago';
+    if (h < 24) return Math.round(h) + 'h ago';
+    const d = Math.floor(h / 24);
+    if (d < 30) return d + 'd ago';
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+  }
+
+  function renderUsers() {
+    const q = (document.getElementById('user-search').value || '').toLowerCase();
+    let users = ALL_USERS.filter(u =>
+      !q || u.email.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q)
+    );
+    users.sort((a, b) => {
+      const av = a[SORT_COL] ?? '';
+      const bv = b[SORT_COL] ?? '';
+      return (av < bv ? -1 : av > bv ? 1 : 0) * SORT_DIR;
+    });
+
+    const ths = document.querySelectorAll('#user-table thead th');
+    const cols = ['email','name','tier','joined','last_seen','tasks_active','tasks_done','verified'];
+    ths.forEach((th, i) => {
+      th.className = '';
+      if (cols[i] === SORT_COL) th.className = SORT_DIR === 1 ? 'sort-asc' : 'sort-desc';
+    });
+
+    document.getElementById('user-tbody').innerHTML = users.map(u => `
+      <tr>
+        <td class="email" title="${u.email}">${u.email}</td>
+        <td>${u.name || '—'}</td>
+        <td>${tierBadge(u.tier)}</td>
+        <td>${fmtDate(u.joined)}</td>
+        <td>${relTime(u.last_seen)}</td>
+        <td>${u.tasks_active}</td>
+        <td>${u.tasks_done}</td>
+        <td>${u.verified ? '<span class="badge badge-ok">✓</span>' : '<span style="color:rgba(255,255,255,.3)">—</span>'}</td>
+      </tr>`).join('');
+  }
+
+  function filterUsers() { renderUsers(); }
+
+  function sortBy(col) {
+    if (SORT_COL === col) SORT_DIR *= -1;
+    else { SORT_COL = col; SORT_DIR = -1; }
+    renderUsers();
+  }
+
+  // Auto-refresh every 60 seconds when dashboard is visible
+  setInterval(() => {
+    if (document.getElementById('dash').classList.contains('visible')) loadData();
+  }, 60000);
+</script>
+</body>
+</html>

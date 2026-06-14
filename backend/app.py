@@ -289,6 +289,16 @@ class CalendarConnection(db.Model):
         }
 
 
+class AnalyticsEvent(db.Model):
+    __tablename__ = 'analytics_event'
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    event_name = db.Column(db.String(100), nullable=False)
+    properties = db.Column(db.Text, nullable=True)   # JSON string
+    session_id = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # --- Helpers ---
 def parse_task_input(input_str):
     pattern = r"(?P<desc>.+?)(?:\s+@(?P<cat>[^!~^]+))?(?:\s*!\s*(?P<prio>urgent|today|tomorrow|later))?(?:\s*~\s*(?P<recur>daily|weekly|monthly))?(?:\s*\^\s*(?P<due>.+))?$"
@@ -1400,6 +1410,124 @@ def admin_set_tier():
     user.tier = tier
     db.session.commit()
     return jsonify({'ok': True, 'email': user.email, 'tier': user.tier})
+
+
+@app.route('/api/events/track', methods=['POST'])
+@jwt_required(optional=True)
+def track_event():
+    user_id = None
+    try:
+        uid = get_jwt_identity()
+        if uid:
+            user_id = int(uid)
+    except Exception:
+        pass
+    data = request.json or {}
+    event_name = (data.get('event') or '').strip()[:100]
+    if not event_name:
+        return jsonify({'ok': False}), 400
+    props = data.get('properties') or {}
+    ev = AnalyticsEvent(
+        user_id=user_id,
+        event_name=event_name,
+        properties=json.dumps(props) if props else None,
+        session_id=(data.get('session_id') or '')[:64] or None,
+        created_at=datetime.utcnow(),
+    )
+    db.session.add(ev)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/analytics', methods=['GET', 'POST'])
+def admin_analytics():
+    admin_key = os.getenv('ADMIN_SECRET_KEY')
+    if not admin_key:
+        return jsonify({'error': 'Admin access not configured'}), 403
+    provided = (
+        request.headers.get('X-Admin-Key') or
+        request.args.get('admin_key') or
+        (request.json or {}).get('admin_key', '')
+    )
+    if provided != admin_key:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    from sqlalchemy import func as sqlfunc
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start  = today_start - timedelta(days=6)
+    month_start = today_start - timedelta(days=29)
+    day1 = now - timedelta(hours=24)
+    day7 = now - timedelta(days=7)
+    day30 = now - timedelta(days=30)
+
+    # User counts
+    total_users = User.query.count()
+    new_today   = User.query.filter(User.created_at >= today_start).count()
+    new_week    = User.query.filter(User.created_at >= week_start).count()
+    new_month   = User.query.filter(User.created_at >= month_start).count()
+    tier_counts = {t: User.query.filter_by(tier=t).count() for t in TIERS}
+
+    # Active users via events
+    def distinct_active(since):
+        return (db.session.query(sqlfunc.count(sqlfunc.distinct(AnalyticsEvent.user_id)))
+                .filter(AnalyticsEvent.created_at >= since, AnalyticsEvent.user_id.isnot(None))
+                .scalar() or 0)
+    dau = distinct_active(day1)
+    wau = distinct_active(day7)
+    mau = distinct_active(day30)
+
+    # Top events last 30 days
+    top_events = (db.session.query(AnalyticsEvent.event_name,
+                                   sqlfunc.count(AnalyticsEvent.id).label('n'))
+                  .filter(AnalyticsEvent.created_at >= day30)
+                  .group_by(AnalyticsEvent.event_name)
+                  .order_by(sqlfunc.count(AnalyticsEvent.id).desc())
+                  .limit(20).all())
+
+    # Per-user stats
+    last_seen_map = dict(
+        db.session.query(AnalyticsEvent.user_id,
+                         sqlfunc.max(AnalyticsEvent.created_at))
+        .filter(AnalyticsEvent.user_id.isnot(None))
+        .group_by(AnalyticsEvent.user_id).all()
+    )
+    task_count_map = dict(
+        db.session.query(Task.user_id, sqlfunc.count(Task.id))
+        .group_by(Task.user_id).all()
+    )
+    done_count_map = dict(
+        db.session.query(DoneTask.user_id, sqlfunc.count(DoneTask.id))
+        .group_by(DoneTask.user_id).all()
+    )
+
+    users = User.query.order_by(User.created_at.desc()).all()
+    user_rows = [{
+        'id': u.id,
+        'email': u.email,
+        'name': u.name,
+        'tier': u.tier,
+        'verified': bool(u.email_verified),
+        'joined': u.created_at.isoformat(),
+        'last_seen': last_seen_map[u.id].isoformat() if u.id in last_seen_map else None,
+        'tasks_active': task_count_map.get(u.id, 0),
+        'tasks_done': done_count_map.get(u.id, 0),
+    } for u in users]
+
+    return jsonify({
+        'overview': {
+            'total_users': total_users,
+            'new_today': new_today,
+            'new_week': new_week,
+            'new_month': new_month,
+            'tiers': tier_counts,
+            'dau': dau,
+            'wau': wau,
+            'mau': mau,
+        },
+        'users': user_rows,
+        'top_events': [{'event': r[0], 'count': r[1]} for r in top_events],
+    })
 
 
 # === Calendar OAuth & Sync Endpoints (premium) ===

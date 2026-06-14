@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
+import { track } from '../analytics';
 import './AuthPages.css';
 
 function RegisterPage({ onSwitch, onGuest }) {
@@ -56,6 +57,7 @@ function RegisterPage({ onSwitch, onGuest }) {
           setTimeout(() => reject(new Error('Registration timed out. Please try again.')), 20000)
         ),
       ]);
+      track('register');
       setInfo('Account created! Redirecting…');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');

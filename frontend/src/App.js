@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { api } from './api';
+import { track } from './analytics';
 import { asArray } from './utils/arrays';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
@@ -384,10 +385,11 @@ function TaskApp() {
   // Load in background — shell renders immediately; banner until first sync completes
   useEffect(() => {
     setDataSyncing(true);
+    track('app_opened', { tier: user?.tier });
     void Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()])
       .catch((e) => console.error('Bootstrap fetch failed:', e))
       .finally(() => setDataSyncing(false));
-  }, [fetchTasks, fetchDoneTasks]);
+  }, [fetchTasks, fetchDoneTasks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleHat = (hatId) => {
     if (hatId === null) {
@@ -414,6 +416,7 @@ function TaskApp() {
     try {
       setLimitError('');
       await api.addTask({ ...taskData, hat_id });
+      track('task_created', { priority: taskData.priority || '' });
       await fetchTasks();
       await refreshSubscription();
     } catch (err) {
@@ -459,6 +462,7 @@ function TaskApp() {
     setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
       await api.markDone(taskId);
+      track('task_completed');
       await fetchDoneTasks();
       await refreshSubscription();
     } catch (err) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { track } from '../analytics';
 import './PomodoroTimer.css';
 
 const SESSION_KEY  = 'mh_pomodoro_sessions';
@@ -162,8 +163,11 @@ export default function PomodoroTimer({ pinnedTask, onClose, onClearPin, onSessi
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = () => {
-    if (!running && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (!running) {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      track('pomodoro_started');
     }
     setRunning(r => !r);
   };

@@ -22,6 +22,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyBanner from './components/VerifyBanner';
 import CalendarSync from './components/CalendarSync';
 import LooseThreads from './components/LooseThreads';
+import ChatPanel from './components/ChatPanel';
 import {
   DndContext,
   closestCenter,
@@ -683,6 +684,15 @@ function TaskApp() {
           onSessionComplete={handlePomodoroComplete}
         />
       )}
+
+      <ChatPanel
+        hatId={selectedHatIds.size === 1 ? [...selectedHatIds][0] : null}
+        onTasksChanged={() => {
+          fetchTasks();
+          fetchDoneTasks();
+          refreshSubscription();
+        }}
+      />
     </div>
   );
 }

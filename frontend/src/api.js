@@ -222,4 +222,16 @@ export const api = {
     apiFetch(`/calendar/disconnect/${provider}`, { method: 'DELETE' }),
   calendarDeleteEvent: (taskId) =>
     apiFetch(`/calendar/event/${taskId}`, { method: 'DELETE' }),
+
+  // AI Chat (add / delete / bulk-modify tasks via natural language)
+  chat: (message, hat_id, history) =>
+    apiFetch('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, ...(hat_id != null ? { hat_id } : {}), history: history || [] }),
+    }),
+  chatUndo: (undo_token) =>
+    apiFetch('/chat/undo', {
+      method: 'POST',
+      body: JSON.stringify(undo_token != null ? { undo_token } : {}),
+    }),
 };

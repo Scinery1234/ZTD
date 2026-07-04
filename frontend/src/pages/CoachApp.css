@@ -3,7 +3,7 @@
   /* Fixed viewport height (not min-height): every hub view scrolls
      internally, so a long task rail must never grow the page and push
      the chat composer below the fold. */
-  height: 100dvh;
+  height: var(--vvh, 100dvh); /* visualViewport-driven when the keyboard is open */
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -145,7 +145,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   padding: 11px 12px;
-  font-size: 14px;
+  font-size: 16px; /* >=16px or iOS Safari zooms the page on focus */
   font-family: inherit;
   color: rgba(255, 255, 255, 0.92);
   outline: none;

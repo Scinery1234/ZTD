@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api';
+import { useKeyboardViewport } from '../hooks/useKeyboardViewport';
 import './AIHub.css';
 
 /*
@@ -372,6 +373,23 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
   }, [messages, busy]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Stay pinned to the latest messages when the pane resizes (mobile keyboard
+  // opening/closing) — but only if the user was already reading the bottom.
+  const nearBottomRef = useRef(true);
+  const onThreadScroll = () => {
+    const el = listRef.current;
+    if (el) nearBottomRef.current = (el.scrollHeight - el.clientHeight - el.scrollTop) < 160;
+  };
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      if (nearBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Track newly added task ids so the rail can pulse them briefly.
   const prevIds = useRef(new Set((tasks || []).map((t) => t.id)));
   useEffect(() => {
@@ -482,7 +500,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
       )}
 
       <div className="aih-convo__body">
-        <div className="aih-thread" ref={listRef}>
+        <div className="aih-thread" ref={listRef} onScroll={onThreadScroll}>
           {messages === null && (
             <div className="aih-msg aih-msg--assistant">
               <div className="aih-bubble aih-bubble--typing"><span></span><span></span><span></span></div>
@@ -592,6 +610,10 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
   const [active, setActive] = useState(null); // active tool object, or null = hub
   const [crisis, setCrisis] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+
+  // Size the hub to the visible viewport so the iOS keyboard doesn't hide
+  // the composer or the latest messages.
+  useKeyboardViewport(standalone || open);
 
   const showCrisis = useCallback(() => setCrisis(true), []);
 

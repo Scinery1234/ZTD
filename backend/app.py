@@ -1834,6 +1834,13 @@ def serve_homepage():
 
 @app.route('/<path:path>')
 def serve_frontend(path):
+    # Never serve HTML for API paths — an /api/* URL landing here means the
+    # route doesn't exist on this build (e.g. frontend newer than backend).
+    if path == 'api' or path.startswith('api/'):
+        return jsonify({
+            'error': 'Unknown API endpoint. The server may be running an '
+                     'older version — check the backend deployment.',
+        }), 404
     full = os.path.join(_FRONTEND_BUILD, path)
     if os.path.isfile(full):
         return send_from_directory(_FRONTEND_BUILD, path)

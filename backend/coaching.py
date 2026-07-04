@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 
 try:
     import anthropic
@@ -441,6 +442,7 @@ class CoachingService:
         return "\n".join(lines)
 
     def _system_prompt(self, user, coach):
+        today = datetime.today().strftime("%Y-%m-%d (%A)")
         snapshot = self._task_snapshot(user.id)
         memory = (memory_prompt_block(self.CoachMemory, user.id)
                   if self.CoachMemory is not None else "")
@@ -448,7 +450,9 @@ class CoachingService:
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
-            f"\n\nThe user's current MadeHappen tasks:\n{snapshot}"
+            f"\n\nToday is {today}."
+            f"\nThe user's current MadeHappen tasks (⏰/scheduled = a planned "
+            f"slot on their calendar):\n{snapshot}"
             f"{memory}"
             f"{_SAFETY}"
         )

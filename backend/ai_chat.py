@@ -85,7 +85,8 @@ TOOLS = [
             "request refers to existing tasks (e.g. 'delete my shopping tasks', "
             "'make everything due tomorrow urgent') so you can resolve them to "
             "real task ids before modifying or deleting. Returns id, description, "
-            "category, priority, recurring, due and hat_id for each match."
+            "category, priority, recurring, due, hat_id and the calendar slot "
+            "(scheduled_time, scheduled_date, duration) for each match."
         ),
         "strict": True,
         "input_schema": {
@@ -365,6 +366,13 @@ class TaskChatService:
                 bits.append(f"!{t.priority}")
             if t.due:
                 bits.append(f"due {t.due}")
+            if t.scheduled_time:
+                when = f"⏰ {t.scheduled_time}"
+                if t.scheduled_date:
+                    when += f" on {t.scheduled_date}"
+                if t.duration:
+                    when += f" ({t.duration}min)"
+                bits.append(when)
             lines.append("  " + " · ".join(bits))
         if truncated:
             lines.append("  … (more tasks exist — use list_tasks for the full view)")
@@ -397,7 +405,8 @@ class TaskChatService:
             "clarifying question instead of acting.\n"
             "- After acting, reply with one short, friendly sentence summarizing "
             "what you changed.\n\n"
-            "The user's current tasks (may be truncated — ids are real):\n"
+            "The user's current tasks (may be truncated — ids are real; ⏰ marks "
+            "a planned slot on their calendar):\n"
             f"{snapshot}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
             f"{memory}"
@@ -466,6 +475,9 @@ class TaskChatService:
                 "recurring": t.recurring or "",
                 "due": t.due,
                 "hat_id": t.hat_id,
+                "scheduled_time": t.scheduled_time,
+                "scheduled_date": t.scheduled_date,
+                "duration": t.duration,
             })
         return {"content": {"tasks": rows, "count": len(rows)}}
 

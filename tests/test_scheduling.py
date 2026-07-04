@@ -236,5 +236,44 @@ class AssistantSchedulingTests(SchedulingServiceBase):
         self.assertEqual(restored.scheduled_date, self.date)
 
 
+class CalendarVisibilityTests(SchedulingServiceBase):
+    """The chatbot must see planned (calendar-scheduled) tasks."""
+
+    def _gym(self):
+        t = Task(user_id=self.user.id, description='Gym session',
+                 scheduled_time='07:00', scheduled_date=self.date,
+                 duration=45, position=1)
+        db.session.add(t)
+        db.session.commit()
+        return t
+
+    def test_assistant_snapshot_shows_calendar_slot(self):
+        self._gym()
+        snap = self.chat._task_snapshot(self.user.id)
+        self.assertIn('Gym session', snap)
+        self.assertIn('⏰ 07:00', snap)
+        self.assertIn(f'on {self.date}', snap)
+        self.assertIn('(45min)', snap)
+
+    def test_assistant_list_tasks_returns_calendar_fields(self):
+        t = self._gym()
+        res = self.chat._list_tasks(self.user.id,
+                                    {'query': '', 'category': '', 'priority': ''})
+        row = next(r for r in res['content']['tasks'] if r['id'] == t.id)
+        self.assertEqual(row['scheduled_time'], '07:00')
+        self.assertEqual(row['scheduled_date'], self.date)
+        self.assertEqual(row['duration'], 45)
+
+    def test_coach_prompt_shows_calendar_slot_and_today(self):
+        from backend.coaching import COACHES
+        from datetime import datetime as _dt
+        self._gym()
+        prompt = self.coach._system_prompt(self.user, COACHES['exec'])
+        self.assertIn('Gym session', prompt)
+        self.assertIn('scheduled: 07:00', prompt)
+        self.assertIn(f'on {self.date}', prompt)
+        self.assertIn(f"Today is {_dt.today().strftime('%Y-%m-%d')}", prompt)
+
+
 if __name__ == '__main__':
     unittest.main()

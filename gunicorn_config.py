@@ -15,6 +15,20 @@ def post_worker_init(_worker) -> None:
 
     with app.app_context():
         db.create_all()
+
+        # db.create_all() does not add columns to existing tables.
+        # Run idempotent ALTER TABLE statements for any columns added
+        # after the initial table creation.
+        from sqlalchemy import text, inspect as sa_inspect
+        insp = sa_inspect(db.engine)
+        user_cols = {c["name"] for c in insp.get_columns("user")}
+        if "email_verified" not in user_cols:
+            db.session.execute(text(
+                'ALTER TABLE "user" ADD COLUMN email_verified BOOLEAN DEFAULT FALSE'
+            ))
+            db.session.commit()
+            logger.info("Migration: added email_verified column to user table")
+
         ensure_bootstrap_admin()
 
         raw = os.environ.get("PREMIUM_USERS") or ""

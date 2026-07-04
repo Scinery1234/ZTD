@@ -234,4 +234,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(undo_token != null ? { undo_token } : {}),
     }),
+
+  // AI Coaching Hub (CBT, action, executive-function, charge, clarity coaches)
+  coach: (coach_id, message, hat_id, history) =>
+    apiFetch('/coach', {
+      method: 'POST',
+      body: JSON.stringify({
+        coach_id,
+        message,
+        ...(hat_id != null ? { hat_id } : {}),
+        history: history || [],
+      }),
+    }),
 };

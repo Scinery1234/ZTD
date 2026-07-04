@@ -1726,6 +1726,61 @@ def ai_chat_undo():
         return jsonify({'error': f'Undo failed: {e}'}), 500
 
 
+# === AI Coaching Hub Endpoints ===
+
+def _coaching_service():
+    """Build a CoachingService bound to this app's models/helpers, or None if the
+    feature isn't configured (missing SDK or ANTHROPIC_API_KEY)."""
+    try:
+        from coaching import CoachingService, coaching_available
+    except ImportError:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            'coaching', os.path.join(BASE_DIR, 'coaching.py')
+        )
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        CoachingService, coaching_available = _mod.CoachingService, _mod.coaching_available
+    if not coaching_available():
+        return None
+    return CoachingService(db, Task, Hat, check_task_limit)
+
+
+@app.route('/api/coach', methods=['POST'])
+@jwt_required()
+@limiter.limit('30 per minute')
+def ai_coach():
+    service = _coaching_service()
+    if service is None:
+        return jsonify({'error': 'AI coaching is not configured on this server.',
+                        'unavailable': True}), 503
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.json or {}
+    coach_id = (data.get('coach_id') or '').strip()
+    message = (data.get('message') or '').strip()
+    if not coach_id:
+        return jsonify({'error': 'coach_id is required'}), 400
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+    hat_id = data.get('hat_id') or None
+    history = data.get('history') or []
+
+    try:
+        result = service.run(user, coach_id, message, history, hat_id)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('AI coaching failed')
+        return jsonify({'error': f'AI coaching failed: {e}'}), 500
+
+
 def migrate_db():
     # Each statement runs in its own connection/transaction so a "column already
     # exists" failure on one doesn't abort and roll back the others (PostgreSQL

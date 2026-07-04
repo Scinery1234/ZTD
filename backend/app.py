@@ -1387,7 +1387,17 @@ def health():
                     print(f"[health/PREMIUM_USERS] {email} already premium", flush=True)
         except Exception as e:
             print(f"[health/PREMIUM_USERS] error: {e}", flush=True)
-    return jsonify({'status': 'ok'})
+    # AI readiness booleans (no secrets) — lets a deployer see at a glance why
+    # /api/chat and /api/coach might answer 503 "not configured".
+    try:
+        import anthropic as _anthropic_probe  # noqa: F401
+        sdk_installed = True
+    except ImportError:
+        sdk_installed = False
+    return jsonify({'status': 'ok', 'ai': {
+        'sdk_installed': sdk_installed,
+        'api_key_set': bool(os.getenv('ANTHROPIC_API_KEY')),
+    }})
 
 
 # === Admin endpoint (no Stripe required) ===

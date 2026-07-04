@@ -292,7 +292,7 @@
 @keyframes aih-blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
 
 /* Task rail */
-.aih-rail-wrap { width: 268px; flex-shrink: 0; border-left: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.16); }
+.aih-rail-wrap { width: 268px; flex-shrink: 0; min-height: 0; border-left: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.16); }
 .aih-rail { display: flex; flex-direction: column; height: 100%; }
 .aih-rail__head {
   display: flex; justify-content: space-between; align-items: center;

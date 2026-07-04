@@ -1,6 +1,10 @@
 /* Standalone AI Coach page (/coach) — warm dark canvas matching the hub */
 .coach-app {
-  min-height: 100dvh;
+  /* Fixed viewport height (not min-height): every hub view scrolls
+     internally, so a long task rail must never grow the page and push
+     the chat composer below the fold. */
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background:

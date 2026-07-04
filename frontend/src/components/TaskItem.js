@@ -75,6 +75,9 @@ const TaskItem = ({
   onPinPomodoro,
   viewMode,
   hats,
+  selectMode,
+  selected,
+  onToggleSelect,
 }) => {
   const { user, subscription } = useAuth();
   const tier = subscription?.tier || user?.tier || 'free';
@@ -347,19 +350,32 @@ const TaskItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item ${getPriorityClass(task.priority)} ${isOverdue() ? 'overdue' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`task-item ${getPriorityClass(task.priority)} ${isOverdue() ? 'overdue' : ''} ${isDragging ? 'dragging' : ''} ${selectMode && selected ? 'bulk-selected' : ''}`}
       onDoubleClick={() => {
-        if (viewMode === 'active') onEdit();
+        if (viewMode === 'active' && !selectMode) onEdit();
+      }}
+      onClick={() => {
+        if (selectMode && onToggleSelect) onToggleSelect();
       }}
     >
       <div className="task-content">
-        {viewMode === 'active' && (
+        {viewMode === 'active' && selectMode && (
+          <input
+            type="checkbox"
+            className="task-select-box"
+            checked={Boolean(selected)}
+            onChange={() => onToggleSelect && onToggleSelect()}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select "${task.description}"`}
+          />
+        )}
+        {viewMode === 'active' && !selectMode && (
           <div className="drag-handle" {...attributes} {...listeners}>
             <span className="drag-icon">⠿</span>
           </div>
         )}
 
-        {viewMode === 'active' && (
+        {viewMode === 'active' && !selectMode && (
           <button
             className="task-done-circle"
             onClick={(e) => { e.stopPropagation(); onMarkDone(); }}
@@ -376,7 +392,7 @@ const TaskItem = ({
                 className="task-category clickable-category"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  if (onCategoryClick && viewMode === 'active') onCategoryClick(task.category);
+                  if (onCategoryClick && viewMode === 'active' && !selectMode) onCategoryClick(task.category);
                 }}
                 title="Double-click to filter by category"
               >
@@ -438,9 +454,9 @@ const TaskItem = ({
                   <input
                     type="checkbox"
                     checked={st.done}
-                    onChange={() => viewMode === 'active' && toggleSubtaskInView(st.id)}
+                    onChange={() => viewMode === 'active' && !selectMode && toggleSubtaskInView(st.id)}
                     onClick={(e) => e.stopPropagation()}
-                    disabled={viewMode !== 'active'}
+                    disabled={viewMode !== 'active' || selectMode}
                   />
                   <span className="subtask-text">{st.text}</span>
                 </label>
@@ -468,7 +484,7 @@ const TaskItem = ({
           )}
         </div>
 
-        {viewMode === 'active' && (
+        {viewMode === 'active' && !selectMode && (
           <div className="task-actions">
             {(tier === 'pro' || tier === 'premium') && onPinPomodoro && (
               <button

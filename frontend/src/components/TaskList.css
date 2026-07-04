@@ -21,6 +21,112 @@
   font-weight: 400;
 }
 
+/* ---- Bulk actions (multi-select) ---- */
+.bulk-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.bulk-toggle {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bulk-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.bulk-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(30, 30, 40, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.bulk-spacer {
+  flex: 1;
+}
+
+.bulk-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bulk-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.bulk-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bulk-btn--done:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.22);
+  color: #4ade80;
+}
+
+.bulk-btn--delete:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.bulk-select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  padding: 5px 8px;
+  cursor: pointer;
+  max-width: 130px;
+}
+
+.bulk-select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bulk-select option {
+  background: #24242e;
+  color: #eee;
+}
+
 /* ---- Light mode ---- */
 [data-theme="light"] .task-list-empty {
   background: rgba(0, 0, 0, 0.03);
@@ -29,4 +135,52 @@
 
 [data-theme="light"] .task-list-empty p {
   color: rgba(28, 18, 9, 0.38);
+}
+
+[data-theme="light"] .bulk-toggle {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(28, 18, 9, 0.55);
+}
+
+[data-theme="light"] .bulk-toggle:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(28, 18, 9, 0.85);
+}
+
+[data-theme="light"] .bulk-bar {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .bulk-count {
+  color: rgba(28, 18, 9, 0.85);
+}
+
+[data-theme="light"] .bulk-btn,
+[data-theme="light"] .bulk-select {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(28, 18, 9, 0.7);
+}
+
+[data-theme="light"] .bulk-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.09);
+  color: rgba(28, 18, 9, 0.95);
+}
+
+[data-theme="light"] .bulk-btn--done:hover:not(:disabled) {
+  background: rgba(22, 163, 74, 0.14);
+  color: #16a34a;
+}
+
+[data-theme="light"] .bulk-btn--delete:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+[data-theme="light"] .bulk-select option {
+  background: #fff;
+  color: #1c1209;
 }

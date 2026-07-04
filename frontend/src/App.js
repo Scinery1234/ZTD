@@ -105,6 +105,24 @@ function GuestTaskApp({ onSignUp, onLogin }) {
     persist(tasks.filter(t => t.id !== id), [...doneTasks, doneTask]);
   };
 
+  // ---- Bulk actions (multi-select in the task list) ----
+  const bulkMarkDone = (ids) => {
+    const idSet = new Set(ids);
+    const now = new Date().toISOString();
+    const moving = tasks.filter(t => idSet.has(t.id)).map(t => ({ ...t, completed_at: now }));
+    persist(tasks.filter(t => !idSet.has(t.id)), [...doneTasks, ...moving]);
+  };
+
+  const bulkDelete = (ids) => {
+    const idSet = new Set(ids);
+    persist(tasks.filter(t => !idSet.has(t.id)), undefined);
+  };
+
+  const bulkUpdate = (ids, data) => {
+    const idSet = new Set(ids);
+    persist(tasks.map(t => (idSet.has(t.id) ? { ...t, ...data } : t)), undefined);
+  };
+
   const getFilteredTasks = () => {
     let filtered = tasks;
     if (filter === 'category' && selectedCategory)
@@ -156,6 +174,9 @@ function GuestTaskApp({ onSignUp, onLogin }) {
                 onMarkDone={markDone}
                 onReorder={(reordered) => persist(reordered, undefined)}
                 viewMode="active"
+                onBulkDone={bulkMarkDone}
+                onBulkDelete={bulkDelete}
+                onBulkUpdate={bulkUpdate}
               />
               <TaskFilters
                 filter={filter}
@@ -490,6 +511,45 @@ function TaskApp() {
     }
   };
 
+  // ---- Bulk actions (multi-select in the task list) ----
+  const bulkMarkDone = async (ids) => {
+    const idSet = new Set(ids);
+    setTasks((prev) => prev.filter((t) => !idSet.has(t.id)));
+    try {
+      for (const id of ids) await api.markDone(id);
+    } catch (err) {
+      console.error('Bulk mark-done failed:', err);
+    } finally {
+      await Promise.all([fetchTasks(), fetchDoneTasks()]);
+      await refreshSubscription();
+    }
+  };
+
+  const bulkDelete = async (ids) => {
+    const idSet = new Set(ids);
+    setTasks((prev) => prev.filter((t) => !idSet.has(t.id)));
+    try {
+      for (const id of ids) await api.deleteTask(id);
+    } catch (err) {
+      console.error('Bulk delete failed:', err);
+    } finally {
+      await fetchTasks();
+      await refreshSubscription();
+    }
+  };
+
+  const bulkUpdate = async (ids, data) => {
+    const idSet = new Set(ids);
+    setTasks((prev) => prev.map((t) => (idSet.has(t.id) ? { ...t, ...data } : t)));
+    try {
+      for (const id of ids) await api.updateTask(id, data);
+    } catch (err) {
+      console.error('Bulk update failed:', err);
+    } finally {
+      await fetchTasks();
+    }
+  };
+
   const getFilteredTasks = () => {
     let filtered = tasks;
     if (selectedHatIds.size > 0)
@@ -615,6 +675,9 @@ function TaskApp() {
                 onPinPomodoro={(task) => { setPomodoroTask(task); setPomodoroOpen(true); }}
                 viewMode="active"
                 hats={hats}
+                onBulkDone={bulkMarkDone}
+                onBulkDelete={bulkDelete}
+                onBulkUpdate={bulkUpdate}
               />
               <Stats tasks={getVisibleTasks()} doneTasks={doneTasks} />
               {(subscription?.tier === 'premium') && (

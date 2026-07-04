@@ -31,7 +31,10 @@ const GRID_HOURS = 24 + OVERFLOW_HOURS;
 const GRID_HEIGHT = GRID_HOURS * PX_PER_HOUR;
 const MAX_GRID_MINS = GRID_HOURS * 60; // 1740
 const SNAP = 15; // minutes
-const LONG_PRESS_MS = 400; // ms before a touch-hold becomes a drag
+const LONG_PRESS_MS = 300; // ms before a touch-hold becomes a drag
+const TOUCH_SLOP = 14; // px of finger jitter tolerated during the hold
+const AUTOSCROLL_ZONE = 56; // px from a grid edge that triggers auto-scroll while dragging
+const AUTOSCROLL_MAX = 16; // max px scrolled per frame
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function parseMinutes(hhmm) {
@@ -106,6 +109,25 @@ function getPointerY(e) {
   if (e.touches && e.touches.length) return e.touches[0].clientY;
   if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0].clientY;
   return e.clientY;
+}
+
+function getPointerX(e) {
+  if (e.touches && e.touches.length) return e.touches[0].clientX;
+  if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0].clientX;
+  return e.clientX;
+}
+
+// Signed px/frame to scroll a container whose edge the pointer is near (0 = not near an edge)
+function edgeScrollSpeed(clientY, rect) {
+  if (clientY < rect.top + AUTOSCROLL_ZONE) {
+    const f = Math.min(1, (rect.top + AUTOSCROLL_ZONE - clientY) / AUTOSCROLL_ZONE);
+    return -Math.ceil(f * AUTOSCROLL_MAX);
+  }
+  if (clientY > rect.bottom - AUTOSCROLL_ZONE) {
+    const f = Math.min(1, (clientY - (rect.bottom - AUTOSCROLL_ZONE)) / AUTOSCROLL_ZONE);
+    return Math.ceil(f * AUTOSCROLL_MAX);
+  }
+  return 0;
 }
 
 // Whether a task is placed on a specific day's grid (not stale from another day)
@@ -503,7 +525,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro, externalDragPreview }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
@@ -607,7 +629,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     // extra.startY is used when called from the long-press path (e is null)
     const { startY: explicitY, ...rest } = extra;
     const startY = explicitY !== undefined ? explicitY : getPointerY(e);
-    setDragging({ type, startY, ...rest });
+    // Remember grid scroll position so auto-scroll during the drag maps to minutes
+    const startScrollTop = wrapperRef.current ? wrapperRef.current.scrollTop : 0;
+    setDragging({ type, startY, startScrollTop, ...rest });
   }, []);
 
   // Long-press drag for touch: hold 400ms without moving to enter drag mode.
@@ -642,7 +666,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       const t = me.touches[0];
       if (!t) { cleanup(); return; }
       const dy = t.clientY - prevY;
-      if (!scrollMode && (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8)) {
+      if (!scrollMode && (Math.abs(t.clientX - startX) > TOUCH_SLOP || Math.abs(t.clientY - startY) > TOUCH_SLOP)) {
         // Movement detected — cancel long press, switch to manual scroll mode
         scrollMode = true;
         clearTimeout(timer);
@@ -664,6 +688,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
       document.removeEventListener('touchcancel', onEnd);
+      if (navigator.vibrate) navigator.vibrate(10); // haptic cue where supported
       // Compute origTaskPositions at drag-start time (most accurate)
       const origTaskPositions = {};
       localTasksRef.current.forEach(t => {
@@ -672,7 +697,9 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       });
       startPointerDrag('task-move', {
         taskId: task.id, origMin: gridMins, duration: task.duration || 30,
-        origTaskPositions, startY,
+        // Anchor the drag where the finger is NOW (it may have drifted within
+        // the slop during the hold) so the task doesn't jump on activation.
+        origTaskPositions, startY: prevY,
       }, null);
     }, LONG_PRESS_MS);
 
@@ -684,13 +711,16 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   useEffect(() => {
     if (!dragging) return;
-    const onMove = (e) => {
-      const clientY = getPointerY(e);
-      if (e.cancelable) e.preventDefault();
-      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
-      dragRafRef.current = requestAnimationFrame(() => {
-        dragRafRef.current = null;
-        const deltaY = clientY - dragging.startY;
+    let lastClientY = dragging.startY;
+    let autoScrollRaf = null;
+
+    const applyFromPointer = () => {
+        // Include any grid scrolling since drag start (auto-scroll near edges),
+        // so on-screen position keeps mapping to the right time.
+        const scrollDelta = wrapperRef.current
+          ? wrapperRef.current.scrollTop - (dragging.startScrollTop || 0)
+          : 0;
+        const deltaY = (lastClientY - dragging.startY) + scrollDelta;
         const deltaMins = yToMinutes(deltaY);
         const wStart = parseMinutes(localWindowRef.current.start);
         const wEnd = parseMinutes(localWindowRef.current.end);
@@ -753,9 +783,38 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
           const resized = gridMinsToSchedule(newStartMin, date);
           setLocalTasks(prev => prev.map(t => t.id === dragging.taskId ? { ...t, ...resized, duration: newDur } : t));
         }
+    };
+
+    // Auto-scroll while the pointer sits near the grid's top/bottom edge, so
+    // tasks can be dragged to times that are off-screen (crucial on touch).
+    const autoScrollTick = () => {
+      autoScrollRaf = null;
+      const wrap = wrapperRef.current;
+      if (!wrap) return;
+      const speed = edgeScrollSpeed(lastClientY, wrap.getBoundingClientRect());
+      if (speed !== 0) {
+        const before = wrap.scrollTop;
+        wrap.scrollTop = before + speed;
+        if (wrap.scrollTop !== before) applyFromPointer();
+        autoScrollRaf = requestAnimationFrame(autoScrollTick);
+      }
+    };
+
+    const onMove = (e) => {
+      lastClientY = getPointerY(e);
+      if (e.cancelable) e.preventDefault();
+      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = requestAnimationFrame(() => {
+        dragRafRef.current = null;
+        applyFromPointer();
       });
+      if (autoScrollRaf === null && wrapperRef.current &&
+          edgeScrollSpeed(lastClientY, wrapperRef.current.getBoundingClientRect()) !== 0) {
+        autoScrollRaf = requestAnimationFrame(autoScrollTick);
+      }
     };
     const onUp = async (e) => {
+      if (autoScrollRaf !== null) { cancelAnimationFrame(autoScrollRaf); autoScrollRaf = null; }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('touchmove', onMove);
@@ -767,7 +826,8 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         if (updated) {
           let savedDate = updated.scheduled_date;
           if (isWeekView && dragging.type === 'task-move') {
-            const el = document.elementFromPoint(e.clientX, e.clientY);
+            // touchend has no clientX/Y — read the last touch position
+            const el = document.elementFromPoint(getPointerX(e), getPointerY(e));
             const col = el?.closest('[data-date]');
             if (col && col.getAttribute('data-date') !== date) savedDate = col.getAttribute('data-date');
           }
@@ -795,6 +855,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     document.addEventListener('touchend', onUp);
     return () => {
       if (dragRafRef.current) { cancelAnimationFrame(dragRafRef.current); dragRafRef.current = null; }
+      if (autoScrollRaf !== null) { cancelAnimationFrame(autoScrollRaf); autoScrollRaf = null; }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('touchmove', onMove);
@@ -959,9 +1020,15 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
           style={{ height: GRID_HEIGHT }}>
 
-          {/* Drag-from-sidebar preview */}
-          {dragOverMins !== null && (
-            <div className="timebox-drag-preview" style={{ top: dragOverMins * PX_PER_MIN, height: 30 * PX_PER_MIN }} />
+          {/* Drag-from-sidebar preview (HTML5 on desktop, touch drag on mobile) */}
+          {(dragOverMins !== null || externalDragPreview) && (
+            <div
+              className="timebox-drag-preview"
+              style={{
+                top: (externalDragPreview ? externalDragPreview.mins : dragOverMins) * PX_PER_MIN,
+                height: (externalDragPreview ? (externalDragPreview.duration || 30) : 30) * PX_PER_MIN,
+              }}
+            />
           )}
 
           {/* Hour lines + labels (24 normal + 5 next-day overflow) */}
@@ -1048,11 +1115,14 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             const gridMins = taskGridMinutes(task, date);
             const taskTop = gridMins * PX_PER_MIN;
             const taskHeight = Math.max(22, (task.duration || 30) * PX_PER_MIN);
+            // Short blocks lose their touch resize handles (CSS) — fingers get
+            // target-adjusted onto them and steal the move gesture.
+            const isShort = taskHeight < 48;
             const taskHat = hats?.find(h => h.id === task.hat_id);
             return (
               <div
                 key={task.id}
-                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''}`}
+                className={`timebox-task priority-${task.priority || 'none'} ${isMit ? 'mit' : ''} ${isLocked ? 'locked' : ''} ${isShort ? 'timebox-task--short' : ''}`}
                 style={{ top: taskTop, height: taskHeight, ...(taskHat?.color ? { borderLeft: `3px solid ${taskHat.color}` } : {}) }}
                 onDoubleClick={(e) => { e.stopPropagation(); onEditTask(task); }}
                 onMouseDown={(e) => {
@@ -1202,11 +1272,83 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 }
 
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow }) {
+function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow, onTouchDragStart }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const handleRef = useRef(null);
   const lastMouseDownTarget = useRef(null);
   const hat = hats?.find(h => h.id === task.hat_id);
+
+  // Long-press touch drag → schedule on the grid. HTML5 drag events never fire
+  // for touch on iOS/iPadOS, so this is the only touch path onto the calendar.
+  // During the hold, finger movement is delegated to the sidebar's scroll
+  // (touch-action: none on the chip blocks native scrolling).
+  const handleChipTouchStart = (e) => {
+    if (!onTouchDragStart) return;
+    if (handleRef.current?.contains(e.target) || e.target.closest?.('button')) return;
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    let lastX = startX;
+    let lastY = startY;
+    let prevX = startX;
+    let prevY = startY;
+    const el = e.currentTarget;
+    const scrollEl = el.closest('.timebox-task-sidebar-body');
+    let done = false;
+    let scrollMode = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      el.classList.remove('timebox-sidebar-chip--pressing');
+      clearTimeout(timer);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+
+    const onMove = (me) => {
+      if (done) return;
+      const t = me.touches[0];
+      if (!t) { cleanup(); return; }
+      const dx = t.clientX - prevX;
+      const dy = t.clientY - prevY;
+      if (!scrollMode && (Math.abs(t.clientX - startX) > TOUCH_SLOP || Math.abs(t.clientY - startY) > TOUCH_SLOP)) {
+        scrollMode = true;
+        clearTimeout(timer);
+        el.classList.remove('timebox-sidebar-chip--pressing');
+      }
+      if (scrollMode && scrollEl) {
+        // The pool scrolls vertically on tablet/desktop and horizontally on
+        // phones — delegate both axes; only the scrollable one will move.
+        scrollEl.scrollTop -= dy;
+        scrollEl.scrollLeft -= dx;
+      }
+      prevX = t.clientX;
+      prevY = t.clientY;
+      lastX = t.clientX;
+      lastY = t.clientY;
+    };
+
+    const onEnd = cleanup;
+
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      el.classList.remove('timebox-sidebar-chip--pressing');
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      if (navigator.vibrate) navigator.vibrate(10);
+      onTouchDragStart(task, { x: lastX, y: lastY });
+    }, LONG_PRESS_MS);
+
+    el.classList.add('timebox-sidebar-chip--pressing');
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd, { once: true });
+    document.addEventListener('touchcancel', onEnd, { once: true });
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -1227,6 +1369,7 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, 
         e.dataTransfer.setData('application/task-json', JSON.stringify(task));
         e.dataTransfer.effectAllowed = 'move';
       }}
+      onTouchStart={handleChipTouchStart}
       title="Drag onto the grid to schedule"
     >
       <span ref={handleRef} className="timebox-pool-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</span>
@@ -1271,6 +1414,20 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const [futureTasks, setFutureTasks] = useState(null);
   const poolSensors = useSensors(useSensor(SmartPointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // Touch drag from the sidebar pool onto the day grid (HTML5 DnD is mouse-only).
+  // State carries {task, overMins}; the ghost follows the finger via direct DOM
+  // updates so we only re-render when the snapped target time changes.
+  const [chipDrag, setChipDrag] = useState(null);
+  const chipDragRef = useRef(null);
+  const chipGhostRef = useRef(null);
+  const chipGhostPosRef = useRef({ x: 0, y: 0 });
+  useEffect(() => { chipDragRef.current = chipDrag; }, [chipDrag]);
+
+  const handleChipTouchDragStart = useCallback((task, pos) => {
+    chipGhostPosRef.current = pos;
+    setChipDrag({ task, overMins: null });
+  }, []);
+
   // On mobile, scroll to bring the grid into view when this view first mounts
   useEffect(() => {
     if (!window.matchMedia('(max-width: 700px)').matches) return;
@@ -1287,6 +1444,95 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
 
   const canGoBack = weekStartOffset > -maxHistoryDays;
   const canGoForward = weekStartOffset < 90; // allow up to 90 days forward for everyone
+
+  // Drive the active pool-chip touch drag: move the ghost, track the snapped
+  // grid target, auto-scroll the grid near its edges, schedule on release.
+  const isChipDragging = !!chipDrag;
+  useEffect(() => {
+    if (!isChipDragging) return;
+    let autoScrollRaf = null;
+    let lastX = chipGhostPosRef.current.x;
+    let lastY = chipGhostPosRef.current.y;
+
+    const getWrapper = () =>
+      containerRef.current?.querySelector('.timebox-day-layout .timebox-grid-wrapper');
+
+    const updateTarget = () => {
+      const wrap = getWrapper();
+      const drag = chipDragRef.current;
+      if (!wrap || !drag) return;
+      const rect = wrap.getBoundingClientRect();
+      let overMins = null;
+      if (lastX >= rect.left && lastX <= rect.right && lastY >= rect.top && lastY <= rect.bottom) {
+        const y = lastY - rect.top + wrap.scrollTop;
+        const dur = drag.task.duration || 30;
+        overMins = Math.max(0, Math.min(MAX_GRID_MINS - dur, yToMinutes(y)));
+      }
+      if (overMins !== drag.overMins) {
+        setChipDrag(prev => (prev ? { ...prev, overMins } : prev));
+      }
+    };
+
+    const autoScrollTick = () => {
+      autoScrollRaf = null;
+      const wrap = getWrapper();
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      if (lastX < rect.left || lastX > rect.right) return;
+      const speed = edgeScrollSpeed(lastY, rect);
+      if (speed !== 0) {
+        const before = wrap.scrollTop;
+        wrap.scrollTop = before + speed;
+        if (wrap.scrollTop !== before) updateTarget();
+        autoScrollRaf = requestAnimationFrame(autoScrollTick);
+      }
+    };
+
+    const onMove = (e) => {
+      if (e.cancelable) e.preventDefault();
+      const t = e.touches[0];
+      if (!t) return;
+      lastX = t.clientX;
+      lastY = t.clientY;
+      chipGhostPosRef.current = { x: lastX, y: lastY };
+      if (chipGhostRef.current) {
+        chipGhostRef.current.style.left = `${lastX}px`;
+        chipGhostRef.current.style.top = `${lastY}px`;
+      }
+      updateTarget();
+      const wrap = getWrapper();
+      if (autoScrollRaf === null && wrap) {
+        const rect = wrap.getBoundingClientRect();
+        if (lastX >= rect.left && lastX <= rect.right && edgeScrollSpeed(lastY, rect) !== 0) {
+          autoScrollRaf = requestAnimationFrame(autoScrollTick);
+        }
+      }
+    };
+
+    const stop = (commit) => {
+      if (autoScrollRaf !== null) { cancelAnimationFrame(autoScrollRaf); autoScrollRaf = null; }
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onCancel);
+      const drag = chipDragRef.current;
+      if (commit && drag && drag.overMins != null) {
+        onUpdate(drag.task.id, gridMinsToSchedule(drag.overMins, selectedDay));
+      }
+      setChipDrag(null);
+    };
+    const onEnd = () => stop(true);
+    const onCancel = () => stop(false);
+
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onCancel);
+    return () => {
+      if (autoScrollRaf !== null) cancelAnimationFrame(autoScrollRaf);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onCancel);
+    };
+  }, [isChipDragging]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goBack = () => setWeekStartOffset(o => Math.max(o - 7, -maxHistoryDays));
   const goForward = () => setWeekStartOffset(o => Math.min(o + 7, 90));
@@ -1470,6 +1716,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
                           onEdit={setEditingTask}
                           onToggleMit={handleToggleMit}
                           onScheduleNow={handleQuickSchedule}
+                          onTouchDragStart={handleChipTouchDragStart}
                         />
                       ))}
                     </SortableContext>
@@ -1485,10 +1732,29 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
             onWindowChange={handleWindowChange}
             isWeekView={false}
             dismissedIds={dismissed}
+            externalDragPreview={chipDrag && chipDrag.overMins != null
+              ? { mins: chipDrag.overMins, duration: chipDrag.task.duration || 30 }
+              : null}
           />
         </div>
         );
       })()}
+
+      {/* Floating ghost that follows the finger during a pool-chip touch drag */}
+      {chipDrag && (
+        <div
+          ref={chipGhostRef}
+          className="timebox-chip-ghost"
+          style={{ left: chipGhostPosRef.current.x, top: chipGhostPosRef.current.y }}
+        >
+          <span className="timebox-chip-ghost-desc">{chipDrag.task.description}</span>
+          <span className="timebox-chip-ghost-time">
+            {chipDrag.overMins != null
+              ? `Drop at ${formatGridTime(chipDrag.overMins)}`
+              : 'Move over the calendar'}
+          </span>
+        </div>
+      )}
 
       {subView === 'week' && (
         <>

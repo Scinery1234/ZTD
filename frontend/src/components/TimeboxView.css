@@ -71,8 +71,49 @@
   border-radius: 8px;
   border-left: 2px solid rgba(255, 255, 255, 0.15);
   cursor: grab;
+  /* Touch: we run our own long-press drag + scroll delegation */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .timebox-sidebar-chip:active { cursor: grabbing; }
+
+/* Long-press feedback while holding a chip before the drag activates */
+.timebox-sidebar-chip--pressing {
+  transform: scale(1.04);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Ghost chip that follows the finger while dragging a pool task to the grid */
+.timebox-chip-ghost {
+  position: fixed;
+  z-index: 3000;
+  transform: translate(-50%, -120%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 220px;
+  padding: 8px 12px;
+  background: rgba(30, 18, 8, 0.95);
+  border: 1px solid rgba(249, 115, 22, 0.6);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+}
+.timebox-chip-ghost-desc {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timebox-chip-ghost-time {
+  color: rgba(251, 191, 36, 0.9);
+  font-size: 11px;
+}
 
 .timebox-pool-drag-handle {
   position: absolute;
@@ -758,6 +799,10 @@
   transition: box-shadow 0.1s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   touch-action: none;
+  /* Stop iOS long-press callout/selection from interrupting drag activation */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .timebox-task:active { cursor: grabbing; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
@@ -1726,4 +1771,44 @@
 [data-theme="light"] .timebox-chip-schedule-btn:hover {
   background: rgba(249, 115, 22, 0.15);
   color: #ea580c;
+}
+
+/* ── Touch-device affordances ─────────────────────────────────────────────── */
+@media (hover: none) {
+  /* Hover-revealed controls are invisible on touch — keep them visible */
+  .timebox-pool-drag-handle,
+  .timebox-chip-dismiss {
+    opacity: 0.55;
+  }
+
+  /* 6px resize slivers are hard to hit with a finger — grow them on tall
+     blocks, but never let them crowd out the move/drag area of short ones */
+  .timebox-task-resize-top,
+  .timebox-task-resize-bottom {
+    height: clamp(6px, 20%, 14px);
+  }
+
+  /* On short blocks the handles steal the move gesture (touch targets get
+     snapped to nearby interactive elements) — remove them; the whole block
+     long-press-drags instead. Duration stays editable via ✎ / desktop. */
+  .timebox-task--short .timebox-task-resize-top,
+  .timebox-task--short .timebox-task-resize-bottom {
+    display: none;
+  }
+
+  /* Visible grip pill so the resize affordance is discoverable */
+  .timebox-task-resize-bottom::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.25);
+  }
+  [data-theme="light"] .timebox-task-resize-bottom::after {
+    background: rgba(0, 0, 0, 0.2);
+  }
 }

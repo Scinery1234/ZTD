@@ -22,7 +22,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyBanner from './components/VerifyBanner';
 import CalendarSync from './components/CalendarSync';
 import LooseThreads from './components/LooseThreads';
-import ChatPanel from './components/ChatPanel';
+import AIHub from './components/AIHub';
 import {
   DndContext,
   closestCenter,
@@ -685,8 +685,9 @@ function TaskApp() {
         />
       )}
 
-      <ChatPanel
+      <AIHub
         hatId={selectedHatIds.size === 1 ? [...selectedHatIds][0] : null}
+        tasks={tasks}
         onTasksChanged={() => {
           fetchTasks();
           fetchDoneTasks();

@@ -486,7 +486,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
             onClick={startFresh}
             disabled={busy || !messages}
             title="Start a fresh conversation (your saved chat is cleared; memory notes are kept)"
-          >↺ New</button>
+          >↺<span className="aih-fresh__label"> New</span></button>
           <button className="aih-sos" onClick={onCrisis} title="Crisis support">🆘</button>
         </div>
       </header>

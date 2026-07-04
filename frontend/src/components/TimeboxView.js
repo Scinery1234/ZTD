@@ -924,6 +924,61 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     setBlockDrag({ startMin: mins, endMin: mins, screenX: e.clientX, screenY: e.clientY });
   };
 
+  // ── Double-click / double-tap an empty slot → add-task popup ──────────────
+  const openSlotAt = useCallback((clientX, clientY) => {
+    if (!wrapperRef.current) return;
+    // Floor to the 15-min slot containing the point (rounding would jump to
+    // the next slot when you tap in its lower half)
+    const y = getRelativeY({ clientY }, wrapperRef.current);
+    const startMin = Math.max(0, Math.min(MAX_GRID_MINS - 30,
+      Math.floor(y / PX_PER_MIN / SNAP) * SNAP));
+    setPendingSlot({ startMin, endMin: startMin + 30, screenX: clientX, screenY: clientY });
+  }, []);
+
+  const handleGridDoubleClick = (e) => {
+    if (e.target !== gridRef.current) return;
+    openSlotAt(e.clientX, e.clientY);
+  };
+
+  // Touch double-tap detection. Browsers don't emit dblclick for touch here
+  // (and the grid's touch-action: pan-y suppresses double-tap zoom), so track
+  // two quick, nearby taps on the empty grid ourselves.
+  const gridTouchRef = useRef(null);   // current touch: {x, y, moved}
+  const lastGridTapRef = useRef(null); // previous completed tap: {x, y, t}
+
+  const handleGridTouchStart = (e) => {
+    if (e.target !== gridRef.current) { gridTouchRef.current = null; return; }
+    const t = e.touches[0];
+    gridTouchRef.current = { x: t.clientX, y: t.clientY, moved: false };
+  };
+
+  const handleGridTouchMove = (e) => {
+    const g = gridTouchRef.current;
+    if (!g) return;
+    const t = e.touches[0];
+    if (!t) return;
+    if (Math.abs(t.clientX - g.x) > 10 || Math.abs(t.clientY - g.y) > 10) g.moved = true;
+  };
+
+  const handleGridTouchEnd = (e) => {
+    const g = gridTouchRef.current;
+    gridTouchRef.current = null;
+    if (!g || g.moved || e.target !== gridRef.current) {
+      lastGridTapRef.current = null; // a scroll or non-grid touch breaks the pair
+      return;
+    }
+    const now = Date.now();
+    const prev = lastGridTapRef.current;
+    if (prev && now - prev.t < 350 &&
+        Math.abs(g.x - prev.x) < 40 && Math.abs(g.y - prev.y) < 40) {
+      lastGridTapRef.current = null;
+      if (e.cancelable) e.preventDefault(); // no ghost click
+      openSlotAt(g.x, g.y);
+    } else {
+      lastGridTapRef.current = { x: g.x, y: g.y, t: now };
+    }
+  };
+
 
   const handleConfirmBlock = (startMin, endMin) => {
     const next = [...blockedTimes, { date, start: formatTime(startMin), end: formatTime(endMin) }];
@@ -1018,6 +1073,10 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
         onDragLeave={handleGridDragLeave}
       >
         <div className="timebox-grid" ref={gridRef} onMouseDown={handleGridMouseDown}
+          onDoubleClick={handleGridDoubleClick}
+          onTouchStart={handleGridTouchStart}
+          onTouchMove={handleGridTouchMove}
+          onTouchEnd={handleGridTouchEnd}
           style={{ height: GRID_HEIGHT }}>
 
           {/* Drag-from-sidebar preview (HTML5 on desktop, touch drag on mobile) */}

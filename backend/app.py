@@ -289,6 +289,17 @@ class CalendarConnection(db.Model):
         }
 
 
+class ChatUndo(db.Model):
+    """One per AI-chat turn that mutated tasks. Stores inverse operations so the
+    whole turn can be undone as a single unit (per-turn undo stack)."""
+    __tablename__ = 'chat_undo'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    summary = db.Column(db.String(300), default='')
+    payload = db.Column(db.Text, default='[]')   # JSON list of inverse ops
+
+
 # --- Helpers ---
 def parse_task_input(input_str):
     pattern = r"(?P<desc>.+?)(?:\s+@(?P<cat>[^!~^]+))?(?:\s*!\s*(?P<prio>urgent|today|tomorrow|later))?(?:\s*~\s*(?P<recur>daily|weekly|monthly))?(?:\s*\^\s*(?P<due>.+))?$"
@@ -1639,6 +1650,80 @@ def calendar_delete_event(task_id):
 
     db.session.commit()
     return jsonify({'task': task.to_dict()})
+
+
+# === AI Chat Endpoints ===
+
+def _chat_service():
+    """Build a TaskChatService bound to this app's models/helpers, or None if the
+    feature isn't configured (missing SDK or ANTHROPIC_API_KEY)."""
+    try:
+        from ai_chat import TaskChatService, chat_available
+    except ImportError:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            'ai_chat', os.path.join(BASE_DIR, 'ai_chat.py')
+        )
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        TaskChatService, chat_available = _mod.TaskChatService, _mod.chat_available
+    if not chat_available():
+        return None
+    return TaskChatService(db, Task, Hat, ChatUndo, check_task_limit)
+
+
+@app.route('/api/chat', methods=['POST'])
+@jwt_required()
+@limiter.limit('30 per minute')
+def ai_chat():
+    service = _chat_service()
+    if service is None:
+        return jsonify({'error': 'AI chat is not configured on this server.',
+                        'unavailable': True}), 503
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.json or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+    hat_id = data.get('hat_id') or None
+    history = data.get('history') or []
+
+    try:
+        result = service.run(user, hat_id, message, history)
+        return jsonify(result)
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('AI chat failed')
+        return jsonify({'error': f'AI chat failed: {e}'}), 500
+
+
+@app.route('/api/chat/undo', methods=['POST'])
+@jwt_required()
+def ai_chat_undo():
+    service = _chat_service()
+    if service is None:
+        return jsonify({'error': 'AI chat is not configured on this server.',
+                        'unavailable': True}), 503
+
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.json or {}
+    undo_token = data.get('undo_token')
+    try:
+        result = service.undo(user, undo_token)
+        return jsonify(result)
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('AI chat undo failed')
+        return jsonify({'error': f'Undo failed: {e}'}), 500
 
 
 def migrate_db():

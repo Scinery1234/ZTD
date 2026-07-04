@@ -23,6 +23,7 @@ import VerifyBanner from './components/VerifyBanner';
 import CalendarSync from './components/CalendarSync';
 import LooseThreads from './components/LooseThreads';
 import AIHub from './components/AIHub';
+import CoachApp from './pages/CoachApp';
 import {
   DndContext,
   closestCenter,
@@ -813,9 +814,14 @@ function AppRoot() {
 }
 
 function App() {
+  // /coach serves the AI Coaching Hub as a standalone app with its own
+  // sign-in (same accounts). Pathname is fixed for the page's lifetime,
+  // so branching here (outside any hooks) is safe.
+  const isCoach = typeof window !== 'undefined' &&
+    window.location.pathname.replace(/\/+$/, '') === '/coach';
   return (
     <AuthProvider>
-      <AppRoot />
+      {isCoach ? <CoachApp /> : <AppRoot />}
     </AuthProvider>
   );
 }

@@ -32,7 +32,9 @@ except ImportError:
 
 load_dotenv()
 
-app = Flask(__name__)
+# static_folder=None: don't let Flask's built-in /static route shadow the
+# React build's /static/* assets, which the SPA catch-all below serves.
+app = Flask(__name__, static_folder=None)
 
 # Restrict CORS to the known frontend origin in production
 _frontend_origin = os.getenv('FRONTEND_URL')

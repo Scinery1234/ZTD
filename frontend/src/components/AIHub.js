@@ -447,7 +447,10 @@ function Hub({ onSelect, onCrisis }) {
 }
 
 // ── Root ─────────────────────────────────────────────────────────────────────
-export default function AIHub({ hatId, tasks, onTasksChanged }) {
+// Two shapes: the default floating FAB + modal overlay used inside the task
+// app, and `standalone` — the same hub filling its container, used by the
+// dedicated /coach page (no FAB, no close button, no Escape-to-close).
+export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false }) {
   const [open, setOpen] = useState(false);
   const [consented, setConsented] = useState(() => isConsentValid());
   const [active, setActive] = useState(null); // active tool object, or null = hub
@@ -455,19 +458,20 @@ export default function AIHub({ hatId, tasks, onTasksChanged }) {
 
   const showCrisis = useCallback(() => setCrisis(true), []);
 
-  // Lock background scroll while the hub is open.
+  // Lock background scroll while the hub is open (overlay mode only).
   useEffect(() => {
-    if (!open) return undefined;
+    if (standalone || !open) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [open]);
+  }, [open, standalone]);
 
   useEffect(() => {
+    if (standalone) return undefined;
     const onEsc = (e) => { if (e.key === 'Escape' && open) close(); };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, standalone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = useCallback(() => { setOpen(false); setActive(null); }, []);
 
@@ -482,7 +486,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged }) {
     return tasks.filter((t) => t.hat_id === hatId);
   }, [tasks, hatId]);
 
-  if (!open) {
+  if (!standalone && !open) {
     return (
       <button className="aih-fab" onClick={() => setOpen(true)} aria-label="Open AI hub" title="AI Hub — assistant & coaching">
         ✨
@@ -490,26 +494,40 @@ export default function AIHub({ hatId, tasks, onTasksChanged }) {
     );
   }
 
+  const content = (
+    <>
+      {crisis && <CrisisOverlay onClose={() => setCrisis(false)} />}
+      {!consented ? (
+        <ConsentGate onAccept={acceptConsent} onCrisis={showCrisis} />
+      ) : active ? (
+        <Conversation
+          key={active.id}
+          tool={active}
+          hatId={hatId}
+          tasks={railTasks}
+          onTasksChanged={onTasksChanged}
+          onBack={() => setActive(null)}
+          onCrisis={showCrisis}
+        />
+      ) : (
+        <Hub onSelect={setActive} onCrisis={showCrisis} />
+      )}
+    </>
+  );
+
+  if (standalone) {
+    return (
+      <div className="aih-modal aih-modal--standalone" role="main" aria-label="AI Coach">
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div className="aih-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="aih-modal" role="dialog" aria-label="AI Hub">
         <button className="aih-close" onClick={close} aria-label="Close">✕</button>
-        {crisis && <CrisisOverlay onClose={() => setCrisis(false)} />}
-        {!consented ? (
-          <ConsentGate onAccept={acceptConsent} onCrisis={showCrisis} />
-        ) : active ? (
-          <Conversation
-            key={active.id}
-            tool={active}
-            hatId={hatId}
-            tasks={railTasks}
-            onTasksChanged={onTasksChanged}
-            onBack={() => setActive(null)}
-            onCrisis={showCrisis}
-          />
-        ) : (
-          <Hub onSelect={setActive} onCrisis={showCrisis} />
-        )}
+        {content}
       </div>
     </div>
   );

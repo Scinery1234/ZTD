@@ -262,16 +262,33 @@
 }
 .aih-msg--error .aih-bubble { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; }
 
-.aih-added { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.aih-added__chip {
-  font-size: 12px;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--accent) 70%, #fff);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: 999px;
-  padding: 4px 11px;
+/* Confirmation receipt for tasks the coach just saved to the user's list.
+   Deliberately NOT button-like — these are records of what happened. */
+.aih-added {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 8px 12px 9px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 4px 10px 10px 4px;
 }
+.aih-added__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--accent) 75%, #fff);
+  margin-bottom: 2px;
+}
+[data-theme="light"] .aih-added__label { color: color-mix(in srgb, var(--accent) 80%, #000); }
+.aih-added__chip {
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+}
+[data-theme="light"] .aih-added__chip { color: #3d3428; }
 
 .aih-undo {
   margin-top: 6px;

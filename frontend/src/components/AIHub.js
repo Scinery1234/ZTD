@@ -513,8 +513,11 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
               </div>
               {Array.isArray(m.tasksAdded) && m.tasksAdded.length > 0 && (
                 <div className="aih-added">
+                  <span className="aih-added__label">
+                    ✓ Added to your task list
+                  </span>
                   {m.tasksAdded.map((t, j) => (
-                    <span key={j} className="aih-added__chip">＋ {t.description}</span>
+                    <span key={j} className="aih-added__chip">{t.description}</span>
                   ))}
                 </div>
               )}

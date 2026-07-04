@@ -1512,9 +1512,20 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     let autoScrollRaf = null;
     let lastX = chipGhostPosRef.current.x;
     let lastY = chipGhostPosRef.current.y;
+    // Chip drags enter the grid through its TOP edge, which sits inside the
+    // auto-scroll zone — scrolling up immediately would drag the calendar
+    // toward midnight. Only arm upward scrolling once the finger has been
+    // properly inside the grid; downward (day/evening) is always armed.
+    let topArmed = false;
 
     const getWrapper = () =>
       containerRef.current?.querySelector('.timebox-day-layout .timebox-grid-wrapper');
+
+    const gatedSpeed = (y, rect) => {
+      if (y > rect.top + AUTOSCROLL_ZONE) topArmed = true;
+      const speed = edgeScrollSpeed(y, rect);
+      return speed < 0 && !topArmed ? 0 : speed;
+    };
 
     const updateTarget = () => {
       const wrap = getWrapper();
@@ -1538,7 +1549,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       if (!wrap) return;
       const rect = wrap.getBoundingClientRect();
       if (lastX < rect.left || lastX > rect.right) return;
-      const speed = edgeScrollSpeed(lastY, rect);
+      const speed = gatedSpeed(lastY, rect);
       if (speed !== 0) {
         const before = wrap.scrollTop;
         wrap.scrollTop = before + speed;
@@ -1562,7 +1573,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       const wrap = getWrapper();
       if (autoScrollRaf === null && wrap) {
         const rect = wrap.getBoundingClientRect();
-        if (lastX >= rect.left && lastX <= rect.right && edgeScrollSpeed(lastY, rect) !== 0) {
+        if (lastX >= rect.left && lastX <= rect.right && gatedSpeed(lastY, rect) !== 0) {
           autoScrollRaf = requestAnimationFrame(autoScrollTick);
         }
       }
@@ -1661,13 +1672,30 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   useEffect(() => {
     const d = new Date(); d.setDate(d.getDate() + dayOffset);
     const dateStr = toLocalDateStr(d);
-    setDismissed(loadDismissed(dateStr));
+    // Instant paint from the local cache, then hydrate from the server so
+    // dismissals made on another device apply here too.
+    const local = loadDismissed(dateStr);
+    setDismissed(local);
+    let alive = true;
+    api.getDismissed(dateStr)
+      .then((res) => {
+        if (!alive) return;
+        const merged = new Set([...(res.task_ids || []), ...local]);
+        setDismissed(merged);
+        saveDismissed(dateStr, merged);
+        // Push local-only dismissals up so other devices see them as well.
+        if (merged.size > (res.task_ids || []).length) {
+          api.saveDismissed(dateStr, [...merged]).catch(() => {});
+        }
+      })
+      .catch(() => {});
     if (dayOffset > 0) {
       setFutureTasks(null);
       api.getTasksForDate(dateStr).then(setFutureTasks).catch(() => setFutureTasks(null));
     } else {
       setFutureTasks(null);
     }
+    return () => { alive = false; };
   }, [dayOffset]);
 
   const handleDismiss = (taskId) => {
@@ -1677,6 +1705,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       const next = new Set(prev);
       next.add(taskId);
       saveDismissed(dateStr, next);
+      api.saveDismissed(dateStr, [...next]).catch(() => {});
       return next;
     });
   };

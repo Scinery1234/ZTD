@@ -247,6 +247,14 @@ export const api = {
       }),
     }),
 
+  // Timebox pool dismissals — synced across devices
+  getDismissed: (date) => apiFetch(`/timebox/dismissed/${date}`),
+  saveDismissed: (date, task_ids) =>
+    apiFetch(`/timebox/dismissed/${date}`, {
+      method: 'PUT',
+      body: JSON.stringify({ task_ids }),
+    }),
+
   // Saved chats — one auto-resumed thread per hub tool
   chatThreadGet: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`),
   chatThreadClear: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`, { method: 'DELETE' }),

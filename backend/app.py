@@ -337,6 +337,17 @@ def append_chat_thread(user_id, tool_id, new_messages):
     db.session.commit()
 
 
+class TimeboxDismissed(db.Model):
+    """Task ids dismissed from a day's timebox pool — synced server-side so a
+    task dismissed on desktop stays dismissed on mobile."""
+    __tablename__ = 'timebox_dismissed'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)   # YYYY-MM-DD
+    task_ids = db.Column(db.Text, default='[]')       # JSON list of ints
+    __table_args__ = (db.UniqueConstraint('user_id', 'date', name='uq_dismissed_user_date'),)
+
+
 class CoachMemory(db.Model):
     """A short durable note the AI hub keeps about a user, shared across the
     task assistant and every coach so conversations pick up where they left
@@ -1859,6 +1870,39 @@ def ai_coach():
         db.session.rollback()
         app.logger.exception('AI coaching failed')
         return jsonify({'error': f'AI coaching failed: {e}'}), 500
+
+
+# === Timebox pool dismissals (synced across devices) ===
+
+@app.route('/api/timebox/dismissed/<string:date_str>', methods=['GET'])
+@jwt_required()
+def timebox_dismissed_get(date_str):
+    user_id = int(get_jwt_identity())
+    row = TimeboxDismissed.query.filter_by(user_id=user_id, date=date_str[:10]).first()
+    try:
+        ids = json.loads(row.task_ids) if row else []
+    except Exception:
+        ids = []
+    return jsonify({'date': date_str, 'task_ids': ids if isinstance(ids, list) else []})
+
+
+@app.route('/api/timebox/dismissed/<string:date_str>', methods=['PUT'])
+@jwt_required()
+def timebox_dismissed_put(date_str):
+    user_id = int(get_jwt_identity())
+    data = request.json or {}
+    ids = [int(i) for i in (data.get('task_ids') or []) if isinstance(i, (int, float, str)) and str(i).lstrip('-').isdigit()]
+    row = TimeboxDismissed.query.filter_by(user_id=user_id, date=date_str[:10]).first()
+    if row is None:
+        row = TimeboxDismissed(user_id=user_id, date=date_str[:10])
+        db.session.add(row)
+    row.task_ids = json.dumps(ids)
+    # Opportunistic prune of entries older than 30 days
+    cutoff = (datetime.utcnow() - timedelta(days=30)).strftime('%Y-%m-%d')
+    TimeboxDismissed.query.filter(TimeboxDismissed.user_id == user_id,
+                                  TimeboxDismissed.date < cutoff).delete()
+    db.session.commit()
+    return jsonify({'saved': True, 'task_ids': ids})
 
 
 # === Saved chats (auto-resume per tool) ===

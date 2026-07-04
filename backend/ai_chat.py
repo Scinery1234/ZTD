@@ -41,14 +41,25 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     memory_prompt_block = _mod.memory_prompt_block
     handle_memory_tool = _mod.handle_memory_tool
 
+try:
+    import scheduling
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu2
+    _spec2 = _ilu2.spec_from_file_location(
+        'scheduling', os.path.join(os.path.dirname(__file__), 'scheduling.py')
+    )
+    scheduling = _ilu2.module_from_spec(_spec2)
+    _spec2.loader.exec_module(scheduling)
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 12        # client-supplied prior turns to carry into context
 MAX_TOOL_ITERATIONS = 8       # safety cap on the agentic loop
 MAX_UNDO_ENTRIES = 10         # per-user undo-stack depth
 
-# Fields the model is allowed to set/change on a task.
-_EDITABLE_FIELDS = ("description", "category", "priority", "recurring", "due", "hat_id")
+# Fields the model is allowed to set/change on a task (also what undo restores).
+_EDITABLE_FIELDS = ("description", "category", "priority", "recurring", "due",
+                    "hat_id", "scheduled_time", "scheduled_date", "duration")
 
 
 def chat_available() -> bool:
@@ -99,7 +110,10 @@ TOOLS = [
         "name": "add_tasks",
         "description": (
             "Create one or more new tasks for the user. Use structured fields; do "
-            "not embed @category/!priority/~recurring markers in the description."
+            "not embed @category/!priority/~recurring markers in the description. "
+            "If the user named a time of day, keep it OUT of the description and "
+            "pass scheduled_time / scheduled_date so the task lands on their "
+            "calendar."
         ),
         "strict": True,
         "input_schema": {
@@ -111,7 +125,10 @@ TOOLS = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "description": {"type": "string"},
+                            "description": {
+                                "type": "string",
+                                "description": "Clean task name with no time-of-day phrases.",
+                            },
                             "category": {"type": "string"},
                             "priority": {
                                 "type": "string",
@@ -124,6 +141,22 @@ TOOLS = [
                             "due": {
                                 "type": "string",
                                 "description": "Natural-language or YYYY-MM-DD due date, or empty.",
+                            },
+                            "scheduled_time": {
+                                "type": "string",
+                                "description": "24h HH:MM calendar start time, or empty.",
+                            },
+                            "scheduled_date": {
+                                "type": "string",
+                                "description": "Date for the scheduled time (natural language ok); empty = next upcoming occurrence.",
+                            },
+                            "duration": {
+                                "type": "integer",
+                                "description": "Length in minutes (default 30).",
+                            },
+                            "allow_clash": {
+                                "type": "boolean",
+                                "description": "Set true ONLY after the user confirms overlapping an existing scheduled task.",
                             },
                         },
                         "required": ["description", "category", "priority", "recurring", "due"],
@@ -163,6 +196,22 @@ TOOLS = [
                                 "enum": ["daily", "weekly", "monthly", ""],
                             },
                             "due": {"type": "string"},
+                            "scheduled_time": {
+                                "type": "string",
+                                "description": "24h HH:MM calendar start time; empty string unschedules.",
+                            },
+                            "scheduled_date": {
+                                "type": "string",
+                                "description": "Date for the scheduled time (natural language ok).",
+                            },
+                            "duration": {
+                                "type": "integer",
+                                "description": "Length in minutes.",
+                            },
+                            "allow_clash": {
+                                "type": "boolean",
+                                "description": "Set true ONLY after the user confirms overlapping an existing scheduled task.",
+                            },
                         },
                         "required": ["id"],
                         "additionalProperties": False,
@@ -350,6 +399,7 @@ class TaskChatService:
             "what you changed.\n\n"
             "The user's current tasks (may be truncated — ids are real):\n"
             f"{snapshot}"
+            f"{scheduling.SCHEDULING_GUIDANCE}"
             f"{memory}"
         )
 
@@ -422,6 +472,7 @@ class TaskChatService:
     def _add_tasks(self, user, default_hat_id, args, undo_ops, actions):
         items = args.get("tasks") or []
         created_ids = []
+        clashes = []
         skipped_limit = 0
         for item in items:
             desc = (item.get("description") or "").strip()
@@ -430,6 +481,26 @@ class TaskChatService:
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
                 continue
+
+            # Natural-language scheduling: clean name + a real calendar slot.
+            sched_time = scheduling.parse_hhmm(item.get("scheduled_time"))
+            sched_date = None
+            duration = scheduling.parse_duration(item.get("duration"))
+            if sched_time:
+                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time)
+                if not item.get("allow_clash"):
+                    clash = scheduling.find_clash(
+                        self.Task, user.id, sched_date, sched_time,
+                        duration or scheduling.DEFAULT_DURATION)
+                    if clash is not None:
+                        clashes.append({
+                            "description": desc,
+                            "requested_time": sched_time,
+                            "requested_date": sched_date,
+                            **scheduling.clash_info(clash),
+                        })
+                        continue
+
             max_pos = (self.db.session.query(self.db.func.max(self.Task.position))
                        .filter_by(user_id=user.id).scalar() or 0)
             task = self.Task(
@@ -441,6 +512,9 @@ class TaskChatService:
                 recurring=(item.get("recurring") or "").strip(),
                 due=_parse_due(item.get("due")),
                 position=max_pos + 1,
+                scheduled_time=sched_time,
+                scheduled_date=sched_date,
+                duration=duration or scheduling.DEFAULT_DURATION,
             )
             self.db.session.add(task)
             self.db.session.flush()  # assign id
@@ -451,6 +525,12 @@ class TaskChatService:
             undo_ops.append({"type": "created", "ids": created_ids})
             actions.append({"action": "added", "count": len(created_ids)})
         result = {"added_ids": created_ids, "added_count": len(created_ids)}
+        if clashes:
+            result["clashes"] = clashes
+            result["note"] = ("Some tasks were NOT added because they overlap "
+                              "existing scheduled tasks. Ask the user how to "
+                              "proceed: a different time, keep both "
+                              "(allow_clash true), or add without a time.")
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not added."
@@ -460,11 +540,34 @@ class TaskChatService:
         updates = args.get("updates") or []
         before = []
         changed_ids = []
+        clashes = []
         for upd in updates:
             tid = upd.get("id")
             task = self.Task.query.filter_by(id=tid, user_id=user_id).first()
             if not task:
                 continue
+
+            # Rescheduling: validate the new slot before touching the task.
+            new_time = None
+            if "scheduled_time" in upd:
+                new_time = scheduling.parse_hhmm(upd.get("scheduled_time"))
+                if new_time:
+                    duration = (scheduling.parse_duration(upd.get("duration"))
+                                or task.duration or scheduling.DEFAULT_DURATION)
+                    new_date = scheduling.resolve_date(upd.get("scheduled_date"), new_time)
+                    if not upd.get("allow_clash"):
+                        clash = scheduling.find_clash(
+                            self.Task, user_id, new_date, new_time, duration,
+                            exclude_id=task.id)
+                        if clash is not None:
+                            clashes.append({
+                                "description": task.description,
+                                "requested_time": new_time,
+                                "requested_date": new_date,
+                                **scheduling.clash_info(clash),
+                            })
+                            continue
+
             before.append(task.to_dict())
             for field in _EDITABLE_FIELDS:
                 if field not in upd:
@@ -478,6 +581,17 @@ class TaskChatService:
                         task.hat_id = hat.id if hat else task.hat_id
                     else:
                         task.hat_id = None
+                elif field == "scheduled_time":
+                    task.scheduled_time = new_time
+                    task.scheduled_date = (
+                        scheduling.resolve_date(upd.get("scheduled_date"), new_time)
+                        if new_time else None)
+                elif field == "scheduled_date":
+                    pass  # handled with scheduled_time
+                elif field == "duration":
+                    dur = scheduling.parse_duration(upd.get("duration"))
+                    if dur:
+                        task.duration = dur
                 else:
                     setattr(task, field, (upd.get(field) or "").strip()
                             if field != "description" else (upd.get(field) or task.description))
@@ -487,7 +601,14 @@ class TaskChatService:
         if before:
             undo_ops.append({"type": "updated", "before": before})
             actions.append({"action": "updated", "count": len(before)})
-        return {"content": {"updated_ids": changed_ids, "updated_count": len(changed_ids)}}
+        result = {"updated_ids": changed_ids, "updated_count": len(changed_ids)}
+        if clashes:
+            result["clashes"] = clashes
+            result["note"] = ("Some updates were NOT applied because the new "
+                              "time overlaps existing scheduled tasks. Ask the "
+                              "user how to proceed (different time, keep both "
+                              "with allow_clash true, or leave as is).")
+        return {"content": result}
 
     def _delete_tasks(self, user_id, args, undo_ops, actions):
         ids = args.get("ids") or []
@@ -543,6 +664,8 @@ class TaskChatService:
             position=d.get("position") or (max_pos + 1),
             subtasks=json.dumps(d.get("subtasks", [])) if d.get("subtasks") else "[]",
             duration=d.get("duration") or 30,
+            scheduled_time=d.get("scheduled_time"),
+            scheduled_date=d.get("scheduled_date"),
             notes=d.get("notes") or None,
         )
 

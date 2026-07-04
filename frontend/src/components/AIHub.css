@@ -613,3 +613,6 @@
 .aih-fresh:hover { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.92); }
 .aih-fresh:disabled { opacity: 0.5; cursor: default; }
 [data-theme="light"] .aih-fresh { color: #6b5b45; border-color: rgba(0, 0, 0, 0.12); background: rgba(0, 0, 0, 0.04); }
+
+.aih-added__when { color: rgba(255, 255, 255, 0.5); font-size: 12px; }
+[data-theme="light"] .aih-added__when { color: #8a7d6a; }

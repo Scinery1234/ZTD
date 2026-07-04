@@ -50,6 +50,17 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     memory_prompt_block = _mod.memory_prompt_block
     handle_memory_tool = _mod.handle_memory_tool
 
+try:
+    import scheduling
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu2
+    import os as _os2
+    _spec2 = _ilu2.spec_from_file_location(
+        'scheduling', _os2.path.join(_os2.path.dirname(__file__), 'scheduling.py')
+    )
+    scheduling = _ilu2.module_from_spec(_spec2)
+    _spec2.loader.exec_module(scheduling)
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 4000
 MAX_HISTORY_TURNS = 24        # coaching conversations run longer than task edits
@@ -226,7 +237,9 @@ _SAVE_TASKS_TOOL = {
     "description": (
         "Save one or more concrete tasks or next steps that came up in the "
         "coaching conversation into the user's MadeHappen task list. Use only for "
-        "specific, actionable items the user wants to keep."
+        "specific, actionable items the user wants to keep. If the user named a "
+        "time, keep it OUT of the description and pass scheduled_time / "
+        "scheduled_date instead so the task lands on their calendar."
     ),
     "input_schema": {
         "type": "object",
@@ -237,7 +250,10 @@ _SAVE_TASKS_TOOL = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "description": {"type": "string"},
+                        "description": {
+                            "type": "string",
+                            "description": "Clean task name with no time-of-day phrases.",
+                        },
                         "priority": {
                             "type": "string",
                             "enum": ["urgent", "today", "tomorrow", "later", ""],
@@ -245,6 +261,22 @@ _SAVE_TASKS_TOOL = {
                         "due": {
                             "type": "string",
                             "description": "Natural-language or YYYY-MM-DD due date, or empty.",
+                        },
+                        "scheduled_time": {
+                            "type": "string",
+                            "description": "24h HH:MM start time on the user's calendar, or empty.",
+                        },
+                        "scheduled_date": {
+                            "type": "string",
+                            "description": "Date for the scheduled time (natural language ok); empty = next upcoming occurrence.",
+                        },
+                        "duration": {
+                            "type": "integer",
+                            "description": "Length in minutes (default 30).",
+                        },
+                        "allow_clash": {
+                            "type": "boolean",
+                            "description": "Set true ONLY after the user confirms overlapping an existing scheduled task.",
                         },
                     },
                     "required": ["description"],
@@ -368,6 +400,7 @@ class CoachingService:
         return (
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
+            f"{scheduling.SCHEDULING_GUIDANCE}"
             f"\n\nThe user's current MadeHappen tasks:\n{snapshot}"
             f"{memory}"
             f"{_SAFETY}"
@@ -404,6 +437,7 @@ class CoachingService:
     def _save_tasks(self, user, default_hat_id, args, added_tasks):
         items = args.get("tasks") or []
         created = []
+        clashes = []
         skipped_limit = 0
         for item in items:
             desc = (item.get("description") or "").strip()
@@ -412,6 +446,26 @@ class CoachingService:
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
                 continue
+
+            # Natural-language scheduling: clean name + a real calendar slot.
+            sched_time = scheduling.parse_hhmm(item.get("scheduled_time"))
+            sched_date = None
+            duration = scheduling.parse_duration(item.get("duration"))
+            if sched_time:
+                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time)
+                if not item.get("allow_clash"):
+                    clash = scheduling.find_clash(
+                        self.Task, user.id, sched_date, sched_time,
+                        duration or scheduling.DEFAULT_DURATION)
+                    if clash is not None:
+                        clashes.append({
+                            "description": desc,
+                            "requested_time": sched_time,
+                            "requested_date": sched_date,
+                            **scheduling.clash_info(clash),
+                        })
+                        continue
+
             max_pos = (self.db.session.query(self.db.func.max(self.Task.position))
                        .filter_by(user_id=user.id).scalar() or 0)
             task = self.Task(
@@ -423,16 +477,28 @@ class CoachingService:
                 recurring="",
                 due=_parse_due(item.get("due")),
                 position=max_pos + 1,
+                scheduled_time=sched_time,
+                scheduled_date=sched_date,
+                duration=duration or scheduling.DEFAULT_DURATION,
             )
             self.db.session.add(task)
             self.db.session.flush()
-            created.append({"id": task.id, "description": desc})
+            created.append({"id": task.id, "description": desc,
+                            "scheduled_time": sched_time, "scheduled_date": sched_date})
         self.db.session.commit()
 
         for c in created:
-            added_tasks.append({"description": c["description"]})
+            added_tasks.append({"description": c["description"],
+                                "scheduled_time": c["scheduled_time"],
+                                "scheduled_date": c["scheduled_date"]})
 
         result = {"saved_count": len(created)}
+        if clashes:
+            result["clashes"] = clashes
+            result["note"] = ("Some tasks were NOT saved because they overlap "
+                              "existing scheduled tasks. Ask the user how to "
+                              "proceed: a different time, keep both "
+                              "(allow_clash true), or save without a time.")
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not saved."

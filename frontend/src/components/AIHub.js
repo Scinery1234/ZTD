@@ -517,7 +517,14 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
                     ✓ Added to your task list
                   </span>
                   {m.tasksAdded.map((t, j) => (
-                    <span key={j} className="aih-added__chip">{t.description}</span>
+                    <span key={j} className="aih-added__chip">
+                      {t.description}
+                      {t.scheduled_time && (
+                        <span className="aih-added__when">
+                          {' '}— ⏰ {t.scheduled_time}{t.scheduled_date ? `, ${t.scheduled_date}` : ''}
+                        </span>
+                      )}
+                    </span>
                   ))}
                 </div>
               )}

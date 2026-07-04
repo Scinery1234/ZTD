@@ -1829,7 +1829,7 @@ def _coaching_service():
     if not coaching_available():
         return None
     return CoachingService(db, Task, Hat, check_task_limit,
-                           CoachMemory=CoachMemory)
+                           CoachMemory=CoachMemory, ChatUndo=ChatUndo)
 
 
 @app.route('/api/coach', methods=['POST'])
@@ -1861,7 +1861,8 @@ def ai_coach():
         append_chat_thread(user_id, coach_id, [
             {'role': 'user', 'content': message},
             {'role': 'assistant', 'content': result['reply'],
-             'tasksAdded': result.get('tasks_added') or []},
+             'tasksAdded': result.get('tasks_added') or [],
+             'taskActions': result.get('task_actions') or []},
         ])
         return jsonify(result)
     except ValueError as e:

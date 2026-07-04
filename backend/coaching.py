@@ -12,9 +12,11 @@ Design notes:
   lives on the server. The browser never sees the key (the original standalone
   prototype called the Anthropic API directly from the client, which can't ship).
 - Coaches are *task-aware*. Each turn we inject a compact snapshot of the user's
-  current tasks so the coach can reference what they're carrying, and we expose a
-  single `save_tasks` tool so that when a session surfaces a concrete next step or
-  commitment, it lands in the user's real MadeHappen list instead of being lost.
+  current tasks (with ids) so the coach can reference what they're carrying, and
+  expose `save_tasks` plus the task assistant's list/update/delete tools so a
+  session can capture, change or remove real MadeHappen tasks — but only after
+  offering and getting the user's agreement (or a direct instruction). Every
+  mutation records an undo snapshot via the shared ChatUndo stack.
 - Crisis language is detected server-side on every user turn. When it fires we
   surface crisis resources to the client regardless of what the model says, so
   safety never depends on the model.
@@ -61,10 +63,26 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     scheduling = _ilu2.module_from_spec(_spec2)
     _spec2.loader.exec_module(scheduling)
 
+try:
+    import ai_chat as _ai_chat
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu3
+    import os as _os3
+    _spec3 = _ilu3.spec_from_file_location(
+        'ai_chat', _os3.path.join(_os3.path.dirname(__file__), 'ai_chat.py')
+    )
+    _ai_chat = _ilu3.module_from_spec(_spec3)
+    _spec3.loader.exec_module(_ai_chat)
+
+# Coaches reuse the task assistant's tools (and its undo plumbing) so a
+# session can also change or remove tasks — never just pile new ones on.
+_TASK_EDIT_TOOLS = [t for t in _ai_chat.TOOLS
+                    if t["name"] in ("list_tasks", "update_tasks", "delete_tasks")]
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 4000
 MAX_HISTORY_TURNS = 24        # coaching conversations run longer than task edits
-MAX_TOOL_ITERATIONS = 4      # coaches rarely need more than one save per turn
+MAX_TOOL_ITERATIONS = 6      # room for list_tasks → update/delete chains
 MAX_TASKS_IN_CONTEXT = 40    # cap the task snapshot injected into the prompt
 
 # Crisis keywords, mirrored from the original hub. Detection is intentionally
@@ -93,14 +111,20 @@ _SAFETY = (
 # Shared guidance that makes every coach aware of the user's MadeHappen tasks.
 _TASK_AWARENESS = (
     "\n\nTASK AWARENESS: This user is inside MadeHappen, their to-do app. Their "
-    "current tasks are provided below for gentle context — do not read them back "
-    "as a list unless it genuinely helps. When the conversation surfaces a "
-    "concrete, specific next step, action or commitment the user wants to keep, "
-    "call the save_tasks tool so it lands in their real task list and isn't lost. "
-    "Save at most a few clear, self-contained tasks; never save vague feelings, "
-    "and confirm briefly and warmly in your reply (e.g. \"I've added that to your "
-    "list\"). Keep your coaching voice — saving a task is a quiet side-effect, not "
-    "the point of the conversation."
+    "current tasks (with real ids) are provided below for gentle context — do not "
+    "read them back as a list unless it genuinely helps.\n"
+    "You can save new tasks (save_tasks), change existing ones (update_tasks) and "
+    "remove them (delete_tasks). OFFER FIRST: never call these tools until the "
+    "user clearly agrees or explicitly asks. When a concrete next step surfaces, "
+    "ask something like \"Would you like me to add that to your list?\" and act "
+    "only on a yes. The one exception is a direct instruction (\"add X\", "
+    "\"delete my dentist task\", \"move that to tomorrow\") — do that right away. "
+    "Use the real ids from the task list below (or list_tasks) when changing or "
+    "deleting; never guess ids, and only delete what the user clearly asked to "
+    "remove. Save at most a few clear, self-contained tasks; never save vague "
+    "feelings. After acting, confirm briefly and warmly (e.g. \"I've added that "
+    "to your list\"). Keep your coaching voice — task changes are a quiet "
+    "side-effect, not the point of the conversation."
 )
 
 
@@ -135,8 +159,8 @@ _CBT_SYSTEM = (
     "Emotions, 4-Challenge Your Beliefs, 5-New Actions & Emotions, 6-Immediate "
     "Actions for Today, 7-Weekly Goals, 8-Review Goals, 9-Gratitude Practice, "
     "10-Self-Love & Reflection.\n"
-    "At steps 6 and 7, when concrete actions or weekly goals are agreed, save them "
-    "with save_tasks so they become real MadeHappen tasks."
+    "At steps 6 and 7, when concrete actions or weekly goals emerge, offer to save "
+    "them as real MadeHappen tasks and call save_tasks once the user agrees."
 )
 
 _ACTION_SYSTEM = (
@@ -145,7 +169,8 @@ _ACTION_SYSTEM = (
     "solution-focused therapy. Never give advice or suggestions. Listen, reflect, "
     "and ask one question at a time. Match the user's energy. Be warm, natural and "
     "emotionally intelligent. When the user names a specific action they're ready "
-    "to take, offer to keep it and save it with save_tasks."
+    "to take, offer to keep it for them and save it with save_tasks only after "
+    "they say yes."
 )
 
 _EXEC_SYSTEM = (
@@ -154,8 +179,8 @@ _EXEC_SYSTEM = (
     "advice. Listen, reflect, and ask one thoughtful question at a time. Help the "
     "user externalise thoughts and get tasks out of their head. You are calm and "
     "unhurried, grounded in ACT, CBT and Mindfulness with a Buddhist/Taoist/Yogic "
-    "tone. Whenever a task or intention surfaces, quietly capture it with "
-    "save_tasks so their mind can let it go."
+    "tone. When a task or intention surfaces, gently offer to capture it so their "
+    "mind can let it go, and save it with save_tasks once they agree."
 )
 
 _CHARGE_SYSTEM = (
@@ -187,9 +212,10 @@ _CLARITY_SYSTEM = (
     "Phase 9 – Resistance Check (optional): anything hard to start?\n"
     "Phase 10 – Break It Down (optional): decompose complex steps.\n"
     "Phase 11 – Visualise (optional): walk through the plan mentally.\n"
-    "Phase 12 – Schedule: turn first steps into real commitments — save them with "
-    "save_tasks.\n"
-    "Phase 13 – First Action: what happens right now? Save it with save_tasks."
+    "Phase 12 – Schedule: turn first steps into real commitments — offer to save "
+    "them with save_tasks once the user confirms.\n"
+    "Phase 13 – First Action: what happens right now? Offer to save it with "
+    "save_tasks."
 )
 
 COACHES = {
@@ -293,12 +319,18 @@ _SAVE_TASKS_TOOL = {
 class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
-    def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None):
+    def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None,
+                 ChatUndo=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
         self.check_task_limit = check_task_limit
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
+        self.ChatUndo = ChatUndo         # enables undo for coach task changes
+        # Task edits are delegated to the task assistant's handlers so coaches
+        # share its clash checks, field rules and undo snapshots.
+        self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
+                                                check_task_limit)
         self.client = anthropic.Anthropic() if anthropic is not None else None
 
     # ---- public entry point ----
@@ -318,9 +350,11 @@ class CoachingService:
         messages = self._build_messages(history, message)
 
         added_tasks = []      # {description} of tasks saved this turn (for the UI)
+        undo_ops = []         # inverse operations for this turn (shared format
+        actions = []          #   with ai_chat) + human-facing change summary
         reply_text = ""
 
-        tools = [_SAVE_TASKS_TOOL]
+        tools = [_SAVE_TASKS_TOOL] + _TASK_EDIT_TOOLS
         if self.CoachMemory is not None:
             tools = tools + MEMORY_TOOLS
 
@@ -345,7 +379,8 @@ class CoachingService:
             tool_results = []
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name,
-                                        block.input, added_tasks, coach_id)
+                                        block.input, added_tasks, undo_ops,
+                                        actions, coach_id)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -357,12 +392,19 @@ class CoachingService:
         if not reply_text:
             reply_text = "I'm here with you."
 
+        undo_token = None
+        if undo_ops and self.ChatUndo is not None:
+            undo_token = self._editor._save_undo(user.id, undo_ops, actions)
+
         return {
             "reply": reply_text,
             "coach_id": coach_id,
             "crisis": crisis,
             "crisis_resources": CRISIS_RESOURCES if crisis else [],
             "tasks_added": added_tasks,
+            "task_actions": actions,
+            "undo_token": undo_token,
+            "undo_available": undo_token is not None,
         }
 
     # ---- internals ----
@@ -385,11 +427,16 @@ class CoachingService:
             return "  (no tasks yet)"
         lines = []
         for t in tasks:
-            bits = [t.description or ""]
+            bits = [f"[#{t.id}] {t.description or ''}"]
             if t.priority:
                 bits.append(f"priority: {t.priority}")
             if t.due:
                 bits.append(f"due: {t.due}")
+            if t.scheduled_time:
+                when = t.scheduled_time
+                if t.scheduled_date:
+                    when += f" on {t.scheduled_date}"
+                bits.append(f"scheduled: {when}")
             lines.append("  - " + " · ".join(bits))
         return "\n".join(lines)
 
@@ -420,10 +467,18 @@ class CoachingService:
             messages = messages[1:]
         return messages
 
-    def _dispatch(self, user, default_hat_id, name, args, added_tasks, coach_id=""):
+    def _dispatch(self, user, default_hat_id, name, args, added_tasks,
+                  undo_ops, actions, coach_id=""):
         try:
             if name == "save_tasks":
-                return self._save_tasks(user, default_hat_id, args, added_tasks)
+                return self._save_tasks(user, default_hat_id, args, added_tasks,
+                                        undo_ops, actions)
+            if name == "list_tasks":
+                return self._editor._list_tasks(user.id, args)
+            if name == "update_tasks":
+                return self._editor._update_tasks(user.id, args, undo_ops, actions)
+            if name == "delete_tasks":
+                return self._editor._delete_tasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              coach_id, name, args)
@@ -434,7 +489,10 @@ class CoachingService:
             self.db.session.rollback()
             return {"content": {"error": str(e)}, "is_error": True}
 
-    def _save_tasks(self, user, default_hat_id, args, added_tasks):
+    def _save_tasks(self, user, default_hat_id, args, added_tasks,
+                    undo_ops=None, actions=None):
+        undo_ops = [] if undo_ops is None else undo_ops
+        actions = [] if actions is None else actions
         items = args.get("tasks") or []
         created = []
         clashes = []
@@ -491,6 +549,9 @@ class CoachingService:
             added_tasks.append({"description": c["description"],
                                 "scheduled_time": c["scheduled_time"],
                                 "scheduled_date": c["scheduled_date"]})
+        if created:
+            undo_ops.append({"type": "created", "ids": [c["id"] for c in created]})
+            actions.append({"action": "added", "count": len(created)})
 
         result = {"saved_count": len(created)}
         if clashes:

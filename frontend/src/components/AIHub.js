@@ -421,10 +421,14 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
           role: 'assistant',
           content: res.reply,
           tasksAdded: res.tasks_added || [],
+          taskActions: res.task_actions || [],
+          undo_token: res.undo_available ? res.undo_token : null,
         }]);
         const s = detectStepIn(res.reply);
         if (s) setStep((cur) => Math.max(cur, s));
-        if ((res.tasks_added || []).length > 0) onTasksChanged?.();
+        if ((res.tasks_added || []).length > 0 || (res.task_actions || []).length > 0) {
+          onTasksChanged?.();
+        }
       } else {
         const res = await api.chat(text, hatId, history);
         setMessages((prev) => [...prev, {
@@ -526,6 +530,15 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
                       )}
                     </span>
                   ))}
+                </div>
+              )}
+              {Array.isArray(m.taskActions) && m.taskActions.some((a) => a.action !== 'added') && (
+                <div className="aih-added">
+                  <span className="aih-added__label">
+                    ✓ {m.taskActions.filter((a) => a.action !== 'added')
+                        .map((a) => `${a.action} ${a.count} task${a.count === 1 ? '' : 's'}`)
+                        .join(' · ')}
+                  </span>
                 </div>
               )}
               {m.undo_token != null && !m.undone && (

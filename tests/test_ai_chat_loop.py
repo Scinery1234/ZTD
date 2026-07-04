@@ -27,7 +27,9 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # module and our monkeypatched fake Anthropic client is visible to requests.
 sys.path.insert(0, os.path.join(_REPO, 'backend'))
 
-from backend.app import app, db, User, Hat, Task, ChatUndo, check_task_limit  # noqa: E402
+from backend.app import app, db, limiter, User, Hat, Task, ChatUndo, check_task_limit  # noqa: E402
+
+limiter.enabled = False  # rate limits would trip across the full test suite
 import ai_chat  # noqa: E402  (backend/ai_chat.py via sys.path)
 from ai_chat import TaskChatService, MAX_TOOL_ITERATIONS  # noqa: E402
 

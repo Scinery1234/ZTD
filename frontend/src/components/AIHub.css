@@ -481,3 +481,91 @@
     border-right: none;
   }
 }
+
+/* ── Memory panel ─────────────────────────────────────────────────────────── */
+.aih-hub__memory-btn {
+  background: none; border: none; cursor: pointer;
+  color: rgba(251, 191, 36, 0.85);
+  font-size: inherit; padding: 0;
+}
+.aih-hub__memory-btn:hover { text-decoration: underline; }
+
+.aih-memory {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(6, 4, 10, 0.9);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.aih-memory__card {
+  width: 100%;
+  max-width: 560px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1c1710;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.aih-memory__head { display: flex; justify-content: space-between; align-items: center; }
+.aih-memory__title { font-size: 17px; font-weight: 800; }
+.aih-memory__close {
+  background: rgba(255, 255, 255, 0.07); border: none; cursor: pointer;
+  color: rgba(255, 255, 255, 0.7); border-radius: 8px;
+  width: 30px; height: 30px; font-size: 14px;
+}
+.aih-memory__lead {
+  font-size: 13px; color: rgba(255, 255, 255, 0.55);
+  line-height: 1.5; margin: 8px 0 14px;
+}
+.aih-memory__list {
+  flex: 1; min-height: 80px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.aih-memory__empty {
+  font-size: 13px; color: rgba(255, 255, 255, 0.45);
+  font-style: italic; line-height: 1.5; padding: 12px 4px;
+}
+.aih-memory__item {
+  position: relative;
+  padding: 10px 34px 10px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.aih-memory__meta {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 11px; color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 4px;
+}
+.aih-memory__content { font-size: 13.5px; line-height: 1.45; }
+.aih-memory__del {
+  position: absolute; top: 8px; right: 8px;
+  background: none; border: none; cursor: pointer;
+  color: rgba(255, 255, 255, 0.35); font-size: 13px;
+  padding: 2px 4px; border-radius: 4px;
+}
+.aih-memory__del:hover { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+.aih-memory__foot {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 14px; font-size: 13px;
+}
+.aih-memory__foot button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+}
+.aih-memory__danger {
+  color: #fca5a5 !important;
+  border-color: rgba(248, 113, 113, 0.35) !important;
+  background: rgba(248, 113, 113, 0.08) !important;
+}
+
+[data-theme="light"] .aih-memory__card { background: #fffdf9; }
+[data-theme="light"] .aih-memory__content { color: #1c1209; }
+[data-theme="light"] .aih-memory__item { background: #fff; border-color: rgba(0, 0, 0, 0.08); }

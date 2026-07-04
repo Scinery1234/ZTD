@@ -28,6 +28,19 @@ except ImportError:  # SDK optional — feature self-disables when absent
 
 import dateparser
 
+try:
+    from memory_notes import MEMORY_TOOLS, memory_prompt_block, handle_memory_tool
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location(
+        'memory_notes', os.path.join(os.path.dirname(__file__), 'memory_notes.py')
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    MEMORY_TOOLS = _mod.MEMORY_TOOLS
+    memory_prompt_block = _mod.memory_prompt_block
+    handle_memory_tool = _mod.handle_memory_tool
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 12        # client-supplied prior turns to carry into context
@@ -179,12 +192,13 @@ TOOLS = [
 class TaskChatService:
     """Runs the chat loop and executes task mutations for one request."""
 
-    def __init__(self, db, Task, Hat, ChatUndo, check_task_limit):
+    def __init__(self, db, Task, Hat, ChatUndo, check_task_limit, CoachMemory=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
         self.ChatUndo = ChatUndo
         self.check_task_limit = check_task_limit
+        self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.client = anthropic.Anthropic() if anthropic is not None else None
 
     # ---- public entry point ----
@@ -193,7 +207,7 @@ class TaskChatService:
         hats = self.Hat.query.filter_by(user_id=user.id).order_by(self.Hat.position, self.Hat.id).all()
         default_hat_id = self._resolve_default_hat(user.id, hat_id, hats)
 
-        system = self._system_prompt(hats, default_hat_id)
+        system = self._system_prompt(user, hats, default_hat_id)
         messages = self._build_messages(history, message)
 
         # Accumulators across the agentic loop.
@@ -201,12 +215,13 @@ class TaskChatService:
         actions = []       # human-facing summary of what changed (for the UI)
 
         reply_text = ""
+        tools = TOOLS if self.CoachMemory is None else TOOLS + MEMORY_TOOLS
         for _ in range(MAX_TOOL_ITERATIONS):
             response = self.client.messages.create(
                 model=MODEL,
                 max_tokens=4096,
                 system=system,
-                tools=TOOLS,
+                tools=tools,
                 messages=messages,
             )
 
@@ -281,9 +296,37 @@ class TaskChatService:
         main = next((h for h in hats if h.name == "Main Hat"), None)
         return main.id if main else None
 
-    def _system_prompt(self, hats, default_hat_id):
+    def _task_snapshot(self, user_id, limit=40):
+        """Compact current-task view (with ids) so the assistant starts every
+        conversation already aware of the list; list_tasks stays available for
+        fresh or filtered reads."""
+        q = (self.Task.query.filter_by(user_id=user_id)
+             .order_by(self.Task.position, self.Task.id))
+        tasks = q.limit(limit + 1).all()
+        truncated = len(tasks) > limit
+        tasks = tasks[:limit]
+        if not tasks:
+            return "  (no tasks yet)"
+        lines = []
+        for t in tasks:
+            bits = [f"[#{t.id}] {t.description or ''}"]
+            if t.category:
+                bits.append(f"@{t.category}")
+            if t.priority:
+                bits.append(f"!{t.priority}")
+            if t.due:
+                bits.append(f"due {t.due}")
+            lines.append("  " + " · ".join(bits))
+        if truncated:
+            lines.append("  … (more tasks exist — use list_tasks for the full view)")
+        return "\n".join(lines)
+
+    def _system_prompt(self, user, hats, default_hat_id):
         today = datetime.today().strftime("%Y-%m-%d (%A)")
         hat_lines = "\n".join(f"  - id {h.id}: {h.name}" for h in hats) or "  (none)"
+        snapshot = self._task_snapshot(user.id)
+        memory = (memory_prompt_block(self.CoachMemory, user.id)
+                  if self.CoachMemory is not None else "")
         return (
             "You are the task assistant for MadeHappen, a to-do app. You help the "
             "user add, delete, and bulk-modify their tasks through the provided "
@@ -304,7 +347,10 @@ class TaskChatService:
             "ambiguous or would affect many tasks unexpectedly, ask a brief "
             "clarifying question instead of acting.\n"
             "- After acting, reply with one short, friendly sentence summarizing "
-            "what you changed."
+            "what you changed.\n\n"
+            "The user's current tasks (may be truncated — ids are real):\n"
+            f"{snapshot}"
+            f"{memory}"
         )
 
     def _build_messages(self, history, message):
@@ -331,6 +377,11 @@ class TaskChatService:
                 return self._update_tasks(user.id, args, undo_ops, actions)
             if name == "delete_tasks":
                 return self._delete_tasks(user.id, args, undo_ops, actions)
+            if self.CoachMemory is not None:
+                handled = handle_memory_tool(self.db, self.CoachMemory, user,
+                                             "assistant", name, args)
+                if handled is not None:
+                    return handled
             return {"content": {"error": f"Unknown tool: {name}"}, "is_error": True}
         except Exception as e:  # never 500 the loop — let the model recover
             self.db.session.rollback()

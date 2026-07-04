@@ -302,6 +302,26 @@ class ChatUndo(db.Model):
     payload = db.Column(db.Text, default='[]')   # JSON list of inverse ops
 
 
+class CoachMemory(db.Model):
+    """A short durable note the AI hub keeps about a user, shared across the
+    task assistant and every coach so conversations pick up where they left
+    off. Users can view and delete notes via /api/coach/memory."""
+    __tablename__ = 'coach_memory'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    coach_id = db.Column(db.String(20), default='')   # which tool saved it ('' = assistant)
+    content = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'coach_id': self.coach_id or '',
+            'content': self.content,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 # --- Helpers ---
 def parse_task_input(input_str):
     pattern = r"(?P<desc>.+?)(?:\s+@(?P<cat>[^!~^]+))?(?:\s*!\s*(?P<prio>urgent|today|tomorrow|later))?(?:\s*~\s*(?P<recur>daily|weekly|monthly))?(?:\s*\^\s*(?P<due>.+))?$"
@@ -1681,7 +1701,8 @@ def _chat_service():
         TaskChatService, chat_available = _mod.TaskChatService, _mod.chat_available
     if not chat_available():
         return None
-    return TaskChatService(db, Task, Hat, ChatUndo, check_task_limit)
+    return TaskChatService(db, Task, Hat, ChatUndo, check_task_limit,
+                           CoachMemory=CoachMemory)
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -1755,7 +1776,8 @@ def _coaching_service():
         CoachingService, coaching_available = _mod.CoachingService, _mod.coaching_available
     if not coaching_available():
         return None
-    return CoachingService(db, Task, Hat, check_task_limit)
+    return CoachingService(db, Task, Hat, check_task_limit,
+                           CoachMemory=CoachMemory)
 
 
 @app.route('/api/coach', methods=['POST'])
@@ -1791,6 +1813,38 @@ def ai_coach():
         db.session.rollback()
         app.logger.exception('AI coaching failed')
         return jsonify({'error': f'AI coaching failed: {e}'}), 500
+
+
+# === AI memory (user-visible, user-controlled) ===
+
+@app.route('/api/coach/memory', methods=['GET'])
+@jwt_required()
+def coach_memory_list():
+    user_id = int(get_jwt_identity())
+    notes = (CoachMemory.query.filter_by(user_id=user_id)
+             .order_by(CoachMemory.created_at.desc(), CoachMemory.id.desc()).all())
+    return jsonify([n.to_dict() for n in notes])
+
+
+@app.route('/api/coach/memory/<int:memory_id>', methods=['DELETE'])
+@jwt_required()
+def coach_memory_delete(memory_id):
+    user_id = int(get_jwt_identity())
+    note = CoachMemory.query.filter_by(id=memory_id, user_id=user_id).first()
+    if not note:
+        return jsonify({'error': 'Memory not found'}), 404
+    db.session.delete(note)
+    db.session.commit()
+    return jsonify({'deleted': True})
+
+
+@app.route('/api/coach/memory', methods=['DELETE'])
+@jwt_required()
+def coach_memory_clear():
+    user_id = int(get_jwt_identity())
+    count = CoachMemory.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
+    return jsonify({'deleted': True, 'count': count})
 
 
 def migrate_db():

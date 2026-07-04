@@ -36,6 +36,20 @@ try:
 except ImportError:  # pragma: no cover - dateparser ships with the app
     dateparser = None
 
+try:
+    from memory_notes import MEMORY_TOOLS, memory_prompt_block, handle_memory_tool
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu
+    import os as _os
+    _spec = _ilu.spec_from_file_location(
+        'memory_notes', _os.path.join(_os.path.dirname(__file__), 'memory_notes.py')
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    MEMORY_TOOLS = _mod.MEMORY_TOOLS
+    memory_prompt_block = _mod.memory_prompt_block
+    handle_memory_tool = _mod.handle_memory_tool
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 4000
 MAX_HISTORY_TURNS = 24        # coaching conversations run longer than task edits
@@ -247,11 +261,12 @@ _SAVE_TASKS_TOOL = {
 class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
-    def __init__(self, db, Task, Hat, check_task_limit):
+    def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
         self.check_task_limit = check_task_limit
+        self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.client = anthropic.Anthropic() if anthropic is not None else None
 
     # ---- public entry point ----
@@ -273,12 +288,16 @@ class CoachingService:
         added_tasks = []      # {description} of tasks saved this turn (for the UI)
         reply_text = ""
 
+        tools = [_SAVE_TASKS_TOOL]
+        if self.CoachMemory is not None:
+            tools = tools + MEMORY_TOOLS
+
         for _ in range(MAX_TOOL_ITERATIONS):
             response = self.client.messages.create(
                 model=MODEL,
                 max_tokens=1200,
                 system=system,
-                tools=[_SAVE_TASKS_TOOL],
+                tools=tools,
                 messages=messages,
             )
 
@@ -294,7 +313,7 @@ class CoachingService:
             tool_results = []
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name,
-                                        block.input, added_tasks)
+                                        block.input, added_tasks, coach_id)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -344,10 +363,13 @@ class CoachingService:
 
     def _system_prompt(self, user, coach):
         snapshot = self._task_snapshot(user.id)
+        memory = (memory_prompt_block(self.CoachMemory, user.id)
+                  if self.CoachMemory is not None else "")
         return (
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
             f"\n\nThe user's current MadeHappen tasks:\n{snapshot}"
+            f"{memory}"
             f"{_SAFETY}"
         )
 
@@ -365,10 +387,15 @@ class CoachingService:
             messages = messages[1:]
         return messages
 
-    def _dispatch(self, user, default_hat_id, name, args, added_tasks):
+    def _dispatch(self, user, default_hat_id, name, args, added_tasks, coach_id=""):
         try:
             if name == "save_tasks":
                 return self._save_tasks(user, default_hat_id, args, added_tasks)
+            if self.CoachMemory is not None:
+                handled = handle_memory_tool(self.db, self.CoachMemory, user,
+                                             coach_id, name, args)
+                if handled is not None:
+                    return handled
             return {"content": {"error": f"Unknown tool: {name}"}, "is_error": True}
         except Exception as e:  # never break the loop — let the model recover
             self.db.session.rollback()

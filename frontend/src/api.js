@@ -246,4 +246,9 @@ export const api = {
         history: history || [],
       }),
     }),
+
+  // AI memory — persistent notes the hub keeps between conversations
+  coachMemoryList: () => apiFetch('/coach/memory'),
+  coachMemoryDelete: (id) => apiFetch(`/coach/memory/${id}`, { method: 'DELETE' }),
+  coachMemoryClear: () => apiFetch('/coach/memory', { method: 'DELETE' }),
 };

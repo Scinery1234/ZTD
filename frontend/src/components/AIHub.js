@@ -157,7 +157,7 @@ function CrisisOverlay({ onClose }) {
 const CONSENT_ITEMS = [
   { k: 'notTherapy', t: 'This is coaching, not therapy', b: 'These tools offer AI-assisted reflection and coaching. They are not a substitute for professional mental health care.' },
   { k: 'ai', t: 'Responses are AI-generated', b: 'All coaching is powered by Claude (Anthropic). Use your own judgment.' },
-  { k: 'private', t: 'This is your space', b: 'Coaching conversations aren’t saved between sessions. Tasks you choose to keep are added to your task list.' },
+  { k: 'private', t: 'This is your space', b: 'Conversations aren’t saved, but your coach keeps short memory notes (goals, themes, things you ask it to remember) so it can pick up where you left off. You can view and delete them anytime from the hub. Tasks you choose to keep are added to your task list.' },
   { k: 'age', t: 'I’m 18 years or older', b: 'These tools are designed for adults.' },
 ];
 
@@ -191,6 +191,94 @@ function ConsentGate({ onAccept, onCrisis }) {
       </div>
       <div className="aih-consent__foot">
         <button className="aih-btn-primary" onClick={onAccept} disabled={!all}>Enter →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Memory panel — view & delete what the hub remembers ─────────────────────
+function memorySource(coachId) {
+  if (!coachId || coachId === 'assistant') return { icon: '✨', name: 'Task Assistant' };
+  const tool = TOOLS.find((t) => t.id === coachId);
+  return tool ? { icon: tool.icon, name: tool.name } : { icon: '🧠', name: coachId };
+}
+
+function MemoryPanel({ onClose }) {
+  const [notes, setNotes] = useState(null); // null = loading
+  const [error, setError] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setNotes(await api.coachMemoryList());
+    } catch (err) {
+      setError(err.data?.token_expired ? 'Please sign in again.' : err.message);
+      setNotes([]);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (id) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    try { await api.coachMemoryDelete(id); } catch { load(); }
+  };
+
+  const clearAll = async () => {
+    setConfirmClear(false);
+    setNotes([]);
+    try { await api.coachMemoryClear(); } catch { load(); }
+  };
+
+  return (
+    <div className="aih-memory" role="dialog" aria-label="Memory">
+      <div className="aih-memory__card">
+        <div className="aih-memory__head">
+          <span className="aih-memory__title">🧠 Memory</span>
+          <button className="aih-memory__close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <p className="aih-memory__lead">
+          Things the hub has saved to remember you between conversations. Every
+          coach and the task assistant share this memory. Delete anything you
+          don’t want kept — or just tell a coach to “forget that”.
+        </p>
+        <div className="aih-memory__list">
+          {notes === null && <div className="aih-memory__empty">Loading…</div>}
+          {notes !== null && error && <div className="aih-memory__empty">{error}</div>}
+          {notes !== null && !error && notes.length === 0 && (
+            <div className="aih-memory__empty">
+              Nothing saved yet. As you talk, important things — goals, themes,
+              anything you ask it to remember — will appear here.
+            </div>
+          )}
+          {(notes || []).map((n) => {
+            const src = memorySource(n.coach_id);
+            return (
+              <div key={n.id} className="aih-memory__item">
+                <div className="aih-memory__meta">
+                  <span>{src.icon} {src.name}</span>
+                  {n.created_at && <span>{n.created_at.slice(0, 10)}</span>}
+                </div>
+                <div className="aih-memory__content">{n.content}</div>
+                <button className="aih-memory__del" onClick={() => remove(n.id)} title="Forget this">✕</button>
+              </div>
+            );
+          })}
+        </div>
+        {(notes || []).length > 0 && (
+          <div className="aih-memory__foot">
+            {confirmClear ? (
+              <>
+                <span>Forget everything?</span>
+                <button className="aih-memory__danger" onClick={clearAll}>Yes, forget all</button>
+                <button onClick={() => setConfirmClear(false)}>Cancel</button>
+              </>
+            ) : (
+              <button className="aih-memory__danger" onClick={() => setConfirmClear(true)}>
+                Forget everything
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -404,7 +492,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
 }
 
 // ── Hub landing ──────────────────────────────────────────────────────────────
-function Hub({ onSelect, onCrisis }) {
+function Hub({ onSelect, onCrisis, onOpenMemory }) {
   const assistant = TOOLS.find((t) => t.kind === 'assistant');
   const coaches = TOOLS.filter((t) => t.kind === 'coach');
   return (
@@ -440,7 +528,10 @@ function Hub({ onSelect, onCrisis }) {
 
       <div className="aih-hub__foot">
         <span>🆘 In crisis? <a href="tel:131114">Lifeline 13 11 14</a> · <button onClick={onCrisis}>All resources →</button></span>
-        <span className="aih-hub__note">AI coaching · not therapy</span>
+        <span className="aih-hub__note">
+          <button className="aih-hub__memory-btn" onClick={onOpenMemory}>🧠 Memory</button>
+          {' · '}AI coaching · not therapy
+        </span>
       </div>
     </div>
   );
@@ -455,6 +546,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
   const [consented, setConsented] = useState(() => isConsentValid());
   const [active, setActive] = useState(null); // active tool object, or null = hub
   const [crisis, setCrisis] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   const showCrisis = useCallback(() => setCrisis(true), []);
 
@@ -497,6 +589,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
   const content = (
     <>
       {crisis && <CrisisOverlay onClose={() => setCrisis(false)} />}
+      {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
       {!consented ? (
         <ConsentGate onAccept={acceptConsent} onCrisis={showCrisis} />
       ) : active ? (
@@ -510,7 +603,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
           onCrisis={showCrisis}
         />
       ) : (
-        <Hub onSelect={setActive} onCrisis={showCrisis} />
+        <Hub onSelect={setActive} onCrisis={showCrisis} onOpenMemory={() => setMemoryOpen(true)} />
       )}
     </>
   );

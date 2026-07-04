@@ -569,3 +569,18 @@
 [data-theme="light"] .aih-memory__card { background: #fffdf9; }
 [data-theme="light"] .aih-memory__content { color: #1c1209; }
 [data-theme="light"] .aih-memory__item { background: #fff; border-color: rgba(0, 0, 0, 0.08); }
+
+/* ── Start-fresh button in the conversation header ────────────────────────── */
+.aih-fresh {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aih-fresh:hover { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.92); }
+.aih-fresh:disabled { opacity: 0.5; cursor: default; }
+[data-theme="light"] .aih-fresh { color: #6b5b45; border-color: rgba(0, 0, 0, 0.12); background: rgba(0, 0, 0, 0.04); }

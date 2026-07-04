@@ -157,7 +157,7 @@ function CrisisOverlay({ onClose }) {
 const CONSENT_ITEMS = [
   { k: 'notTherapy', t: 'This is coaching, not therapy', b: 'These tools offer AI-assisted reflection and coaching. They are not a substitute for professional mental health care.' },
   { k: 'ai', t: 'Responses are AI-generated', b: 'All coaching is powered by Claude (Anthropic). Use your own judgment.' },
-  { k: 'private', t: 'This is your space', b: 'Conversations aren’t saved, but your coach keeps short memory notes (goals, themes, things you ask it to remember) so it can pick up where you left off. You can view and delete them anytime from the hub. Tasks you choose to keep are added to your task list.' },
+  { k: 'private', t: 'This is your space', b: 'Your conversations and short memory notes are saved to your account so every chat picks up where you left off — even after closing the tab or switching devices. You’re in control: “Start fresh” clears a conversation, and the 🧠 Memory panel lets you delete anything remembered. Tasks you choose to keep are added to your task list.' },
   { k: 'age', t: 'I’m 18 years or older', b: 'These tools are designed for adults.' },
 ];
 
@@ -318,7 +318,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
     ? [{ role: 'assistant', content: COACH_OPENERS[tool.id] }]
     : [{ role: 'assistant', content: ASSISTANT_WELCOME }];
 
-  const [messages, setMessages] = useState(seed);
+  const [messages, setMessages] = useState(null); // null = loading saved chat
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(1);
@@ -326,6 +326,46 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
   const [justAdded, setJustAdded] = useState(new Set());
   const listRef = useRef(null);
   const inputRef = useRef(null);
+
+  const detectStepIn = useCallback((text) => {
+    if (!tool.marker) return null;
+    const m = (text || '').match(new RegExp(`\\*\\*${tool.marker}\\s+(\\d+)`, 'i'));
+    return m ? parseInt(m[1], 10) : null;
+  }, [tool.marker]);
+
+  // Chats are saved server-side per tool — resume where we left off, so
+  // closing the tab (or switching devices) never loses the conversation.
+  useEffect(() => {
+    let alive = true;
+    api.chatThreadGet(tool.id)
+      .then((res) => {
+        if (!alive) return;
+        const saved = Array.isArray(res.messages) ? res.messages : [];
+        if (saved.length === 0) {
+          setMessages(seed);
+          return;
+        }
+        setMessages(saved);
+        // Restore the structured-coach progress bar from the transcript.
+        let s = 1;
+        saved.forEach((m) => {
+          if (m.role === 'assistant') {
+            const d = detectStepIn(m.content);
+            if (d) s = Math.max(s, d);
+          }
+        });
+        setStep(s);
+      })
+      .catch(() => { if (alive) setMessages(seed); });
+    return () => { alive = false; };
+  }, [tool.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startFresh = useCallback(async () => {
+    try { await api.chatThreadClear(tool.id); } catch { /* clearing is best-effort */ }
+    setMessages(seed);
+    setStep(1);
+    inputRef.current?.focus();
+  }, [tool.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -346,15 +386,9 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
     prevIds.current = cur;
   }, [tasks]);
 
-  const detectStep = useCallback((text) => {
-    if (!tool.marker) return null;
-    const m = (text || '').match(new RegExp(`\\*\\*${tool.marker}\\s+(\\d+)`, 'i'));
-    return m ? parseInt(m[1], 10) : null;
-  }, [tool.marker]);
-
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || busy || !messages) return;
     if (isCoach && detectCrisis(text)) onCrisis();
 
     const history = toHistory(messages);
@@ -370,7 +404,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
           content: res.reply,
           tasksAdded: res.tasks_added || [],
         }]);
-        const s = detectStep(res.reply);
+        const s = detectStepIn(res.reply);
         if (s) setStep((cur) => Math.max(cur, s));
         if ((res.tasks_added || []).length > 0) onTasksChanged?.();
       } else {
@@ -391,7 +425,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
     } finally {
       setBusy(false);
     }
-  }, [input, busy, messages, isCoach, tool.id, hatId, onTasksChanged, onCrisis, detectStep]);
+  }, [input, busy, messages, isCoach, tool.id, hatId, onTasksChanged, onCrisis, detectStepIn]);
 
   const undo = useCallback(async (index, token) => {
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, undoing: true } : m)));
@@ -429,6 +463,12 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
             {railOpen ? 'Hide tasks' : 'Tasks'}
             {tasks?.length ? <span className="aih-rail-toggle__count">{tasks.length}</span> : null}
           </button>
+          <button
+            className="aih-fresh"
+            onClick={startFresh}
+            disabled={busy || !messages}
+            title="Start a fresh conversation (your saved chat is cleared; memory notes are kept)"
+          >↺ New</button>
           <button className="aih-sos" onClick={onCrisis} title="Crisis support">🆘</button>
         </div>
       </header>
@@ -443,7 +483,12 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
 
       <div className="aih-convo__body">
         <div className="aih-thread" ref={listRef}>
-          {messages.map((m, i) => (
+          {messages === null && (
+            <div className="aih-msg aih-msg--assistant">
+              <div className="aih-bubble aih-bubble--typing"><span></span><span></span><span></span></div>
+            </div>
+          )}
+          {(messages || []).map((m, i) => (
             <div key={i} className={`aih-msg aih-msg--${m.role}${m.error ? ' aih-msg--error' : ''}`}>
               <div className="aih-bubble">
                 {m.role === 'assistant' ? renderBold(m.content) : m.content}
@@ -483,9 +528,9 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
           onKeyDown={onKeyDown}
           placeholder={isCoach ? 'Type your response…' : 'Ask me to add, edit, or delete tasks…'}
           rows={1}
-          disabled={busy}
+          disabled={busy || messages === null}
         />
-        <button onClick={send} disabled={busy || !input.trim()} aria-label="Send">➤</button>
+        <button onClick={send} disabled={busy || !input.trim() || messages === null} aria-label="Send">➤</button>
       </div>
     </div>
   );

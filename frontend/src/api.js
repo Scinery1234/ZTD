@@ -247,6 +247,10 @@ export const api = {
       }),
     }),
 
+  // Saved chats — one auto-resumed thread per hub tool
+  chatThreadGet: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`),
+  chatThreadClear: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`, { method: 'DELETE' }),
+
   // AI memory — persistent notes the hub keeps between conversations
   coachMemoryList: () => apiFetch('/coach/memory'),
   coachMemoryDelete: (id) => apiFetch(`/coach/memory/${id}`, { method: 'DELETE' }),

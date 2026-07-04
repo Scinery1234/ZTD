@@ -302,6 +302,41 @@ class ChatUndo(db.Model):
     payload = db.Column(db.Text, default='[]')   # JSON list of inverse ops
 
 
+class ChatThread(db.Model):
+    """The active conversation for one hub tool (task assistant or a coach),
+    persisted server-side so closing the tab / switching devices never loses
+    the chat — reopening the tool picks up where it left off."""
+    __tablename__ = 'chat_thread'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    tool_id = db.Column(db.String(20), nullable=False)   # 'assistant' | coach id
+    messages = db.Column(db.Text, default='[]')          # JSON list of message dicts
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('user_id', 'tool_id', name='uq_thread_user_tool'),)
+
+    def messages_list(self):
+        try:
+            raw = json.loads(self.messages or '[]')
+            return raw if isinstance(raw, list) else []
+        except Exception:
+            return []
+
+
+MAX_THREAD_MESSAGES = 200  # per tool; oldest turns are trimmed
+
+
+def append_chat_thread(user_id, tool_id, new_messages):
+    """Append messages to the user's thread for a tool, creating it if needed."""
+    thread = ChatThread.query.filter_by(user_id=user_id, tool_id=tool_id).first()
+    if thread is None:
+        thread = ChatThread(user_id=user_id, tool_id=tool_id, messages='[]')
+        db.session.add(thread)
+    msgs = thread.messages_list()
+    msgs.extend(new_messages)
+    thread.messages = json.dumps(msgs[-MAX_THREAD_MESSAGES:])
+    db.session.commit()
+
+
 class CoachMemory(db.Model):
     """A short durable note the AI hub keeps about a user, shared across the
     task assistant and every coach so conversations pick up where they left
@@ -1728,6 +1763,12 @@ def ai_chat():
 
     try:
         result = service.run(user, hat_id, message, history)
+        append_chat_thread(user_id, 'assistant', [
+            {'role': 'user', 'content': message},
+            {'role': 'assistant', 'content': result['reply'],
+             'actions': result.get('actions') or [],
+             'undo_token': result.get('undo_token') if result.get('undo_available') else None},
+        ])
         return jsonify(result)
     except Exception as e:
         db.session.rollback()
@@ -1806,6 +1847,11 @@ def ai_coach():
 
     try:
         result = service.run(user, coach_id, message, history, hat_id)
+        append_chat_thread(user_id, coach_id, [
+            {'role': 'user', 'content': message},
+            {'role': 'assistant', 'content': result['reply'],
+             'tasksAdded': result.get('tasks_added') or []},
+        ])
         return jsonify(result)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
@@ -1813,6 +1859,26 @@ def ai_coach():
         db.session.rollback()
         app.logger.exception('AI coaching failed')
         return jsonify({'error': f'AI coaching failed: {e}'}), 500
+
+
+# === Saved chats (auto-resume per tool) ===
+
+@app.route('/api/chat/thread/<string:tool_id>', methods=['GET'])
+@jwt_required()
+def chat_thread_get(tool_id):
+    user_id = int(get_jwt_identity())
+    thread = ChatThread.query.filter_by(user_id=user_id, tool_id=tool_id[:20]).first()
+    return jsonify({'tool_id': tool_id,
+                    'messages': thread.messages_list() if thread else []})
+
+
+@app.route('/api/chat/thread/<string:tool_id>', methods=['DELETE'])
+@jwt_required()
+def chat_thread_clear(tool_id):
+    user_id = int(get_jwt_identity())
+    ChatThread.query.filter_by(user_id=user_id, tool_id=tool_id[:20]).delete()
+    db.session.commit()
+    return jsonify({'cleared': True})
 
 
 # === AI memory (user-visible, user-controlled) ===

@@ -4,6 +4,17 @@ import sys
 
 logger = logging.getLogger("gunicorn.error")
 
+# AI turns (/api/chat, /api/coach) run a Claude tool loop that can take well
+# over gunicorn's 30s default — workers were being killed mid-request, which
+# the UI reported as "The server did not answer in time (30s)".
+timeout = 180
+graceful_timeout = 30
+
+# Threaded workers keep the app responsive while a request waits on Claude:
+# with 2 sync workers, two concurrent AI turns would block everyone else.
+worker_class = "gthread"
+threads = 8
+
 print("[gunicorn_config] module loaded", file=sys.stderr, flush=True)
 
 

@@ -31,6 +31,10 @@ function railwayApiHint() {
 /** Avoid infinite loading if the API never responds (wrong URL, CORS hang, etc.) */
 const FETCH_TIMEOUT_MS = 30000;
 
+/** AI turns run a Claude tool loop server-side and can legitimately take
+ *  minutes — give /chat and /coach far more room than ordinary requests. */
+const AI_TIMEOUT_MS = 180000;
+
 function getToken() {
   return localStorage.getItem('mh_token') || sessionStorage.getItem('mh_token');
 }
@@ -52,12 +56,13 @@ async function apiFetch(path, options = {}) {
   const url = `${API_URL}${href}`;
 
   let res;
-  const { skipAuth, ...restOptions } = options;
+  const { skipAuth, timeoutMs, ...restOptions } = options;
+  const fetchTimeout = timeoutMs || FETCH_TIMEOUT_MS;
   const baseHeaders = skipAuth
     ? { 'Content-Type': 'application/json' }
     : authHeaders();
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), fetchTimeout);
   try {
     res = await fetch(url, {
       ...restOptions,
@@ -68,7 +73,7 @@ async function apiFetch(path, options = {}) {
     if (e && (e.name === 'AbortError' || e.message === 'The user aborted a request.')) {
       throw new Error(
         `The server did not answer in time (${Math.round(
-          FETCH_TIMEOUT_MS / 1000
+          fetchTimeout / 1000
         )}s). Check that the API is reachable, CORS allows this site, and REACT_APP_API_URL is correct.`
       );
     }
@@ -227,6 +232,7 @@ export const api = {
   chat: (message, hat_id, history) =>
     apiFetch('/chat', {
       method: 'POST',
+      timeoutMs: AI_TIMEOUT_MS,
       body: JSON.stringify({ message, ...(hat_id != null ? { hat_id } : {}), history: history || [] }),
     }),
   chatUndo: (undo_token) =>
@@ -239,6 +245,7 @@ export const api = {
   coach: (coach_id, message, hat_id, history) =>
     apiFetch('/coach', {
       method: 'POST',
+      timeoutMs: AI_TIMEOUT_MS,
       body: JSON.stringify({
         coach_id,
         message,

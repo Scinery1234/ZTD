@@ -1862,7 +1862,8 @@ def ai_coach():
             {'role': 'user', 'content': message},
             {'role': 'assistant', 'content': result['reply'],
              'tasksAdded': result.get('tasks_added') or [],
-             'taskActions': result.get('task_actions') or []},
+             'taskActions': result.get('task_actions') or [],
+             'moduleSuggestions': result.get('module_suggestions') or []},
         ])
         return jsonify(result)
     except ValueError as e:

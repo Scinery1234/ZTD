@@ -94,7 +94,20 @@ const TOOLS = [
   },
 ];
 
+// The guide fronts the hub: a general coach that chats, helps set and chase
+// goals (task- and memory-aware), and hands off to the modules above when
+// one clearly fits. It lives outside TOOLS so it never lists itself.
+const GUIDE_TOOL = {
+  id: 'guide',
+  kind: 'coach',
+  icon: '🧡',
+  accent: '#f97316',
+  name: 'MadeHappen Coach',
+  tagline: 'Chat, set goals, find your way',
+};
+
 const COACH_OPENERS = {
+  guide: 'Hey, good to see you. I’m here to help you set goals, get things done, or just talk through whatever’s on your mind. What’s going on today?',
   cbt: 'Hi, I’m here with you. We can take this one step at a time. What’s been on your mind lately?',
   action: 'Hey, I’m here. What’s on your mind — what are you wanting to do but finding yourself resisting?',
   exec: 'Hi, I’m here with you. Take a breath — there’s no rush. How are you feeling right now, in this moment?',
@@ -312,8 +325,31 @@ function TaskRail({ tasks, highlightIds }) {
   );
 }
 
-// ── Conversation (shared by assistant + coaches) ─────────────────────────────
-function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) {
+// ── Module strip: compact pickers at the bottom of the guide chat ────────────
+function ModuleStrip({ onSelect }) {
+  return (
+    <div className="aih-modules">
+      <span className="aih-modules__label">Spaces</span>
+      <div className="aih-modules__row">
+        {TOOLS.map((t) => (
+          <button
+            key={t.id}
+            className="aih-module-chip"
+            style={{ '--accent': t.accent }}
+            onClick={() => onSelect(t)}
+            title={t.desc}
+          >
+            <span className="aih-module-chip__icon">{t.icon}</span>
+            {t.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Conversation (shared by guide + assistant + coaches) ─────────────────────
+function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule, onOpenMemory }) {
   const isCoach = tool.kind === 'coach';
   const seed = isCoach
     ? [{ role: 'assistant', content: COACH_OPENERS[tool.id] }]
@@ -422,6 +458,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
           content: res.reply,
           tasksAdded: res.tasks_added || [],
           taskActions: res.task_actions || [],
+          moduleSuggestions: res.module_suggestions || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
         const s = detectStepIn(res.reply);
@@ -472,7 +509,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
   return (
     <div className="aih-convo" style={{ '--accent': tool.accent }}>
       <header className="aih-convo__head">
-        <button className="aih-back" onClick={onBack} aria-label="Back to hub">←</button>
+        {onBack && <button className="aih-back" onClick={onBack} aria-label="Back to coach">←</button>}
         <span className="aih-convo__icon">{tool.icon}</span>
         <div className="aih-convo__titles">
           <div className="aih-convo__name">{tool.name}</div>
@@ -491,6 +528,9 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
             disabled={busy || !messages}
             title="Start a fresh conversation (your saved chat is cleared; memory notes are kept)"
           >↺<span className="aih-fresh__label"> New</span></button>
+          {onOpenMemory && (
+            <button className="aih-memory-btn" onClick={onOpenMemory} title="What the AI remembers about you">🧠</button>
+          )}
           <button className="aih-sos" onClick={onCrisis} title="Crisis support">🆘</button>
         </div>
       </header>
@@ -541,6 +581,29 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
                   </span>
                 </div>
               )}
+              {Array.isArray(m.moduleSuggestions) && m.moduleSuggestions.length > 0 && onSelectModule && (
+                <div className="aih-suggest">
+                  {m.moduleSuggestions.map((s, j) => {
+                    const t = TOOLS.find((x) => x.id === s.module);
+                    if (!t) return null;
+                    return (
+                      <button
+                        key={j}
+                        className="aih-suggest__card"
+                        style={{ '--accent': t.accent }}
+                        onClick={() => onSelectModule(t)}
+                      >
+                        <span className="aih-suggest__icon">{t.icon}</span>
+                        <span className="aih-suggest__body">
+                          <span className="aih-suggest__name">{t.name}</span>
+                          {s.reason && <span className="aih-suggest__reason">{s.reason}</span>}
+                        </span>
+                        <span className="aih-suggest__arrow">→</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {m.undo_token != null && !m.undone && (
                 <button className="aih-undo" onClick={() => undo(i, m.undo_token)} disabled={m.undoing}>
                   {m.undoing ? 'Undoing…' : '↩ Undo'}
@@ -573,52 +636,8 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis }) 
         />
         <button onClick={send} disabled={busy || !input.trim() || messages === null} aria-label="Send">➤</button>
       </div>
-    </div>
-  );
-}
 
-// ── Hub landing ──────────────────────────────────────────────────────────────
-function Hub({ onSelect, onCrisis, onOpenMemory }) {
-  const assistant = TOOLS.find((t) => t.kind === 'assistant');
-  const coaches = TOOLS.filter((t) => t.kind === 'coach');
-  return (
-    <div className="aih-hub">
-      <div className="aih-hub__intro">
-        <div className="aih-eyebrow">MadeHappen · AI Hub</div>
-        <h1>How can I help right now?</h1>
-        <p>Manage your tasks, or step into a coaching space. Each conversation stays beside your real task list.</p>
-      </div>
-
-      <button className="aih-card aih-card--feature" style={{ '--accent': assistant.accent }} onClick={() => onSelect(assistant)}>
-        <span className="aih-card__icon">{assistant.icon}</span>
-        <span className="aih-card__body">
-          <span className="aih-card__name">{assistant.name}</span>
-          <span className="aih-card__desc">{assistant.desc}</span>
-        </span>
-        <span className="aih-card__arrow">→</span>
-      </button>
-
-      <div className="aih-hub__label">Coaching, resilience & focus</div>
-      <div className="aih-grid">
-        {coaches.map((t) => (
-          <button key={t.id} className="aih-card" style={{ '--accent': t.accent }} onClick={() => onSelect(t)}>
-            <span className="aih-card__icon">{t.icon}</span>
-            <span className="aih-card__body">
-              <span className="aih-card__name">{t.name}</span>
-              <span className="aih-card__tagline">{t.tagline}</span>
-              <span className="aih-card__desc">{t.desc}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className="aih-hub__foot">
-        <span>🆘 In crisis? <a href="tel:131114">Lifeline 13 11 14</a> · <button onClick={onCrisis}>All resources →</button></span>
-        <span className="aih-hub__note">
-          <button className="aih-hub__memory-btn" onClick={onOpenMemory}>🧠 Memory</button>
-          {' · '}AI coaching · not therapy
-        </span>
-      </div>
+      {onSelectModule && <ModuleStrip onSelect={onSelectModule} />}
     </div>
   );
 }
@@ -726,7 +745,17 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
           onCrisis={showCrisis}
         />
       ) : (
-        <Hub onSelect={setActive} onCrisis={showCrisis} onOpenMemory={() => setMemoryOpen(true)} />
+        <Conversation
+          key="guide"
+          tool={GUIDE_TOOL}
+          hatId={hatId}
+          tasks={railTasks}
+          onTasksChanged={onTasksChanged}
+          onBack={null}
+          onCrisis={showCrisis}
+          onSelectModule={setActive}
+          onOpenMemory={() => setMemoryOpen(true)}
+        />
       )}
     </>
   );

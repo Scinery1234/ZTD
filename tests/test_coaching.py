@@ -23,7 +23,8 @@ os.environ.setdefault('JWT_SECRET_KEY', 'test-secret')
 
 from backend.app import app, db, User, Hat, Task, ChatUndo, check_task_limit  # noqa: E402
 from backend.coaching import (  # noqa: E402
-    CoachingService, COACHES, detect_crisis, coach_openers, _TASK_AWARENESS,
+    CoachingService, COACHES, MODULE_IDS, detect_crisis, coach_openers,
+    _TASK_AWARENESS,
 )
 
 
@@ -285,6 +286,47 @@ class CoachTaskEditTests(unittest.TestCase):
         self.assertIsNotNone(Task.query.get(theirs.id))   # untouched
         self.assertEqual(out['task_actions'], [])
         self.assertFalse(out['undo_available'])
+
+    def test_guide_coach_exists_with_module_catalogue(self):
+        self.assertIn('guide', COACHES)
+        system = COACHES['guide']['system']
+        for mid in MODULE_IDS:
+            self.assertIn(mid, system)
+        self.assertIn('recommend_module', system)
+
+    def test_guide_gets_recommend_tool_other_coaches_do_not(self):
+        s = self.svc([final_response('Hi.')])
+        s.run(self.user, 'guide', 'hello', [])
+        names = {t['name'] for t in s.client.messages.calls[0]['tools']}
+        self.assertIn('recommend_module', names)
+        # Guide still has the full task toolkit
+        self.assertTrue({'save_tasks', 'list_tasks',
+                         'update_tasks', 'delete_tasks'} <= names)
+
+        s2 = self.svc([final_response('Hi.')])
+        s2.run(self.user, 'cbt', 'hello', [])
+        names2 = {t['name'] for t in s2.client.messages.calls[0]['tools']}
+        self.assertNotIn('recommend_module', names2)
+
+    def test_recommend_module_surfaces_card(self):
+        s = self.svc([
+            tool_response(tool_block('recommend_module', {
+                'module': 'clarity', 'reason': 'A big decision deserves structure.',
+            })),
+            final_response('Clarity Compass might serve you here.'),
+        ])
+        out = s.run(self.user, 'guide', "I can't decide whether to move cities", [])
+        self.assertEqual(out['module_suggestions'],
+                         [{'module': 'clarity',
+                           'reason': 'A big decision deserves structure.'}])
+
+    def test_recommend_unknown_module_is_rejected(self):
+        s = self.svc([
+            tool_response(tool_block('recommend_module', {'module': 'astrology'})),
+            final_response('Hmm.'),
+        ])
+        out = s.run(self.user, 'guide', 'help', [])
+        self.assertEqual(out['module_suggestions'], [])
 
     def test_save_tasks_records_undo(self):
         s = self.svc([

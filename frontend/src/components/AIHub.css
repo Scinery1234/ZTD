@@ -435,6 +435,98 @@
   padding: 10px 22px; font-size: 13px; color: #718096; cursor: pointer; font-family: inherit;
 }
 
+/* ── Guide extras: module strip, suggestion cards, memory button ─────────── */
+.aih-modules {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.14);
+}
+.aih-modules__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+.aih-modules__row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.aih-modules__row::-webkit-scrollbar { display: none; }
+.aih-module-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.aih-module-chip:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.aih-module-chip__icon { font-size: 13px; }
+
+.aih-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%; }
+.aih-suggest__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.15s;
+}
+.aih-suggest__card:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: translateY(-1px);
+}
+.aih-suggest__icon { font-size: 18px; flex-shrink: 0; }
+.aih-suggest__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.aih-suggest__name { font-weight: 700; font-size: 13px; }
+.aih-suggest__reason { font-size: 12px; line-height: 1.45; color: rgba(255, 255, 255, 0.65); }
+.aih-suggest__arrow { color: var(--accent); font-size: 15px; flex-shrink: 0; }
+
+.aih-memory-btn {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+[data-theme="light"] .aih-modules { background: rgba(0, 0, 0, 0.03); border-top-color: rgba(0, 0, 0, 0.07); }
+[data-theme="light"] .aih-modules__label { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .aih-module-chip {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(28, 18, 9, 0.7);
+}
+[data-theme="light"] .aih-module-chip:hover { color: #1c1209; }
+[data-theme="light"] .aih-suggest__reason { color: #6b6155; }
+
 /* ── Docked panel: permanent third column on wide desktops ─────────────── */
 .aih-modal--dock {
   width: 26vw;

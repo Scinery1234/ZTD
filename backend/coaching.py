@@ -219,7 +219,43 @@ _CLARITY_SYSTEM = (
     "save_tasks."
 )
 
+# The guide is the hub's front door: a general coach that can simply talk,
+# help set and pursue goals (with full task + memory awareness), and hand the
+# user off to a specialist module when one clearly fits.
+_GUIDE_SYSTEM = (
+    "You are the MadeHappen Coach — the first voice people meet in the AI hub, "
+    "and a warm, practical personal coach in your own right. Help the user set "
+    "and achieve their goals, think things through, plan, and follow up on what "
+    "they're carrying. Plain conversation is always fine; nobody has to pick a "
+    "mode. Use what you know about them — their real task list and your "
+    "remembered notes — to make support concrete and personal, and ask one "
+    "question at a time in a natural, unhurried voice.\n"
+    "The hub also has specialist modules:\n"
+    "- assistant — Task Assistant: quickly add, edit, organise or clean up "
+    "tasks in plain English.\n"
+    "- cbt — CBT Coach: a structured 10-step process for when something "
+    "specific is troubling them.\n"
+    "- action — Action Coach: for when they know what to do but can't start.\n"
+    "- exec — Executive Function Coach: a gentle thinking-out-loud space for "
+    "neurodivergent minds.\n"
+    "- charge — Reducing the Charge: processing heavy emotional resistance.\n"
+    "- clarity — Clarity Compass: a guided 13-phase decision-making process.\n"
+    "When the conversation clearly calls for one of these, call "
+    "recommend_module with a short personal reason — the user sees a tappable "
+    "card. Recommend at most one or two, only when genuinely better than "
+    "continuing here, and never repeat a recommendation the user has already "
+    "passed on. You can also manage their tasks directly with the task tools, "
+    "following the offer-first rule."
+)
+
 COACHES = {
+    "guide": {
+        "name": "MadeHappen Coach",
+        "opener": "Hey, good to see you. I'm here to help you set goals, get "
+                  "things done, or just talk through whatever's on your mind. "
+                  "What's going on today?",
+        "system": _GUIDE_SYSTEM,
+    },
     "cbt": {
         "name": "CBT Coach",
         "opener": "Hi, I'm here with you. We can take this one step at a time. "
@@ -317,6 +353,31 @@ _SAVE_TASKS_TOOL = {
 }
 
 
+# Module ids the guide may recommend (every hub tool except the guide itself).
+MODULE_IDS = ("assistant", "cbt", "action", "exec", "charge", "clarity")
+
+_RECOMMEND_MODULE_TOOL = {
+    "name": "recommend_module",
+    "description": (
+        "Show the user a tappable card for a hub module that fits what they "
+        "need right now. Use sparingly — only when the module would clearly "
+        "serve them better than continuing this conversation."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "module": {"type": "string", "enum": list(MODULE_IDS)},
+            "reason": {
+                "type": "string",
+                "description": "One short, personal sentence on why this fits.",
+            },
+        },
+        "required": ["module"],
+        "additionalProperties": False,
+    },
+}
+
+
 class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
@@ -353,9 +414,12 @@ class CoachingService:
         added_tasks = []      # {description} of tasks saved this turn (for the UI)
         undo_ops = []         # inverse operations for this turn (shared format
         actions = []          #   with ai_chat) + human-facing change summary
+        modules = []          # module cards the guide asked the UI to show
         reply_text = ""
 
         tools = [_SAVE_TASKS_TOOL] + _TASK_EDIT_TOOLS
+        if coach_id == "guide":
+            tools = tools + [_RECOMMEND_MODULE_TOOL]
         if self.CoachMemory is not None:
             tools = tools + MEMORY_TOOLS
 
@@ -381,7 +445,7 @@ class CoachingService:
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name,
                                         block.input, added_tasks, undo_ops,
-                                        actions, coach_id)
+                                        actions, coach_id, modules)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -404,6 +468,7 @@ class CoachingService:
             "crisis_resources": CRISIS_RESOURCES if crisis else [],
             "tasks_added": added_tasks,
             "task_actions": actions,
+            "module_suggestions": modules,
             "undo_token": undo_token,
             "undo_available": undo_token is not None,
         }
@@ -472,11 +537,21 @@ class CoachingService:
         return messages
 
     def _dispatch(self, user, default_hat_id, name, args, added_tasks,
-                  undo_ops, actions, coach_id=""):
+                  undo_ops, actions, coach_id="", modules=None):
         try:
             if name == "save_tasks":
                 return self._save_tasks(user, default_hat_id, args, added_tasks,
                                         undo_ops, actions)
+            if name == "recommend_module":
+                module = (args.get("module") or "").strip()
+                if module not in MODULE_IDS:
+                    return {"content": {"error": f"Unknown module: {module}"},
+                            "is_error": True}
+                if modules is not None:
+                    modules.append({"module": module,
+                                    "reason": (args.get("reason") or "").strip()})
+                return {"content": {"ok": True,
+                                    "note": "Card shown — mention it briefly."}}
             if name == "list_tasks":
                 return self._editor._list_tasks(user.id, args)
             if name == "update_tasks":

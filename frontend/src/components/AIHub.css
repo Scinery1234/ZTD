@@ -541,8 +541,66 @@
   max-height: none;
   border-radius: 16px;
   animation: none;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  /* No modal drop-shadow in the page flow — it read as grey shading. */
+  box-shadow: none;
 }
+
+/* Collapse control in the conversation header (docked mode only) */
+.aih-collapse {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+}
+.aih-collapse:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* Collapsed dock: slim rail hugging the right edge */
+.aih-dock-rail {
+  width: 28px;
+  min-width: 28px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.aih-dock-rail:hover { background: rgba(255, 255, 255, 0.07); }
+.aih-dock-rail__btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+.aih-dock-rail__icon { font-size: 14px; }
+.aih-dock-rail__label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+}
+[data-theme="light"] .aih-collapse { background: rgba(0, 0, 0, 0.06); }
+[data-theme="light"] .aih-collapse:hover { background: rgba(0, 0, 0, 0.12); }
+[data-theme="light"] .aih-dock-rail { background: rgba(0, 0, 0, 0.03); border-color: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .aih-dock-rail:hover { background: rgba(0, 0, 0, 0.06); }
+[data-theme="light"] .aih-dock-rail__btn { color: rgba(28, 18, 9, 0.6); }
+[data-theme="light"] .aih-dock-rail__label { color: rgba(28, 18, 9, 0.5); }
 
 /* The dock is phone-width, so reuse the narrow-screen conversation layout */
 .aih-modal--dock .aih-rail-toggle { display: flex; }

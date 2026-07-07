@@ -21,6 +21,72 @@
   max-width: 860px;
 }
 
+/* Collapsed main column: slim rail hugging the left edge */
+.container--collapsed {
+  flex: 0 0 28px;
+  min-width: 28px;
+  max-width: 28px;
+}
+
+.container-rail {
+  width: 28px;
+  position: sticky;
+  top: 24px;
+  height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.container-rail:hover { background: rgba(255, 255, 255, 0.07); }
+
+.container-rail__icon { font-size: 12px; }
+
+.container-rail__label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+[data-theme="light"] .container-rail {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(28, 18, 9, 0.55);
+}
+
+[data-theme="light"] .container-rail:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* Redistribute freed space when columns collapse (desktop only) */
+@media (min-width: 901px) {
+  .app-body:has(> .container--collapsed) .lt-panel:not(.lt-panel--collapsed) {
+    width: 34vw;
+    max-width: 520px;
+  }
+  .app-body:has(> .container--collapsed) .aih-modal--dock {
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+  }
+  .app-body:has(> .lt-panel--collapsed) .aih-modal--dock {
+    width: 34vw;
+    max-width: 560px;
+  }
+  .app-body:has(> .lt-panel--collapsed) .container:not(.container--collapsed) {
+    max-width: 1000px;
+  }
+}
+
 .loading {
   display: flex;
   justify-content: center;
@@ -232,6 +298,33 @@
 /* Threads tab only visible on mobile — hidden on desktop where panel is always shown */
 .view-btn--mobile-only {
   display: none;
+}
+
+/* Collapse-tasks chevron at the end of the tab bar (desktop only) */
+.view-collapse {
+  flex: 0 0 auto;
+  display: none;
+  width: 32px;
+  padding: 11px 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.view-collapse:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="light"] .view-collapse { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .view-collapse:hover { background: rgba(0, 0, 0, 0.06); color: rgba(28, 18, 9, 0.85); }
+
+@media (min-width: 901px) {
+  .view-collapse { display: block; }
 }
 
 @media (max-width: 900px) {

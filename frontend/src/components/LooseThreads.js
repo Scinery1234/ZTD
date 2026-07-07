@@ -130,7 +130,9 @@ export default function LooseThreads() {
   const [notes,     setNotes]     = useState(() => load(STORAGE_KEY));
   const [trash,     setTrash]     = useState(() => load(TRASH_KEY));
   const [openIds,   setOpenIds]   = useState([]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('mh_lt_collapsed') === '1'; } catch { return false; }
+  });
   const [trashOpen, setTrashOpen] = useState(false);
 
   const atLimit = limit !== null && notes.length >= limit;
@@ -219,7 +221,10 @@ export default function LooseThreads() {
           )}
           <button
             className="lt-collapse-btn"
-            onClick={() => setCollapsed(c => !c)}
+            onClick={() => setCollapsed(c => {
+              try { localStorage.setItem('mh_lt_collapsed', c ? '0' : '1'); } catch { /* ignore */ }
+              return !c;
+            })}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? '«' : '»'}

@@ -271,6 +271,28 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
   );
 };
 
+// Tracks a min-width media query (collapsible columns are desktop-only).
+function useMinWidth(px) {
+  const [ok, setOk] = useState(() =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(min-width: ${px}px)`).matches
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia(`(min-width: ${px}px)`);
+    const onChange = (e) => setOk(e.matches);
+    setOk(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      else mq.removeListener(onChange);
+    };
+  }, [px]);
+  return ok;
+}
+
 // ---- Main authenticated app ----
 function TaskApp() {
   const { user, subscription, refreshSubscription } = useAuth();
@@ -291,6 +313,17 @@ function TaskApp() {
   const [showCalendarSync, setShowCalendarSync] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [calendarConnectNotice, setCalendarConnectNotice] = useState(null);
+
+  // Collapsible main column (desktop only — mobile stacks the panels)
+  const isWideLayout = useMinWidth(901);
+  const [mainCollapsed, setMainCollapsed] = useState(() => {
+    try { return localStorage.getItem('mh_main_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleMainCollapsed = (v) => {
+    setMainCollapsed(v);
+    try { localStorage.setItem('mh_main_collapsed', v ? '1' : '0'); } catch { /* ignore */ }
+  };
+  const mainIsCollapsed = mainCollapsed && isWideLayout;
 
   const handlePomodoroComplete = useCallback(async (taskId) => {
     try {
@@ -597,7 +630,20 @@ function TaskApp() {
         onShowCalendarSync={() => setShowCalendarSync(true)}
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
-        <div className="container">
+        <div className={`container${mainIsCollapsed ? ' container--collapsed' : ''}`}>
+          {mainIsCollapsed ? (
+            <button
+              className="container-rail"
+              onClick={() => toggleMainCollapsed(false)}
+              title="Expand tasks"
+              aria-label="Expand tasks panel"
+            >
+              <span className="container-rail__chev">»</span>
+              <span className="container-rail__icon">✓</span>
+              <span className="container-rail__label">Tasks</span>
+            </button>
+          ) : (
+          <>
           {user && user.email_verified === false && <VerifyBanner />}
           {calendarConnectNotice && (
             <div className="calendar-connected-banner">
@@ -638,6 +684,12 @@ function TaskApp() {
             <button className={`view-btn view-btn--mobile-only ${viewMode === 'threads' ? 'active' : ''}`} onClick={() => setViewMode('threads')}>
               Threads
             </button>
+            <button
+              className="view-collapse"
+              onClick={() => toggleMainCollapsed(true)}
+              title="Collapse tasks panel"
+              aria-label="Collapse tasks panel"
+            >«</button>
           </div>
 
           <div className="view-content">          {viewMode === 'active' && (
@@ -722,6 +774,8 @@ function TaskApp() {
             <AnalyticsView onShowPricing={() => setShowPricing(true)} />
           )}
           </div>{/* end view-content */}
+          </>
+          )}
         </div>
         <LooseThreads />
         <AIHub

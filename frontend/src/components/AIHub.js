@@ -349,7 +349,7 @@ function ModuleStrip({ onSelect }) {
 }
 
 // ── Conversation (shared by guide + assistant + coaches) ─────────────────────
-function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule, onOpenMemory }) {
+function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule, onOpenMemory, onCollapse }) {
   const isCoach = tool.kind === 'coach';
   const seed = isCoach
     ? [{ role: 'assistant', content: COACH_OPENERS[tool.id] }]
@@ -532,6 +532,9 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
             <button className="aih-memory-btn" onClick={onOpenMemory} title="What the AI remembers about you">🧠</button>
           )}
           <button className="aih-sos" onClick={onCrisis} title="Crisis support">🆘</button>
+          {onCollapse && (
+            <button className="aih-collapse" onClick={onCollapse} title="Collapse panel" aria-label="Collapse AI panel">»</button>
+          )}
         </div>
       </header>
 
@@ -675,6 +678,13 @@ function useDesktopDock(enabled) {
 export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false, docked = false }) {
   const [open, setOpen] = useState(false);
   const isDock = useDesktopDock(docked && !standalone);
+  const [dockCollapsed, setDockCollapsed] = useState(() => {
+    try { return localStorage.getItem('mh_dock_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleDockCollapsed = useCallback((v) => {
+    setDockCollapsed(v);
+    try { localStorage.setItem('mh_dock_collapsed', v ? '1' : '0'); } catch { /* ignore */ }
+  }, []);
   const [consented, setConsented] = useState(() => isConsentValid());
   const [active, setActive] = useState(null); // active tool object, or null = hub
   const [crisis, setCrisis] = useState(false);
@@ -743,6 +753,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
           onTasksChanged={onTasksChanged}
           onBack={() => setActive(null)}
           onCrisis={showCrisis}
+          onCollapse={isDock ? () => toggleDockCollapsed(true) : undefined}
         />
       ) : (
         <Conversation
@@ -755,6 +766,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
           onCrisis={showCrisis}
           onSelectModule={setActive}
           onOpenMemory={() => setMemoryOpen(true)}
+          onCollapse={isDock ? () => toggleDockCollapsed(true) : undefined}
         />
       )}
     </>
@@ -769,6 +781,19 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
   }
 
   if (isDock) {
+    if (dockCollapsed) {
+      return (
+        <aside
+          className="aih-dock-rail"
+          aria-label="AI Hub (collapsed)"
+          onClick={() => toggleDockCollapsed(false)}
+        >
+          <button className="aih-dock-rail__btn" title="Expand AI coach" aria-label="Expand AI coach">«</button>
+          <span className="aih-dock-rail__icon">✨</span>
+          <span className="aih-dock-rail__label">AI Coach</span>
+        </aside>
+      );
+    }
     return (
       <aside className="aih-modal aih-modal--dock" aria-label="AI Hub">
         {content}

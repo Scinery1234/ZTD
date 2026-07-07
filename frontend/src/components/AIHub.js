@@ -624,11 +624,38 @@ function Hub({ onSelect, onCrisis, onOpenMemory }) {
 }
 
 // ── Root ─────────────────────────────────────────────────────────────────────
-// Two shapes: the default floating FAB + modal overlay used inside the task
-// app, and `standalone` — the same hub filling its container, used by the
-// dedicated /coach page (no FAB, no close button, no Escape-to-close).
-export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false }) {
+// Three shapes: the floating FAB + modal overlay (mobile / narrow windows),
+// `docked` — a permanent side-panel column on wide desktop layouts, and
+// `standalone` — the same hub filling its container, used by the dedicated
+// /coach page (no FAB, no close button, no Escape-to-close).
+
+const DOCK_MIN_WIDTH = 1200; // px — below this, docked mode falls back to the FAB
+
+function useDesktopDock(enabled) {
+  const query = `(min-width: ${DOCK_MIN_WIDTH}px)`;
+  const [wide, setWide] = useState(() =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    if (!enabled || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia(query);
+    const onChange = (e) => setWide(e.matches);
+    setWide(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      else mq.removeListener(onChange);
+    };
+  }, [enabled, query]);
+  return enabled && wide;
+}
+
+export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false, docked = false }) {
   const [open, setOpen] = useState(false);
+  const isDock = useDesktopDock(docked && !standalone);
   const [consented, setConsented] = useState(() => isConsentValid());
   const [active, setActive] = useState(null); // active tool object, or null = hub
   const [crisis, setCrisis] = useState(false);
@@ -640,20 +667,26 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
 
   const showCrisis = useCallback(() => setCrisis(true), []);
 
+  // If the window grows into dock territory while the overlay is open, the
+  // panel takes over — drop the overlay state so scroll isn't left locked.
+  useEffect(() => {
+    if (isDock) setOpen(false);
+  }, [isDock]);
+
   // Lock background scroll while the hub is open (overlay mode only).
   useEffect(() => {
-    if (standalone || !open) return undefined;
+    if (standalone || isDock || !open) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [open, standalone]);
+  }, [open, standalone, isDock]);
 
   useEffect(() => {
-    if (standalone) return undefined;
+    if (standalone || isDock) return undefined;
     const onEsc = (e) => { if (e.key === 'Escape' && open) close(); };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [open, standalone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, standalone, isDock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = useCallback(() => { setOpen(false); setActive(null); }, []);
 
@@ -668,7 +701,7 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
     return tasks.filter((t) => t.hat_id === hatId);
   }, [tasks, hatId]);
 
-  if (!standalone && !open) {
+  if (!standalone && !isDock && !open) {
     return (
       <button className="aih-fab" onClick={() => setOpen(true)} aria-label="Open AI hub" title="AI Hub — assistant & coaching">
         ✨
@@ -703,6 +736,14 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
       <div className="aih-modal aih-modal--standalone" role="main" aria-label="AI Coach">
         {content}
       </div>
+    );
+  }
+
+  if (isDock) {
+    return (
+      <aside className="aih-modal aih-modal--dock" aria-label="AI Hub">
+        {content}
+      </aside>
     );
   }
 

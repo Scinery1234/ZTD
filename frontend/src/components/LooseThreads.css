@@ -1,9 +1,9 @@
 /* ---- Loose Threads side panel ---- */
 
 .lt-panel {
-  width: 33vw;
-  min-width: 260px;
-  max-width: 420px;
+  width: 24vw;
+  min-width: 240px;
+  max-width: 340px;
   flex-shrink: 0;
   position: sticky;
   top: 24px;

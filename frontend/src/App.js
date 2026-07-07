@@ -724,6 +724,16 @@ function TaskApp() {
           </div>{/* end view-content */}
         </div>
         <LooseThreads />
+        <AIHub
+          docked
+          hatId={selectedHatIds.size === 1 ? [...selectedHatIds][0] : null}
+          tasks={tasks}
+          onTasksChanged={() => {
+            fetchTasks();
+            fetchDoneTasks();
+            refreshSubscription();
+          }}
+        />
       </div>
 
       {showCalendarSync && (
@@ -748,16 +758,6 @@ function TaskApp() {
           onSessionComplete={handlePomodoroComplete}
         />
       )}
-
-      <AIHub
-        hatId={selectedHatIds.size === 1 ? [...selectedHatIds][0] : null}
-        tasks={tasks}
-        onTasksChanged={() => {
-          fetchTasks();
-          fetchDoneTasks();
-          refreshSubscription();
-        }}
-      />
     </div>
   );
 }

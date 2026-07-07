@@ -4,13 +4,14 @@
   padding-bottom: 60px;
 }
 
-/* Side-by-side layout: main content + Loose Threads panel */
+/* Side-by-side layout: main content + Loose Threads panel (+ docked AI hub
+   as a third column on wide desktops) */
 .app-body {
   display: flex;
   align-items: flex-start;
   gap: 20px;
   padding: 0 20px;
-  max-width: 1300px;
+  max-width: 1660px;
   margin: 0 auto;
 }
 

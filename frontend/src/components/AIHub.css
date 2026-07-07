@@ -435,6 +435,55 @@
   padding: 10px 22px; font-size: 13px; color: #718096; cursor: pointer; font-family: inherit;
 }
 
+/* ── Docked panel: permanent third column on wide desktops ─────────────── */
+.aih-modal--dock {
+  width: 26vw;
+  min-width: 300px;
+  max-width: 400px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  /* Short enough to clear the header at scroll-0, so the composer is never
+     clipped below the viewport before the panel sticks. */
+  height: calc(100vh - 110px);
+  max-height: none;
+  border-radius: 16px;
+  animation: none;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* The dock is phone-width, so reuse the narrow-screen conversation layout */
+.aih-modal--dock .aih-rail-toggle { display: flex; }
+.aih-modal--dock .aih-convo__head { padding: 10px 12px; gap: 8px; }
+.aih-modal--dock .aih-convo__icon { font-size: 18px; }
+.aih-modal--dock .aih-convo__actions { gap: 6px; }
+.aih-modal--dock .aih-fresh__label { display: none; }
+.aih-modal--dock .aih-rail-wrap {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: min(280px, 90%);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 8;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4);
+}
+.aih-modal--dock .aih-rail-wrap--open { transform: translateX(0); }
+.aih-modal--dock .aih-msg { max-width: 92%; }
+
+/* Compact hub landing inside the dock */
+.aih-modal--dock .aih-hub { padding: 22px 18px 20px; }
+.aih-modal--dock .aih-hub__intro { margin-bottom: 18px; }
+.aih-modal--dock .aih-hub__intro h1 { font-size: 19px; }
+.aih-modal--dock .aih-hub__intro p { font-size: 13.5px; }
+.aih-modal--dock .aih-grid { grid-template-columns: 1fr; gap: 8px; }
+.aih-modal--dock .aih-card { padding: 12px 14px; }
+.aih-modal--dock .aih-card__desc { display: none; } /* taglines carry it */
+.aih-modal--dock .aih-card--feature .aih-card__desc { display: block; }
+.aih-modal--dock .aih-hub__foot { flex-direction: column; gap: 6px; align-items: flex-start; }
+.aih-modal--dock .aih-consent__body { padding: 24px 20px 16px; }
+.aih-modal--dock .aih-composer { padding: 10px 10px; }
+.aih-modal--dock .aih-composer textarea { font-size: 14px; }
+
 /* ── Responsive: rail becomes a slide-over ─────────────────────────────── */
 @media (max-width: 720px) {
   .aih-overlay {

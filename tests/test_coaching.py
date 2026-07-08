@@ -21,7 +21,11 @@ os.close(_DB_FD)
 os.environ['DATABASE_URL'] = f'sqlite:///{_DB_PATH}'
 os.environ.setdefault('JWT_SECRET_KEY', 'test-secret')
 
-from backend.app import app, db, User, Hat, Task, ChatUndo, check_task_limit  # noqa: E402
+from backend.app import (  # noqa: E402
+    app, db, User, Hat, Task, ChatUndo, ChatThread, check_task_limit,
+    append_chat_thread,
+)
+from backend.ai_chat import TaskChatService  # noqa: E402
 from backend.coaching import (  # noqa: E402
     CoachingService, COACHES, MODULE_IDS, detect_crisis, coach_openers,
     _TASK_AWARENESS,
@@ -344,6 +348,84 @@ class CoachTaskEditTests(unittest.TestCase):
         self.assertTrue(res['undone'])
         self.assertIsNone(Task.query.filter_by(
             user_id=self.user.id, description='Ten-minute walk').first())
+
+
+class CrossThreadVisibilityTests(unittest.TestCase):
+    """Every module (coaches, guide, task assistant) sees excerpts of the
+    user's other conversations, but never its own thread re-quoted."""
+
+    def setUp(self):
+        self.ctx = app.app_context()
+        self.ctx.push()
+        db.drop_all()
+        db.create_all()
+        self.user = User(email='xt@example.com', name='X',
+                         password_hash='x', tier='pro')
+        db.session.add(self.user)
+        db.session.commit()
+        self.hat = Hat(user_id=self.user.id, name='Main Hat')
+        db.session.add(self.hat)
+        db.session.commit()
+        # Seed saved threads for three different tools
+        append_chat_thread(self.user.id, 'guide', [
+            {'role': 'user', 'content': 'My big goal is opening a bakery.'},
+            {'role': 'assistant', 'content': 'A bakery — wonderful. What is the first step?'},
+        ])
+        append_chat_thread(self.user.id, 'cbt', [
+            {'role': 'user', 'content': 'I keep catastrophising about money.'},
+            {'role': 'assistant', 'content': 'Step 1 — what is bothering you most?'},
+        ])
+        append_chat_thread(self.user.id, 'assistant', [
+            {'role': 'user', 'content': 'add task research commercial ovens'},
+            {'role': 'assistant', 'content': 'Added 1 task.'},
+        ])
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.ctx.pop()
+
+    def coach_svc(self, script):
+        s = CoachingService(db, Task, Hat, check_task_limit,
+                            ChatUndo=ChatUndo, ChatThread=ChatThread)
+        s.client = FakeClient(script)
+        return s
+
+    def test_coach_sees_main_chat_and_assistant_but_not_itself(self):
+        s = self.coach_svc([final_response('Hi.')])
+        s.run(self.user, 'cbt', 'hello', [])
+        system = s.client.messages.calls[0]['system']
+        self.assertIn('OTHER CONVERSATIONS', system)
+        self.assertIn('opening a bakery', system)              # guide (main chat)
+        self.assertIn('research commercial ovens', system)     # task assistant
+        self.assertIn('MadeHappen Coach (main chat)', system)
+        self.assertNotIn('catastrophising', system)            # its own thread
+
+    def test_guide_sees_coach_threads(self):
+        s = self.coach_svc([final_response('Hi.')])
+        s.run(self.user, 'guide', 'hello', [])
+        system = s.client.messages.calls[0]['system']
+        self.assertIn('catastrophising', system)               # CBT thread
+        self.assertIn('CBT Coach', system)
+        self.assertNotIn('opening a bakery', system)           # its own thread
+
+    def test_assistant_sees_coach_and_guide_threads(self):
+        s = TaskChatService(db, Task, Hat, ChatUndo, check_task_limit,
+                            ChatThread=ChatThread)
+        s.client = FakeClient([final_response('Hi!')])
+        s.run(self.user, None, 'hi', [])
+        system = s.client.messages.calls[0]['system']
+        self.assertIn('opening a bakery', system)
+        self.assertIn('catastrophising', system)
+        self.assertNotIn('research commercial ovens', system)  # its own thread
+
+    def test_no_threads_no_block(self):
+        ChatThread.query.delete()
+        db.session.commit()
+        s = self.coach_svc([final_response('Hi.')])
+        s.run(self.user, 'cbt', 'hello', [])
+        self.assertNotIn('OTHER CONVERSATIONS',
+                         s.client.messages.calls[0]['system'])
 
 
 if __name__ == '__main__':

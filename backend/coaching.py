@@ -86,6 +86,18 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     goals_mod = _ilu4.module_from_spec(_spec4)
     _spec4.loader.exec_module(goals_mod)
 
+try:
+    from thread_context import thread_context_block
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu5
+    import os as _os5
+    _spec5 = _ilu5.spec_from_file_location(
+        'thread_context', _os5.path.join(_os5.path.dirname(__file__), 'thread_context.py')
+    )
+    _tc = _ilu5.module_from_spec(_spec5)
+    _spec5.loader.exec_module(_tc)
+    thread_context_block = _tc.thread_context_block
+
 # Coaches reuse the task assistant's tools (and its undo plumbing) so a
 # session can also change or remove tasks — never just pile new ones on.
 _TASK_EDIT_TOOLS = [t for t in _ai_chat.TOOLS
@@ -400,7 +412,7 @@ class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
     def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None,
-                 ChatUndo=None, Goal=None, GoalMilestone=None):
+                 ChatUndo=None, Goal=None, GoalMilestone=None, ChatThread=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
@@ -409,6 +421,7 @@ class CoachingService:
         self.ChatUndo = ChatUndo         # enables undo for coach task changes
         self.Goal = Goal                 # goal-setting framework (guide coach)
         self.GoalMilestone = GoalMilestone
+        self.ChatThread = ChatThread     # cross-conversation awareness
         # Task edits are delegated to the task assistant's handlers so coaches
         # share its clash checks, field rules and undo snapshots.
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
@@ -538,6 +551,8 @@ class CoachingService:
         goals_block = ""
         if coach_id == "guide" and self.Goal is not None:
             goals_block = goals_mod.goals_prompt_block(self.Goal, self.Hat, user.id)
+        threads = (thread_context_block(self.ChatThread, user.id, coach_id)
+                   if self.ChatThread is not None else "")
         return (
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
@@ -547,6 +562,7 @@ class CoachingService:
             f"\nThe user's current MadeHappen tasks (⏰/scheduled = a planned "
             f"slot on their calendar):\n{snapshot}"
             f"{memory}"
+            f"{threads}"
             f"{_SAFETY}"
         )
 

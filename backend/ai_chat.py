@@ -51,6 +51,17 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     scheduling = _ilu2.module_from_spec(_spec2)
     _spec2.loader.exec_module(scheduling)
 
+try:
+    from thread_context import thread_context_block
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu3
+    _spec3 = _ilu3.spec_from_file_location(
+        'thread_context', os.path.join(os.path.dirname(__file__), 'thread_context.py')
+    )
+    _tc = _ilu3.module_from_spec(_spec3)
+    _spec3.loader.exec_module(_tc)
+    thread_context_block = _tc.thread_context_block
+
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 12        # client-supplied prior turns to carry into context
@@ -242,13 +253,15 @@ TOOLS = [
 class TaskChatService:
     """Runs the chat loop and executes task mutations for one request."""
 
-    def __init__(self, db, Task, Hat, ChatUndo, check_task_limit, CoachMemory=None):
+    def __init__(self, db, Task, Hat, ChatUndo, check_task_limit, CoachMemory=None,
+                 ChatThread=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
         self.ChatUndo = ChatUndo
         self.check_task_limit = check_task_limit
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
+        self.ChatThread = ChatThread     # cross-conversation awareness
         self.client = anthropic.Anthropic() if anthropic is not None else None
 
     # ---- public entry point ----
@@ -384,6 +397,8 @@ class TaskChatService:
         snapshot = self._task_snapshot(user.id)
         memory = (memory_prompt_block(self.CoachMemory, user.id)
                   if self.CoachMemory is not None else "")
+        threads = (thread_context_block(self.ChatThread, user.id, "assistant")
+                   if self.ChatThread is not None else "")
         return (
             "You are the task assistant for MadeHappen, a to-do app. You help the "
             "user add, delete, and bulk-modify their tasks through the provided "
@@ -410,6 +425,7 @@ class TaskChatService:
             f"{snapshot}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
             f"{memory}"
+            f"{threads}"
         )
 
     def _build_messages(self, history, message):

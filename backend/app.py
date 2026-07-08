@@ -1826,7 +1826,7 @@ def _chat_service():
     if not chat_available():
         return None
     return TaskChatService(db, Task, Hat, ChatUndo, check_task_limit,
-                           CoachMemory=CoachMemory)
+                           CoachMemory=CoachMemory, ChatThread=ChatThread)
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -1908,7 +1908,8 @@ def _coaching_service():
         return None
     return CoachingService(db, Task, Hat, check_task_limit,
                            CoachMemory=CoachMemory, ChatUndo=ChatUndo,
-                           Goal=Goal, GoalMilestone=GoalMilestone)
+                           Goal=Goal, GoalMilestone=GoalMilestone,
+                           ChatThread=ChatThread)
 
 
 @app.route('/api/coach', methods=['POST'])

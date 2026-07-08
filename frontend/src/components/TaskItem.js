@@ -407,6 +407,9 @@ const TaskItem = ({
             {task.recurring && (
               <span className="task-recurring">↺ {task.recurring}</span>
             )}
+            {task.milestone_id != null && (
+              <span className="task-goal-pill" title="Works toward a goal milestone">🎯</span>
+            )}
             {task.due && (
               <span className={`task-due ${isOverdue() ? 'overdue' : ''}`}>
                 {isOverdue() ? '⚠ ' : ''}

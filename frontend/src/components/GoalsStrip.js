@@ -4,11 +4,14 @@ import './GoalsStrip.css';
 /*
  * GoalsStrip — the goal-setting framework's home in the Tasks view.
  *
- * A compact, collapsible strip above the task list showing active goals
- * (max 3 per hat, enforced server-side). Goals can be created here with a
- * quick form, or conversationally via the AI guide coach — both write to the
- * same /api/goals store. Each goal carries a check-in cadence; when one is
- * due, the card shows a badge and the guide opens with a check-in.
+ * Structure: Goal → milestones → tasks. Each goal card shows a progress bar
+ * (share of milestones done) and a milestone checklist; a milestone can
+ * spawn a real linked task (→ task), and completing the last open linked
+ * task ticks the milestone automatically. Goals can be created here with a
+ * quick form, or conversationally via the AI guide coach — both write to
+ * the same /api/goals store. Check-ins (with a cadence per goal) remain the
+ * coaching rhythm on top; when one is due, the card shows a badge and the
+ * guide opens with a check-in.
  */
 
 const CADENCES = [
@@ -34,6 +37,8 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [milestones, setMilestones] = useState('');
+
   const save = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
@@ -45,6 +50,7 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
         hat_id: hatId === '' ? null : Number(hatId),
         target_date: targetDate.trim(),
         checkin_every_days: cadence,
+        milestones: milestones.split('\n').map((s) => s.trim()).filter(Boolean),
       });
     } catch (err) {
       setError(err.message || 'Could not save the goal.');
@@ -70,6 +76,13 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
         onChange={(e) => setWhy(e.target.value)}
         placeholder="Why does it matter? (optional)"
         onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onCancel(); }}
+      />
+      <textarea
+        className="goal-form__milestones"
+        value={milestones}
+        onChange={(e) => setMilestones(e.target.value)}
+        placeholder={'Milestones — one per line (2–5 steps toward the goal)\ne.g. Run 2k without stopping'}
+        rows={3}
       />
       <div className="goal-form__row">
         {hats && hats.length > 0 && (
@@ -98,9 +111,14 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
   );
 }
 
-function GoalCard({ goal, hat, onCheckin, onAchieve, onArchive }) {
+function GoalCard({
+  goal, hat, onCheckin, onAchieve, onArchive,
+  onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
+}) {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [note, setNote] = useState('');
+  const [addingMilestone, setAddingMilestone] = useState(false);
+  const [milestoneText, setMilestoneText] = useState('');
 
   const submitCheckin = async () => {
     await onCheckin(goal.id, note.trim());
@@ -108,11 +126,23 @@ function GoalCard({ goal, hat, onCheckin, onAchieve, onArchive }) {
     setCheckinOpen(false);
   };
 
+  const submitMilestone = async () => {
+    if (!milestoneText.trim()) return;
+    await onAddMilestone(goal.id, milestoneText.trim());
+    setMilestoneText('');
+    setAddingMilestone(false);
+  };
+
+  const progress = goal.progress || { done: 0, total: 0, pct: null };
+
   return (
     <div className={`goal-card${goal.checkin_due ? ' goal-card--due' : ''}`}>
       <div className="goal-card__top">
         <span className="goal-card__title" title={goal.why || undefined}>
           🎯 {goal.title}
+          {progress.total > 0 && (
+            <span className="goal-card__pct">{progress.done}/{progress.total}</span>
+          )}
         </span>
         <span className="goal-card__actions">
           <button
@@ -127,6 +157,60 @@ function GoalCard({ goal, hat, onCheckin, onAchieve, onArchive }) {
           >✕</button>
         </span>
       </div>
+
+      {progress.total > 0 && (
+        <div className="goal-card__bar" role="progressbar"
+             aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className="goal-card__bar-fill" style={{ width: `${progress.pct}%` }} />
+        </div>
+      )}
+
+      <div className="goal-card__milestones">
+        {(goal.milestones || []).map((m) => (
+          <div key={m.id} className={`goal-ms${m.done ? ' goal-ms--done' : ''}`}>
+            <label className="goal-ms__main">
+              <input
+                type="checkbox"
+                checked={m.done}
+                onChange={() => onToggleMilestone(goal.id, m)}
+              />
+              <span className="goal-ms__title">{m.title}</span>
+            </label>
+            {!m.done && (
+              <button
+                className="goal-ms__task"
+                title="Create a task for this milestone"
+                onClick={() => onAddLinkedTask(m)}
+              >→ task</button>
+            )}
+            <button
+              className="goal-ms__remove"
+              title="Remove milestone"
+              onClick={() => onRemoveMilestone(goal.id, m.id)}
+            >✕</button>
+          </div>
+        ))}
+        {addingMilestone ? (
+          <div className="goal-ms__add-row">
+            <input
+              autoFocus
+              value={milestoneText}
+              onChange={(e) => setMilestoneText(e.target.value)}
+              placeholder="Next milestone…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitMilestone();
+                if (e.key === 'Escape') setAddingMilestone(false);
+              }}
+            />
+            <button onClick={submitMilestone}>✓</button>
+          </div>
+        ) : (
+          <button className="goal-ms__add" onClick={() => setAddingMilestone(true)}>
+            + milestone
+          </button>
+        )}
+      </div>
+
       <div className="goal-card__meta">
         {hat && <span className="goal-card__hat">{hat.emoji} {hat.name}</span>}
         {goal.target_date && <span className="goal-card__date">📅 {goal.target_date}</span>}
@@ -166,6 +250,7 @@ function GoalCard({ goal, hat, onCheckin, onAchieve, onArchive }) {
 export default function GoalsStrip({
   goals, hats, selectedHatIds,
   onCreate, onCheckin, onAchieve, onArchive,
+  onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
 }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch { return false; }
@@ -229,6 +314,10 @@ export default function GoalsStrip({
                   onCheckin={onCheckin}
                   onAchieve={onAchieve}
                   onArchive={onArchive}
+                  onToggleMilestone={onToggleMilestone}
+                  onAddMilestone={onAddMilestone}
+                  onRemoveMilestone={onRemoveMilestone}
+                  onAddLinkedTask={onAddLinkedTask}
                 />
               ))}
               {!adding && (

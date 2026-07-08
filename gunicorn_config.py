@@ -21,8 +21,12 @@ print("[gunicorn_config] module loaded", file=sys.stderr, flush=True)
 def post_worker_init(_worker) -> None:
     """Run after each worker is forked. Keep wsgi import free of DB I/O."""
     print("[gunicorn_config] post_worker_init starting", file=sys.stderr, flush=True)
-    from backend.app import app, db, User
+    from backend.app import app, db, User, migrate_db
     from backend.bootstrap import ensure_bootstrap_admin
+
+    # Idempotent schema sync: creates new tables and runs the ALTERs for
+    # columns added after a table first shipped (e.g. task.milestone_id).
+    migrate_db()
 
     with app.app_context():
         db.create_all()

@@ -1,24 +1,30 @@
 """
 Goal-setting framework for MadeHappen.
 
-Goals are first-class objects (not tasks, not chat memory): a short title, a
-"why", an optional target date, and a check-in cadence the user chooses.
-At most MAX_ACTIVE_GOALS_PER_HAT are active per hat so focus stays narrow.
+Structure: Goal → milestones → tasks.
+A goal is a meaningful outcome (max MAX_ACTIVE_GOALS_PER_HAT active per hat)
+broken into a few milestones; milestones link to real tasks. Progress is the
+share of milestones done — completing the last open task linked to a
+milestone ticks the milestone automatically (see mark_task_done in app.py).
+Check-ins remain the coaching rhythm layered on top: a cadence the user
+chooses, with a one-line note each time.
 
 Two front doors share this module:
-- REST routes in app.py (the Goals strip's quick form), and
+- REST routes in app.py (the Goals strip's quick form + checklist), and
 - the AI guide coach, which gets the GOAL_TOOLS below so onboarding
-  ("what are you working toward?") and periodic check-ins happen in chat.
+  ("what are you working toward?"), milestone planning, and periodic
+  check-ins happen in chat.
 
 Like memory_notes.py, this module owns the tool schemas, the prompt block
 injected into the guide's system prompt, and the tool handlers; app.py owns
-the SQLAlchemy model and passes it in.
+the SQLAlchemy models and passes them in.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
 MAX_ACTIVE_GOALS_PER_HAT = 3
+MAX_MILESTONES_PER_GOAL = 7
 CHECKIN_CHOICES = (1, 7, 14, 30)     # daily / weekly / fortnightly / monthly
 DEFAULT_CHECKIN_DAYS = 7
 GOAL_STATUSES = ("active", "achieved", "archived")
@@ -36,6 +42,28 @@ def checkin_due(goal, now=None):
     return days_since_checkin(goal, now) >= (goal.checkin_every_days or DEFAULT_CHECKIN_DAYS)
 
 
+def milestone_to_dict(m):
+    return {
+        "id": m.id,
+        "title": m.title,
+        "done": bool(m.done),
+        "done_at": m.done_at.isoformat() if m.done_at else None,
+        "position": m.position or 0,
+    }
+
+
+def goal_progress(goal):
+    """Progress = share of milestones done. No milestones → no bar (None)."""
+    milestones = list(goal.milestones or [])
+    total = len(milestones)
+    done = sum(1 for m in milestones if m.done)
+    return {
+        "done": done,
+        "total": total,
+        "pct": round(100 * done / total) if total else None,
+    }
+
+
 def goal_to_dict(goal):
     return {
         "id": goal.id,
@@ -44,6 +72,8 @@ def goal_to_dict(goal):
         "why": goal.why or "",
         "target_date": goal.target_date,
         "status": goal.status,
+        "milestones": [milestone_to_dict(m) for m in (goal.milestones or [])],
+        "progress": goal_progress(goal),
         "checkin_every_days": goal.checkin_every_days or DEFAULT_CHECKIN_DAYS,
         "last_checkin_at": goal.last_checkin_at.isoformat() if goal.last_checkin_at else None,
         "last_checkin_note": goal.last_checkin_note or "",
@@ -53,6 +83,22 @@ def goal_to_dict(goal):
     }
 
 
+def add_milestones(db, Milestone, goal, titles):
+    """Append milestone rows to a goal, respecting the per-goal cap.
+    Returns the number actually added."""
+    existing = len(list(goal.milestones or []))
+    added = 0
+    base_pos = existing
+    for title in titles or []:
+        text = (str(title) or "").strip()
+        if not text or existing + added >= MAX_MILESTONES_PER_GOAL:
+            continue
+        db.session.add(Milestone(goal_id=goal.id, user_id=goal.user_id,
+                                 title=text[:200], position=base_pos + added))
+        added += 1
+    return added
+
+
 def active_goal_count(Goal, user_id, hat_id):
     return Goal.query.filter_by(user_id=user_id, hat_id=hat_id, status="active").count()
 
@@ -60,20 +106,28 @@ def active_goal_count(Goal, user_id, hat_id):
 # ── Guide prompt block ───────────────────────────────────────────────────────
 
 GOAL_GUIDANCE = (
-    "\n\nGOALS: You are also the user's goal coach. Goals are separate from "
-    "tasks — a small number of meaningful outcomes (at most "
-    f"{MAX_ACTIVE_GOALS_PER_HAT} active per hat) with a 'why' and a check-in "
-    "rhythm the user chooses.\n"
+    "\n\nGOALS: You are also the user's goal coach. The structure is "
+    "Goal → milestones → tasks: a small number of meaningful outcomes (at "
+    f"most {MAX_ACTIVE_GOALS_PER_HAT} active per hat) each broken into 2–5 "
+    "milestones, and milestones turned into real tasks. Progress is the "
+    "share of milestones done — completing the last open task linked to a "
+    "milestone ticks it automatically.\n"
     "- If the user has NO goals yet, once the immediate conversation allows, "
     "warmly offer to set one or two: ask what they're working toward, why it "
-    "matters, and what a realistic pace looks like — then save it with "
-    "set_goal after they agree.\n"
-    "- If any goal below is marked CHECK-IN DUE, open the conversation (or "
-    "weave in early) a gentle check-in: how is it going, what moved, what's "
-    "in the way? Record it with checkin_goal — including a one-line note — "
-    "and offer to turn next steps into tasks.\n"
-    "- When a goal is reached, celebrate and mark it achieved with "
-    "update_goal. If it no longer fits, offer to archive or rewrite it.\n"
+    "matters, and what the first few milestones would be — then save it with "
+    "set_goal (including milestones) after they agree.\n"
+    "- If a goal below has no milestones, offer to break it down together "
+    "and add them with update_milestones.\n"
+    "- When the user agrees on next steps for a milestone, save them as real "
+    "tasks with save_tasks and pass that milestone's id as milestone_id so "
+    "completing the tasks moves the goal forward.\n"
+    "- If any goal is marked CHECK-IN DUE, open the conversation (or weave "
+    "in early) a gentle check-in: what moved, what's in the way? Record it "
+    "with checkin_goal (one-line note), tick finished milestones with "
+    "update_milestones, and offer to line up the next task.\n"
+    "- When every milestone is done — or the outcome is reached — celebrate "
+    "and mark the goal achieved with update_goal. If it no longer fits, "
+    "offer to archive or rewrite it.\n"
     "- Respect the per-hat limit: if a hat is full, discuss which goal to "
     "replace rather than piling on. Offer first, act on a yes — same as tasks."
 )
@@ -96,11 +150,19 @@ def goals_prompt_block(Goal, Hat, user_id):
                 bits.append(f"why: {g.why}")
             if g.target_date:
                 bits.append(f"target: {g.target_date}")
+            prog = goal_progress(g)
+            if prog["total"]:
+                bits.append(f"progress: {prog['done']}/{prog['total']} milestones")
+            else:
+                bits.append("no milestones yet — offer to break it down")
             bits.append(f"last check-in {days_since_checkin(g)}d ago "
                         f"(every {g.checkin_every_days or DEFAULT_CHECKIN_DAYS}d)")
             if checkin_due(g):
                 bits.append("CHECK-IN DUE")
             lines.append("  - " + " · ".join(bits))
+            for m in (g.milestones or []):
+                mark = "✓" if m.done else "○"
+                lines.append(f"      {mark} [milestone #{m.id}] {m.title}")
         listing = "\n".join(lines)
     return f"{GOAL_GUIDANCE}\n\nThe user's active goals:\n{listing}"
 
@@ -111,7 +173,8 @@ GOAL_TOOLS = [
     {
         "name": "set_goal",
         "description": (
-            "Create a goal the user has agreed to. Keep the title short and "
+            "Create a goal the user has agreed to, ideally with 2–5 "
+            "milestones worked out together. Keep the title short and "
             "outcome-shaped; capture their own words in 'why'. Fails if the "
             "hat already has the maximum active goals — then discuss which "
             "to replace instead."
@@ -123,6 +186,11 @@ GOAL_TOOLS = [
                 "why": {"type": "string", "description": "Why it matters, in the user's words."},
                 "hat_id": {"type": "integer", "description": "Hat this goal belongs to."},
                 "target_date": {"type": "string", "description": "YYYY-MM-DD target, or empty."},
+                "milestones": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "2–5 ordered milestone titles the user agreed to.",
+                },
                 "checkin_every_days": {
                     "type": "integer",
                     "enum": list(CHECKIN_CHOICES),
@@ -130,6 +198,30 @@ GOAL_TOOLS = [
                 },
             },
             "required": ["title"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_milestones",
+        "description": (
+            "Change a goal's milestone checklist: add new milestones, mark "
+            "some done or not-done, or remove ones that no longer fit. Use "
+            "milestone ids from the goal list."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "goal_id": {"type": "integer"},
+                "add": {"type": "array", "items": {"type": "string"},
+                        "description": "New milestone titles to append."},
+                "complete_ids": {"type": "array", "items": {"type": "integer"},
+                                 "description": "Milestone ids to mark done."},
+                "reopen_ids": {"type": "array", "items": {"type": "integer"},
+                               "description": "Milestone ids to mark not done."},
+                "remove_ids": {"type": "array", "items": {"type": "integer"},
+                               "description": "Milestone ids to delete."},
+            },
+            "required": ["goal_id"],
             "additionalProperties": False,
         },
     },
@@ -185,7 +277,8 @@ def _valid_hat_id(Hat, user_id, hat_id):
     return hat.id if hat else None
 
 
-def handle_goal_tool(db, Goal, Hat, user, name, args, goal_actions):
+def handle_goal_tool(db, Goal, Hat, user, name, args, goal_actions,
+                     Milestone=None):
     """Execute a goal tool for the guide. Returns a result dict, or None if
     the tool name isn't a goal tool."""
     if name not in GOAL_TOOL_NAMES:
@@ -212,8 +305,37 @@ def handle_goal_tool(db, Goal, Hat, user, name, args, goal_actions):
             checkin_every_days=cadence if cadence in CHECKIN_CHOICES else DEFAULT_CHECKIN_DAYS,
         )
         db.session.add(goal)
+        db.session.flush()   # assign id so milestones can reference it
+        if Milestone is not None:
+            add_milestones(db, Milestone, goal, args.get("milestones"))
         db.session.commit()
         goal_actions.append({"action": "goal_set", "title": goal.title})
+        return {"content": {"goal": goal_to_dict(goal)}}
+
+    if name == "update_milestones":
+        goal = Goal.query.filter_by(id=args.get("goal_id"), user_id=user.id).first()
+        if goal is None:
+            return {"content": {"error": "Goal not found."}, "is_error": True}
+        if Milestone is None:
+            return {"content": {"error": "Milestones unavailable."}, "is_error": True}
+        add_milestones(db, Milestone, goal, args.get("add"))
+        by_id = {m.id: m for m in (goal.milestones or [])}
+        for mid in args.get("complete_ids") or []:
+            m = by_id.get(mid)
+            if m and not m.done:
+                m.done = True
+                m.done_at = datetime.utcnow()
+        for mid in args.get("reopen_ids") or []:
+            m = by_id.get(mid)
+            if m:
+                m.done = False
+                m.done_at = None
+        for mid in args.get("remove_ids") or []:
+            m = by_id.get(mid)
+            if m:
+                db.session.delete(m)
+        db.session.commit()
+        goal_actions.append({"action": "goal_updated", "title": goal.title})
         return {"content": {"goal": goal_to_dict(goal)}}
 
     goal = Goal.query.filter_by(id=args.get("id"), user_id=user.id).first()

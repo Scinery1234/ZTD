@@ -196,6 +196,7 @@ class Task(db.Model):
     pomodoro_count = db.Column(db.Integer, default=0)        # focus sessions logged (premium)
     gcal_event_id = db.Column(db.String(200), nullable=True) # Google Calendar event id
     ms_event_id   = db.Column(db.String(200), nullable=True) # Microsoft Outlook event id
+    milestone_id = db.Column(db.Integer, nullable=True)      # links task → goal milestone
 
     def subtasks_list(self):
         try:
@@ -227,6 +228,7 @@ class Task(db.Model):
             'pomodoro_count': self.pomodoro_count or 0,
             'gcal_event_id': self.gcal_event_id,
             'ms_event_id': self.ms_event_id,
+            'milestone_id': self.milestone_id,
         }
 
 
@@ -375,9 +377,10 @@ except ImportError:  # imported as backend.app (tests, wsgi)
 
 
 class Goal(db.Model):
-    """A goal in the goal-setting framework: a small number of meaningful
-    outcomes per hat (max goals_mod.MAX_ACTIVE_GOALS_PER_HAT active each),
-    with a 'why' and a user-chosen check-in cadence. Managed via /api/goals
+    """A goal in the goal-setting framework: Goal → milestones → tasks.
+    A small number of meaningful outcomes per hat (max
+    goals_mod.MAX_ACTIVE_GOALS_PER_HAT active each), each broken into
+    milestones; progress = share of milestones done. Managed via /api/goals
     and by the AI guide coach's goal tools."""
     __tablename__ = 'goal'
     id = db.Column(db.Integer, primary_key=True)
@@ -392,9 +395,28 @@ class Goal(db.Model):
     last_checkin_note = db.Column(db.String(500), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     achieved_at = db.Column(db.DateTime, nullable=True)
+    milestones = db.relationship(
+        'GoalMilestone', backref='goal', cascade='all, delete-orphan',
+        order_by='GoalMilestone.position, GoalMilestone.id')
 
     def to_dict(self):
         return goals_mod.goal_to_dict(self)
+
+
+class GoalMilestone(db.Model):
+    """A step on the way to a goal. Tasks link here via Task.milestone_id;
+    completing the last open linked task marks the milestone done."""
+    __tablename__ = 'goal_milestone'
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('goal.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    position = db.Column(db.Integer, default=0)
+    done = db.Column(db.Boolean, default=False)
+    done_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return goals_mod.milestone_to_dict(self)
 
 
 # --- Helpers ---
@@ -959,6 +981,10 @@ def add_task():
                 due_val = _parsed.strftime("%Y-%m-%d") if _parsed else due_raw
             else:
                 due_val = None
+            milestone_id = data.get('milestone_id') or None
+            if milestone_id:
+                m = GoalMilestone.query.filter_by(id=milestone_id, user_id=user_id).first()
+                milestone_id = m.id if m else None
             task = Task(
                 user_id=user_id,
                 hat_id=hat_id,
@@ -972,6 +998,7 @@ def add_task():
                 scheduled_time=data.get('scheduled_time') or None,
                 scheduled_date=data.get('scheduled_date') or None,
                 notes=data.get('notes') or None,
+                milestone_id=milestone_id,
             )
             db.session.add(task)
             all_tasks.append(task)
@@ -1030,6 +1057,13 @@ def update_task(task_id):
         task.locked = bool(data.get('locked', False))
     if 'notes' in data:
         task.notes = data.get('notes') or None
+    if 'milestone_id' in data:
+        mid = data.get('milestone_id')
+        if mid:
+            m = GoalMilestone.query.filter_by(id=mid, user_id=user_id).first()
+            task.milestone_id = m.id if m else task.milestone_id
+        else:
+            task.milestone_id = None
 
     db.session.commit()
     return jsonify(task.to_dict())
@@ -1073,6 +1107,21 @@ def mark_task_done(task_id):
     )
     db.session.add(done_task)
     db.session.delete(task)
+
+    # Goal → milestones → tasks: finishing the last open task linked to a
+    # milestone marks the milestone done, moving the goal's progress bar.
+    if task.milestone_id:
+        remaining = Task.query.filter(
+            Task.milestone_id == task.milestone_id,
+            Task.user_id == user_id,
+            Task.id != task.id,
+        ).count()
+        if remaining == 0:
+            milestone = GoalMilestone.query.filter_by(
+                id=task.milestone_id, user_id=user_id).first()
+            if milestone and not milestone.done:
+                milestone.done = True
+                milestone.done_at = datetime.utcnow()
 
     # Respawn recurring tasks with next due date, subtasks reset to undone
     if task.recurring:
@@ -1859,7 +1908,7 @@ def _coaching_service():
         return None
     return CoachingService(db, Task, Hat, check_task_limit,
                            CoachMemory=CoachMemory, ChatUndo=ChatUndo,
-                           Goal=Goal)
+                           Goal=Goal, GoalMilestone=GoalMilestone)
 
 
 @app.route('/api/coach', methods=['POST'])
@@ -2033,6 +2082,8 @@ def goals_create():
                             else goals_mod.DEFAULT_CHECKIN_DAYS),
     )
     db.session.add(goal)
+    db.session.flush()
+    goals_mod.add_milestones(db, GoalMilestone, goal, data.get('milestones'))
     db.session.commit()
     return jsonify(goal.to_dict()), 201
 
@@ -2043,11 +2094,62 @@ def goals_update(goal_id):
     user = User.query.get(int(get_jwt_identity()))
     result = goals_mod.handle_goal_tool(
         db, Goal, Hat, user, 'update_goal',
-        {**(request.json or {}), 'id': goal_id}, [])
+        {**(request.json or {}), 'id': goal_id}, [], Milestone=GoalMilestone)
     if result.get('is_error'):
         status = 404 if 'not found' in str(result['content'].get('error', '')).lower() else 400
         return jsonify(result['content']), status
     return jsonify(result['content']['goal'])
+
+
+@app.route('/api/goals/<int:goal_id>/milestones', methods=['POST'])
+@jwt_required()
+def goals_milestone_add(goal_id):
+    user_id = int(get_jwt_identity())
+    goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+    if not goal:
+        return jsonify({'error': 'Goal not found'}), 404
+    title = ((request.json or {}).get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'Milestone title is required'}), 400
+    added = goals_mod.add_milestones(db, GoalMilestone, goal, [title])
+    db.session.commit()
+    if not added:
+        return jsonify({'error': (f'Goals hold at most '
+                                  f'{goals_mod.MAX_MILESTONES_PER_GOAL} milestones.'),
+                        'limit_reached': True}), 400
+    return jsonify(goal.to_dict()), 201
+
+
+@app.route('/api/goals/<int:goal_id>/milestones/<int:milestone_id>', methods=['PUT'])
+@jwt_required()
+def goals_milestone_update(goal_id, milestone_id):
+    user_id = int(get_jwt_identity())
+    m = GoalMilestone.query.filter_by(id=milestone_id, goal_id=goal_id,
+                                      user_id=user_id).first()
+    if not m:
+        return jsonify({'error': 'Milestone not found'}), 404
+    data = request.json or {}
+    if (data.get('title') or '').strip():
+        m.title = data['title'].strip()[:200]
+    if 'done' in data:
+        m.done = bool(data['done'])
+        m.done_at = datetime.utcnow() if m.done else None
+    db.session.commit()
+    return jsonify(m.goal.to_dict())
+
+
+@app.route('/api/goals/<int:goal_id>/milestones/<int:milestone_id>', methods=['DELETE'])
+@jwt_required()
+def goals_milestone_delete(goal_id, milestone_id):
+    user_id = int(get_jwt_identity())
+    m = GoalMilestone.query.filter_by(id=milestone_id, goal_id=goal_id,
+                                      user_id=user_id).first()
+    if not m:
+        return jsonify({'error': 'Milestone not found'}), 404
+    goal = m.goal
+    db.session.delete(m)
+    db.session.commit()
+    return jsonify(goal.to_dict())
 
 
 @app.route('/api/goals/<int:goal_id>/checkin', methods=['POST'])
@@ -2056,7 +2158,8 @@ def goals_checkin(goal_id):
     user = User.query.get(int(get_jwt_identity()))
     result = goals_mod.handle_goal_tool(
         db, Goal, Hat, user, 'checkin_goal',
-        {'id': goal_id, 'note': (request.json or {}).get('note', '')}, [])
+        {'id': goal_id, 'note': (request.json or {}).get('note', '')}, [],
+        Milestone=GoalMilestone)
     if result.get('is_error'):
         return jsonify(result['content']), 404
     return jsonify(result['content']['goal'])
@@ -2091,6 +2194,7 @@ def migrate_db():
             'ALTER TABLE "user" ADD COLUMN email_verified BOOLEAN DEFAULT FALSE',
             'ALTER TABLE task ADD COLUMN gcal_event_id VARCHAR(200)',
             'ALTER TABLE task ADD COLUMN ms_event_id VARCHAR(200)',
+            'ALTER TABLE task ADD COLUMN milestone_id INTEGER',
         ]:
             try:
                 with db.engine.connect() as conn:

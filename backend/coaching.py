@@ -352,6 +352,13 @@ _SAVE_TASKS_TOOL = {
                             "type": "boolean",
                             "description": "Set true ONLY after the user confirms overlapping an existing scheduled task.",
                         },
+                        "milestone_id": {
+                            "type": "integer",
+                            "description": ("Goal milestone this task works toward "
+                                            "(id from the goals list). Completing "
+                                            "the milestone's last open task marks "
+                                            "it done."),
+                        },
                     },
                     "required": ["description"],
                     "additionalProperties": False,
@@ -393,7 +400,7 @@ class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
     def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None,
-                 ChatUndo=None, Goal=None):
+                 ChatUndo=None, Goal=None, GoalMilestone=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
@@ -401,6 +408,7 @@ class CoachingService:
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.ChatUndo = ChatUndo         # enables undo for coach task changes
         self.Goal = Goal                 # goal-setting framework (guide coach)
+        self.GoalMilestone = GoalMilestone
         # Task edits are delegated to the task assistant's handlers so coaches
         # share its clash checks, field rules and undo snapshots.
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
@@ -563,7 +571,8 @@ class CoachingService:
             if self.Goal is not None and coach_id == "guide":
                 handled = goals_mod.handle_goal_tool(
                     self.db, self.Goal, self.Hat, user, name, args,
-                    goal_actions if goal_actions is not None else [])
+                    goal_actions if goal_actions is not None else [],
+                    Milestone=self.GoalMilestone)
                 if handled is not None:
                     return handled
             if name == "save_tasks":
@@ -630,6 +639,13 @@ class CoachingService:
                         })
                         continue
 
+            # Link to a goal milestone when the guide is working a goal plan.
+            milestone_id = None
+            if item.get("milestone_id") and self.GoalMilestone is not None:
+                m = self.GoalMilestone.query.filter_by(
+                    id=item["milestone_id"], user_id=user.id).first()
+                milestone_id = m.id if m else None
+
             max_pos = (self.db.session.query(self.db.func.max(self.Task.position))
                        .filter_by(user_id=user.id).scalar() or 0)
             task = self.Task(
@@ -644,6 +660,7 @@ class CoachingService:
                 scheduled_time=sched_time,
                 scheduled_date=sched_date,
                 duration=duration or scheduling.DEFAULT_DURATION,
+                milestone_id=milestone_id,
             )
             self.db.session.add(task)
             self.db.session.flush()

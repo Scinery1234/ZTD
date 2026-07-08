@@ -44,6 +44,8 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
+.task-goal-pill { font-size: 11px; }
+
 /* Bulk-select mode */
 .task-list--selecting .task-item {
   cursor: pointer;

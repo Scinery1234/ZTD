@@ -464,6 +464,21 @@ function TaskApp() {
     try { await api.updateGoal(id, { status: 'archived' }); await fetchGoals(); }
     catch (err) { console.error('Goal archive failed:', err); }
   };
+  const toggleMilestone = async (goalId, m) => {
+    try { await api.updateMilestone(goalId, m.id, { done: !m.done }); await fetchGoals(); }
+    catch (err) { console.error('Milestone toggle failed:', err); }
+  };
+  const addMilestone = async (goalId, title) => {
+    try { await api.addMilestone(goalId, title); await fetchGoals(); }
+    catch (err) { alert(err.message || 'Could not add milestone'); }
+  };
+  const removeMilestone = async (goalId, milestoneId) => {
+    try { await api.deleteMilestone(goalId, milestoneId); await fetchGoals(); }
+    catch (err) { console.error('Milestone remove failed:', err); }
+  };
+  const addLinkedTask = async (milestone) => {
+    await addTask({ description: milestone.title, milestone_id: milestone.id });
+  };
 
   // Load in background — shell renders immediately; banner until first sync completes
   useEffect(() => {
@@ -540,10 +555,12 @@ function TaskApp() {
   };
 
   const markDone = async (taskId) => {
+    const wasLinked = tasks.find(t => t.id === taskId)?.milestone_id != null;
     setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
       await api.markDone(taskId);
       await fetchDoneTasks();
+      if (wasLinked) await fetchGoals();   // milestone may have auto-completed
       await refreshSubscription();
     } catch (err) {
       console.error('Error marking task done:', err);
@@ -581,7 +598,7 @@ function TaskApp() {
     } catch (err) {
       console.error('Bulk mark-done failed:', err);
     } finally {
-      await Promise.all([fetchTasks(), fetchDoneTasks()]);
+      await Promise.all([fetchTasks(), fetchDoneTasks(), fetchGoals()]);
       await refreshSubscription();
     }
   };
@@ -730,6 +747,10 @@ function TaskApp() {
                 onCheckin={checkinGoal}
                 onAchieve={achieveGoal}
                 onArchive={archiveGoal}
+                onToggleMilestone={toggleMilestone}
+                onAddMilestone={addMilestone}
+                onRemoveMilestone={removeMilestone}
+                onAddLinkedTask={addLinkedTask}
               />
               {atLimit ? (
                 <div className="limit-banner">

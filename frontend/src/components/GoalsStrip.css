@@ -125,6 +125,119 @@
 
 .goal-card__btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 
+.goal-card__pct {
+  margin-left: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.goal-card__bar {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.09);
+  margin-top: 7px;
+  overflow: hidden;
+}
+
+.goal-card__bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #fbbf24, #f97316);
+  transition: width 0.3s ease;
+}
+
+/* Milestone checklist */
+.goal-card__milestones { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; }
+
+.goal-ms { display: flex; align-items: center; gap: 6px; }
+
+.goal-ms__main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.goal-ms__main input { accent-color: #f97316; cursor: pointer; flex-shrink: 0; }
+
+.goal-ms__title { font-size: 12.5px; line-height: 1.4; }
+
+.goal-ms--done .goal-ms__title {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.goal-ms__task,
+.goal-ms__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.goal-ms__task { font-size: 10.5px; color: rgba(255, 255, 255, 0.45); border: 1px solid rgba(255, 255, 255, 0.14); }
+.goal-ms__task:hover { color: #fdba74; border-color: rgba(249, 115, 22, 0.5); }
+
+.goal-ms__remove { font-size: 10px; color: rgba(255, 255, 255, 0.25); }
+.goal-ms__remove:hover { color: #f87171; }
+
+.goal-ms__add {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11.5px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 0;
+}
+
+.goal-ms__add:hover { color: rgba(255, 255, 255, 0.7); }
+
+.goal-ms__add-row { display: flex; gap: 6px; margin-top: 2px; }
+
+.goal-ms__add-row input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.goal-ms__add-row button {
+  background: #f97316;
+  border: none;
+  border-radius: 7px;
+  color: #fff;
+  width: 26px;
+  cursor: pointer;
+}
+
+.goal-form__milestones {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 8px 11px;
+  outline: none;
+  resize: vertical;
+}
+
+.goal-form__milestones:focus { border-color: #f97316; }
+
 .goal-card__meta {
   display: flex;
   flex-wrap: wrap;
@@ -283,6 +396,16 @@
 [data-theme="light"] .goal-card__checkin:hover,
 [data-theme="light"] .goal-card__due-badge:hover { color: #1c1209; border-color: rgba(0, 0, 0, 0.35); }
 [data-theme="light"] .goal-card__note { color: rgba(28, 18, 9, 0.45); }
+[data-theme="light"] .goal-card__pct { color: rgba(28, 18, 9, 0.5); }
+[data-theme="light"] .goal-card__bar { background: rgba(0, 0, 0, 0.08); }
+[data-theme="light"] .goal-ms--done .goal-ms__title { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .goal-ms__task { color: rgba(28, 18, 9, 0.5); border-color: rgba(0, 0, 0, 0.15); }
+[data-theme="light"] .goal-ms__task:hover { color: #c2570c; }
+[data-theme="light"] .goal-ms__remove { color: rgba(28, 18, 9, 0.3); }
+[data-theme="light"] .goal-ms__add { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .goal-ms__add:hover { color: rgba(28, 18, 9, 0.75); }
+[data-theme="light"] .goal-ms__add-row input,
+[data-theme="light"] .goal-form__milestones { background: #fff; border-color: rgba(0, 0, 0, 0.14); }
 [data-theme="light"] .goal-card__checkin-row input,
 [data-theme="light"] .goal-form__title,
 [data-theme="light"] .goal-form__why,

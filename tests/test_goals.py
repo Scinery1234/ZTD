@@ -20,12 +20,15 @@ os.environ.setdefault('DATABASE_URL', f'sqlite:///{_DB_PATH}')
 os.environ.setdefault('JWT_SECRET_KEY', 'test-secret')
 
 from backend.app import (  # noqa: E402
-    app, db, limiter, User, Hat, Task, Goal, ChatUndo, check_task_limit,
+    app, db, limiter, User, Hat, Task, Goal, GoalMilestone, ChatUndo,
+    check_task_limit,
 )
 
 limiter.enabled = False
 from backend.coaching import CoachingService  # noqa: E402
-from backend.goals import MAX_ACTIVE_GOALS_PER_HAT  # noqa: E402
+from backend.goals import (  # noqa: E402
+    MAX_ACTIVE_GOALS_PER_HAT, MAX_MILESTONES_PER_GOAL,
+)
 
 
 # ---- scripted fake Anthropic client (same shape as test_coaching) ----
@@ -166,10 +169,91 @@ class GoalRouteTests(GoalsBase):
         self.assertIsNotNone(db.session.get(Goal, gid))
 
 
+class MilestoneTests(GoalsBase):
+    """Goal → milestones → tasks: progress and the task→milestone link."""
+
+    def _goal(self, milestones=('Step one', 'Step two')):
+        res = self.client.post('/api/goals', json={
+            'title': 'Ship the beta', 'hat_id': self.hat.id,
+            'milestones': list(milestones),
+        }, headers=self.auth)
+        return res.get_json()
+
+    def test_create_with_milestones_and_progress(self):
+        g = self._goal()
+        self.assertEqual([m['title'] for m in g['milestones']],
+                         ['Step one', 'Step two'])
+        self.assertEqual(g['progress'], {'done': 0, 'total': 2, 'pct': 0})
+
+        # Toggle one done via the route → progress moves
+        mid = g['milestones'][0]['id']
+        res = self.client.put(f"/api/goals/{g['id']}/milestones/{mid}",
+                              json={'done': True}, headers=self.auth)
+        self.assertEqual(res.get_json()['progress'], {'done': 1, 'total': 2, 'pct': 50})
+
+    def test_add_and_remove_milestones(self):
+        g = self._goal(milestones=[])
+        self.assertIsNone(g['progress']['pct'])   # no milestones → no bar
+        res = self.client.post(f"/api/goals/{g['id']}/milestones",
+                               json={'title': 'First step'}, headers=self.auth)
+        self.assertEqual(res.status_code, 201)
+        mid = res.get_json()['milestones'][0]['id']
+        res2 = self.client.delete(f"/api/goals/{g['id']}/milestones/{mid}",
+                                  headers=self.auth)
+        self.assertEqual(res2.get_json()['milestones'], [])
+
+    def test_milestone_cap(self):
+        g = self._goal(milestones=[f'm{i}' for i in range(MAX_MILESTONES_PER_GOAL + 3)])
+        self.assertEqual(len(g['milestones']), MAX_MILESTONES_PER_GOAL)
+        res = self.client.post(f"/api/goals/{g['id']}/milestones",
+                               json={'title': 'one more'}, headers=self.auth)
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(res.get_json()['limit_reached'])
+
+    def test_completing_last_linked_task_ticks_milestone(self):
+        g = self._goal()
+        mid = g['milestones'][0]['id']
+        # Two tasks linked to the same milestone via the tasks API
+        t1 = self.client.post('/api/tasks', json={
+            'description': 'Write the docs', 'milestone_id': mid,
+        }, headers=self.auth).get_json()
+        t2 = self.client.post('/api/tasks', json={
+            'description': 'Record the demo', 'milestone_id': mid,
+        }, headers=self.auth).get_json()
+        self.assertEqual(t1['milestone_id'], mid)
+
+        self.client.post(f"/api/tasks/{t1['id']}/done", headers=self.auth)
+        self.assertFalse(db.session.get(GoalMilestone, mid).done)  # one task left
+
+        self.client.post(f"/api/tasks/{t2['id']}/done", headers=self.auth)
+        m = db.session.get(GoalMilestone, mid)
+        self.assertTrue(m.done)                                    # last one ticks it
+        goal = db.session.get(Goal, g['id']).to_dict()
+        self.assertEqual(goal['progress']['done'], 1)
+
+    def test_milestone_link_is_user_scoped(self):
+        g = self._goal()
+        mid = g['milestones'][0]['id']
+        res2 = self.client.post('/api/auth/register', json={
+            'name': 'X', 'email': 'ms-other@example.com', 'password': 'password123',
+        })
+        auth2 = {'Authorization': f"Bearer {res2.get_json()['access_token']}"}
+        # Another user can't link a task to my milestone…
+        t = self.client.post('/api/tasks', json={
+            'description': 'Sneaky', 'milestone_id': mid,
+        }, headers=auth2).get_json()
+        self.assertIsNone(t['milestone_id'])
+        # …or toggle it
+        res = self.client.put(f"/api/goals/{g['id']}/milestones/{mid}",
+                              json={'done': True}, headers=auth2)
+        self.assertEqual(res.status_code, 404)
+
+
 class GuideGoalToolTests(GoalsBase):
     def svc(self, script):
         s = CoachingService(db, Task, Hat, check_task_limit,
-                            ChatUndo=ChatUndo, Goal=Goal)
+                            ChatUndo=ChatUndo, Goal=Goal,
+                            GoalMilestone=GoalMilestone)
         s.client = FakeClient(script)
         return s
 
@@ -206,11 +290,12 @@ class GuideGoalToolTests(GoalsBase):
         s2.run(self.user, 'guide', 'hello', [])
         self.assertIn('no goals yet', s2.client.messages.calls[0]['system'])
 
-    def test_guide_sets_a_goal(self):
+    def test_guide_sets_a_goal_with_milestones(self):
         s = self.svc([
             tool_response(tool_block('set_goal', {
                 'title': 'Meditate daily', 'why': 'Calm mind',
                 'hat_id': self.hat.id, 'checkin_every_days': 1,
+                'milestones': ['One week streak', 'One month streak'],
             })),
             final_response("It's saved — I'll check in each day."),
         ])
@@ -218,8 +303,59 @@ class GuideGoalToolTests(GoalsBase):
         goal = Goal.query.filter_by(user_id=self.user.id).one()
         self.assertEqual(goal.title, 'Meditate daily')
         self.assertEqual(goal.checkin_every_days, 1)
+        self.assertEqual([m.title for m in goal.milestones],
+                         ['One week streak', 'One month streak'])
         self.assertEqual(out['goal_actions'],
                          [{'action': 'goal_set', 'title': 'Meditate daily'}])
+
+    def test_guide_updates_milestones_and_prompt_shows_them(self):
+        g = Goal(user_id=self.user.id, hat_id=self.hat.id, title='Ship it')
+        db.session.add(g)
+        db.session.flush()
+        m = GoalMilestone(goal_id=g.id, user_id=self.user.id, title='Build MVP')
+        db.session.add(m)
+        db.session.commit()
+
+        s = self.svc([
+            tool_response(tool_block('update_milestones', {
+                'goal_id': g.id,
+                'complete_ids': [m.id],
+                'add': ['Get 10 users'],
+            })),
+            final_response('MVP done — next: ten users.'),
+        ])
+        s.run(self.user, 'guide', 'the MVP is done!', [])
+        db.session.refresh(m)
+        self.assertTrue(m.done)
+        titles = [x.title for x in db.session.get(Goal, g.id).milestones]
+        self.assertIn('Get 10 users', titles)
+
+        # Milestones (with ids and ✓/○) appear in the guide prompt
+        s2 = self.svc([final_response('Hi.')])
+        s2.run(self.user, 'guide', 'hello', [])
+        system = s2.client.messages.calls[0]['system']
+        self.assertIn(f'[milestone #{m.id}]', system)
+        self.assertIn('Build MVP', system)
+        self.assertIn('progress: 1/2 milestones', system)
+
+    def test_guide_saves_task_linked_to_milestone(self):
+        g = Goal(user_id=self.user.id, hat_id=self.hat.id, title='Ship it')
+        db.session.add(g)
+        db.session.flush()
+        m = GoalMilestone(goal_id=g.id, user_id=self.user.id, title='Build MVP')
+        db.session.add(m)
+        db.session.commit()
+
+        s = self.svc([
+            tool_response(tool_block('save_tasks', {
+                'tasks': [{'description': 'Sketch the landing page',
+                           'milestone_id': m.id}],
+            })),
+            final_response("Added — it counts toward 'Build MVP'."),
+        ])
+        s.run(self.user, 'guide', 'yes add that task', [])
+        task = Task.query.filter_by(user_id=self.user.id).one()
+        self.assertEqual(task.milestone_id, m.id)
 
     def test_guide_respects_goal_limit(self):
         for i in range(MAX_ACTIVE_GOALS_PER_HAT):

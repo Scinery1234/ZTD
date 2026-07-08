@@ -75,6 +75,17 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
     _ai_chat = _ilu3.module_from_spec(_spec3)
     _spec3.loader.exec_module(_ai_chat)
 
+try:
+    import goals as goals_mod
+except ImportError:  # loaded standalone (no backend/ on sys.path)
+    import importlib.util as _ilu4
+    import os as _os4
+    _spec4 = _ilu4.spec_from_file_location(
+        'goals', _os4.path.join(_os4.path.dirname(__file__), 'goals.py')
+    )
+    goals_mod = _ilu4.module_from_spec(_spec4)
+    _spec4.loader.exec_module(goals_mod)
+
 # Coaches reuse the task assistant's tools (and its undo plumbing) so a
 # session can also change or remove tasks — never just pile new ones on.
 _TASK_EDIT_TOOLS = [t for t in _ai_chat.TOOLS
@@ -382,13 +393,14 @@ class CoachingService:
     """Runs one coaching turn for a user, with optional task capture."""
 
     def __init__(self, db, Task, Hat, check_task_limit, CoachMemory=None,
-                 ChatUndo=None):
+                 ChatUndo=None, Goal=None):
         self.db = db
         self.Task = Task
         self.Hat = Hat
         self.check_task_limit = check_task_limit
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.ChatUndo = ChatUndo         # enables undo for coach task changes
+        self.Goal = Goal                 # goal-setting framework (guide coach)
         # Task edits are delegated to the task assistant's handlers so coaches
         # share its clash checks, field rules and undo snapshots.
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
@@ -408,18 +420,21 @@ class CoachingService:
                 .order_by(self.Hat.position, self.Hat.id).all())
         default_hat_id = self._resolve_default_hat(user.id, hat_id, hats)
 
-        system = self._system_prompt(user, coach)
+        system = self._system_prompt(user, coach, coach_id)
         messages = self._build_messages(history, message)
 
         added_tasks = []      # {description} of tasks saved this turn (for the UI)
         undo_ops = []         # inverse operations for this turn (shared format
         actions = []          #   with ai_chat) + human-facing change summary
         modules = []          # module cards the guide asked the UI to show
+        goal_actions = []     # goal changes this turn (for the UI receipt)
         reply_text = ""
 
         tools = [_SAVE_TASKS_TOOL] + _TASK_EDIT_TOOLS
         if coach_id == "guide":
             tools = tools + [_RECOMMEND_MODULE_TOOL]
+            if self.Goal is not None:
+                tools = tools + goals_mod.GOAL_TOOLS
         if self.CoachMemory is not None:
             tools = tools + MEMORY_TOOLS
 
@@ -445,7 +460,7 @@ class CoachingService:
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name,
                                         block.input, added_tasks, undo_ops,
-                                        actions, coach_id, modules)
+                                        actions, coach_id, modules, goal_actions)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -469,6 +484,7 @@ class CoachingService:
             "tasks_added": added_tasks,
             "task_actions": actions,
             "module_suggestions": modules,
+            "goal_actions": goal_actions,
             "undo_token": undo_token,
             "undo_available": undo_token is not None,
         }
@@ -506,14 +522,18 @@ class CoachingService:
             lines.append("  - " + " · ".join(bits))
         return "\n".join(lines)
 
-    def _system_prompt(self, user, coach):
+    def _system_prompt(self, user, coach, coach_id=""):
         today = datetime.today().strftime("%Y-%m-%d (%A)")
         snapshot = self._task_snapshot(user.id)
         memory = (memory_prompt_block(self.CoachMemory, user.id)
                   if self.CoachMemory is not None else "")
+        goals_block = ""
+        if coach_id == "guide" and self.Goal is not None:
+            goals_block = goals_mod.goals_prompt_block(self.Goal, self.Hat, user.id)
         return (
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
+            f"{goals_block}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
             f"\n\nToday is {today}."
             f"\nThe user's current MadeHappen tasks (⏰/scheduled = a planned "
@@ -537,8 +557,15 @@ class CoachingService:
         return messages
 
     def _dispatch(self, user, default_hat_id, name, args, added_tasks,
-                  undo_ops, actions, coach_id="", modules=None):
+                  undo_ops, actions, coach_id="", modules=None,
+                  goal_actions=None):
         try:
+            if self.Goal is not None and coach_id == "guide":
+                handled = goals_mod.handle_goal_tool(
+                    self.db, self.Goal, self.Hat, user, name, args,
+                    goal_actions if goal_actions is not None else [])
+                if handled is not None:
+                    return handled
             if name == "save_tasks":
                 return self._save_tasks(user, default_hat_id, args, added_tasks,
                                         undo_ops, actions)

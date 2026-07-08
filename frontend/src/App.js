@@ -21,6 +21,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyBanner from './components/VerifyBanner';
 import CalendarSync from './components/CalendarSync';
+import GoalsStrip from './components/GoalsStrip';
 import LooseThreads from './components/LooseThreads';
 import AIHub from './components/AIHub';
 import CoachApp from './pages/CoachApp';
@@ -437,13 +438,40 @@ function TaskApp() {
     }
   };
 
+  // Goals (goal-setting framework — max 3 active per hat)
+  const [goals, setGoals] = useState([]);
+  const fetchGoals = useCallback(async () => {
+    try {
+      setGoals(asArray(await api.getGoals()));
+    } catch (err) {
+      console.error('Error fetching goals:', err);
+    }
+  }, []);
+
+  const createGoal = async (data) => {
+    await api.createGoal(data);   // limit errors bubble to the form
+    await fetchGoals();
+  };
+  const checkinGoal = async (id, note) => {
+    try { await api.checkinGoal(id, note); await fetchGoals(); }
+    catch (err) { console.error('Goal check-in failed:', err); }
+  };
+  const achieveGoal = async (id) => {
+    try { await api.updateGoal(id, { status: 'achieved' }); await fetchGoals(); }
+    catch (err) { console.error('Goal achieve failed:', err); }
+  };
+  const archiveGoal = async (id) => {
+    try { await api.updateGoal(id, { status: 'archived' }); await fetchGoals(); }
+    catch (err) { console.error('Goal archive failed:', err); }
+  };
+
   // Load in background — shell renders immediately; banner until first sync completes
   useEffect(() => {
     setDataSyncing(true);
-    void Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats()])
+    void Promise.all([fetchTasks(), fetchDoneTasks(), fetchHats(), fetchGoals()])
       .catch((e) => console.error('Bootstrap fetch failed:', e))
       .finally(() => setDataSyncing(false));
-  }, [fetchTasks, fetchDoneTasks]);
+  }, [fetchTasks, fetchDoneTasks, fetchGoals]);
 
   const toggleHat = (hatId) => {
     if (hatId === null) {
@@ -694,6 +722,15 @@ function TaskApp() {
 
           <div className="view-content">          {viewMode === 'active' && (
             <>
+              <GoalsStrip
+                goals={goals}
+                hats={hats}
+                selectedHatIds={selectedHatIds}
+                onCreate={createGoal}
+                onCheckin={checkinGoal}
+                onAchieve={achieveGoal}
+                onArchive={archiveGoal}
+              />
               {atLimit ? (
                 <div className="limit-banner">
                   Task limit reached.{' '}
@@ -785,6 +822,7 @@ function TaskApp() {
           onTasksChanged={() => {
             fetchTasks();
             fetchDoneTasks();
+            fetchGoals();
             refreshSubscription();
           }}
         />

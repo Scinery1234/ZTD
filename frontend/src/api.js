@@ -266,6 +266,14 @@ export const api = {
   chatThreadGet: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`),
   chatThreadClear: (toolId) => apiFetch(`/chat/thread/${encodeURIComponent(toolId)}`, { method: 'DELETE' }),
 
+  // Goals — the goal-setting framework (max 3 active per hat)
+  getGoals: (all) => apiFetch(all ? '/goals?include=all' : '/goals'),
+  createGoal: (data) => apiFetch('/goals', { method: 'POST', body: JSON.stringify(data) }),
+  updateGoal: (id, data) => apiFetch(`/goals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  checkinGoal: (id, note) =>
+    apiFetch(`/goals/${id}/checkin`, { method: 'POST', body: JSON.stringify({ note: note || '' }) }),
+  deleteGoal: (id) => apiFetch(`/goals/${id}`, { method: 'DELETE' }),
+
   // AI memory — persistent notes the hub keeps between conversations
   coachMemoryList: () => apiFetch('/coach/memory'),
   coachMemoryDelete: (id) => apiFetch(`/coach/memory/${id}`, { method: 'DELETE' }),

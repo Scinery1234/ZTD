@@ -459,11 +459,13 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
           tasksAdded: res.tasks_added || [],
           taskActions: res.task_actions || [],
           moduleSuggestions: res.module_suggestions || [],
+          goalActions: res.goal_actions || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
         const s = detectStepIn(res.reply);
         if (s) setStep((cur) => Math.max(cur, s));
-        if ((res.tasks_added || []).length > 0 || (res.task_actions || []).length > 0) {
+        if ((res.tasks_added || []).length > 0 || (res.task_actions || []).length > 0 ||
+            (res.goal_actions || []).length > 0) {
           onTasksChanged?.();
         }
       } else {
@@ -584,6 +586,18 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
                   </span>
                 </div>
               )}
+              {Array.isArray(m.goalActions) && m.goalActions.length > 0 && (
+                <div className="aih-added">
+                  {m.goalActions.map((a, j) => (
+                    <span key={j} className="aih-added__label">
+                      {a.action === 'goal_set' && `🎯 Goal set: ${a.title}`}
+                      {a.action === 'goal_checkin' && `✔ Checked in on “${a.title}”`}
+                      {a.action === 'goal_achieved' && `🏆 Goal achieved: ${a.title}`}
+                      {a.action === 'goal_updated' && `✎ Goal updated: ${a.title}`}
+                    </span>
+                  ))}
+                </div>
+              )}
               {Array.isArray(m.moduleSuggestions) && m.moduleSuggestions.length > 0 && onSelectModule && (
                 <div className="aih-suggest">
                   {m.moduleSuggestions.map((s, j) => {
@@ -701,6 +715,17 @@ export default function AIHub({ hatId, tasks, onTasksChanged, standalone = false
   useEffect(() => {
     if (isDock) setOpen(false);
   }, [isDock]);
+
+  // Other parts of the app (e.g. the Goals strip's "Talk it through") can
+  // summon the hub: expand the dock, or open the overlay on small screens.
+  useEffect(() => {
+    const onSummon = () => {
+      if (isDock || (docked && !standalone)) toggleDockCollapsed(false);
+      if (!isDock && !standalone) setOpen(true);
+    };
+    window.addEventListener('mh-open-ai-hub', onSummon);
+    return () => window.removeEventListener('mh-open-ai-hub', onSummon);
+  }, [isDock, docked, standalone, toggleDockCollapsed]);
 
   // Lock background scroll while the hub is open (overlay mode only).
   useEffect(() => {

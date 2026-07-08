@@ -368,6 +368,35 @@ class CoachMemory(db.Model):
         }
 
 
+try:
+    import goals as goals_mod
+except ImportError:  # imported as backend.app (tests, wsgi)
+    from backend import goals as goals_mod
+
+
+class Goal(db.Model):
+    """A goal in the goal-setting framework: a small number of meaningful
+    outcomes per hat (max goals_mod.MAX_ACTIVE_GOALS_PER_HAT active each),
+    with a 'why' and a user-chosen check-in cadence. Managed via /api/goals
+    and by the AI guide coach's goal tools."""
+    __tablename__ = 'goal'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    hat_id = db.Column(db.Integer, db.ForeignKey('hat.id'), nullable=True)
+    title = db.Column(db.String(200), nullable=False)
+    why = db.Column(db.String(500), default='')
+    target_date = db.Column(db.String(10), nullable=True)      # YYYY-MM-DD
+    status = db.Column(db.String(10), default='active')        # active|achieved|archived
+    checkin_every_days = db.Column(db.Integer, default=goals_mod.DEFAULT_CHECKIN_DAYS)
+    last_checkin_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_checkin_note = db.Column(db.String(500), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    achieved_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return goals_mod.goal_to_dict(self)
+
+
 # --- Helpers ---
 def parse_task_input(input_str):
     pattern = r"(?P<desc>.+?)(?:\s+@(?P<cat>[^!~^]+))?(?:\s*!\s*(?P<prio>urgent|today|tomorrow|later))?(?:\s*~\s*(?P<recur>daily|weekly|monthly))?(?:\s*\^\s*(?P<due>.+))?$"
@@ -1829,7 +1858,8 @@ def _coaching_service():
     if not coaching_available():
         return None
     return CoachingService(db, Task, Hat, check_task_limit,
-                           CoachMemory=CoachMemory, ChatUndo=ChatUndo)
+                           CoachMemory=CoachMemory, ChatUndo=ChatUndo,
+                           Goal=Goal)
 
 
 @app.route('/api/coach', methods=['POST'])
@@ -1863,7 +1893,8 @@ def ai_coach():
             {'role': 'assistant', 'content': result['reply'],
              'tasksAdded': result.get('tasks_added') or [],
              'taskActions': result.get('task_actions') or [],
-             'moduleSuggestions': result.get('module_suggestions') or []},
+             'moduleSuggestions': result.get('module_suggestions') or [],
+             'goalActions': result.get('goal_actions') or []},
         ])
         return jsonify(result)
     except ValueError as e:
@@ -1957,6 +1988,90 @@ def coach_memory_clear():
     count = CoachMemory.query.filter_by(user_id=user_id).delete()
     db.session.commit()
     return jsonify({'deleted': True, 'count': count})
+
+
+# === Goals (goal-setting framework) ===
+
+@app.route('/api/goals', methods=['GET'])
+@jwt_required()
+def goals_list():
+    user_id = int(get_jwt_identity())
+    q = Goal.query.filter_by(user_id=user_id)
+    if request.args.get('include') != 'all':
+        q = q.filter(Goal.status == 'active')
+    return jsonify([g.to_dict() for g in
+                    q.order_by(Goal.hat_id, Goal.id).all()])
+
+
+@app.route('/api/goals', methods=['POST'])
+@jwt_required()
+def goals_create():
+    user_id = int(get_jwt_identity())
+    data = request.json or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    hat_id = data.get('hat_id') or None
+    if hat_id:
+        hat = Hat.query.filter_by(id=hat_id, user_id=user_id).first()
+        hat_id = hat.id if hat else None
+    if (goals_mod.active_goal_count(Goal, user_id, hat_id)
+            >= goals_mod.MAX_ACTIVE_GOALS_PER_HAT):
+        return jsonify({
+            'error': (f'This hat already has {goals_mod.MAX_ACTIVE_GOALS_PER_HAT} '
+                      'active goals. Achieve or archive one first.'),
+            'limit_reached': True,
+        }), 400
+    cadence = data.get('checkin_every_days')
+    goal = Goal(
+        user_id=user_id,
+        hat_id=hat_id,
+        title=title[:200],
+        why=(data.get('why') or '').strip()[:500],
+        target_date=(data.get('target_date') or '').strip()[:10] or None,
+        checkin_every_days=(cadence if cadence in goals_mod.CHECKIN_CHOICES
+                            else goals_mod.DEFAULT_CHECKIN_DAYS),
+    )
+    db.session.add(goal)
+    db.session.commit()
+    return jsonify(goal.to_dict()), 201
+
+
+@app.route('/api/goals/<int:goal_id>', methods=['PUT'])
+@jwt_required()
+def goals_update(goal_id):
+    user = User.query.get(int(get_jwt_identity()))
+    result = goals_mod.handle_goal_tool(
+        db, Goal, Hat, user, 'update_goal',
+        {**(request.json or {}), 'id': goal_id}, [])
+    if result.get('is_error'):
+        status = 404 if 'not found' in str(result['content'].get('error', '')).lower() else 400
+        return jsonify(result['content']), status
+    return jsonify(result['content']['goal'])
+
+
+@app.route('/api/goals/<int:goal_id>/checkin', methods=['POST'])
+@jwt_required()
+def goals_checkin(goal_id):
+    user = User.query.get(int(get_jwt_identity()))
+    result = goals_mod.handle_goal_tool(
+        db, Goal, Hat, user, 'checkin_goal',
+        {'id': goal_id, 'note': (request.json or {}).get('note', '')}, [])
+    if result.get('is_error'):
+        return jsonify(result['content']), 404
+    return jsonify(result['content']['goal'])
+
+
+@app.route('/api/goals/<int:goal_id>', methods=['DELETE'])
+@jwt_required()
+def goals_delete(goal_id):
+    user_id = int(get_jwt_identity())
+    goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+    if not goal:
+        return jsonify({'error': 'Goal not found'}), 404
+    db.session.delete(goal)
+    db.session.commit()
+    return jsonify({'deleted': True})
 
 
 def migrate_db():

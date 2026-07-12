@@ -132,10 +132,10 @@ async function apiFetch(path, options = {}) {
 
 export const api = {
   // Auth
-  register: (name, email, password) =>
+  register: (name, email, password, website = '', phone_number = '') =>
     apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, website, phone_number }),
       skipAuth: true,
     }),
   login: (email, password) =>

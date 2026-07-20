@@ -1330,8 +1330,53 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   );
 }
 
+// ── SidebarQuickAdd ───────────────────────────────────────────────────────────
+// Add a task straight into the pool from the timebox sidebar. Sends the raw
+// text as `input` so the same @category !priority ~recurring ^due shorthand the
+// main add box understands works here too. New tasks land unscheduled (no time),
+// so they appear in the pool ready to drag onto the grid.
+function SidebarQuickAdd({ onAddTask }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!onAddTask) return null;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const value = text.trim();
+    if (!value || busy) return;
+    setBusy(true);
+    try {
+      await onAddTask({ input: value });
+      setText('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="timebox-sidebar-add" onSubmit={submit}>
+      <input
+        className="timebox-sidebar-add-input"
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Add a task…"
+        disabled={busy}
+        aria-label="Add a task to the pool"
+      />
+      <button
+        className="timebox-sidebar-add-btn"
+        type="submit"
+        disabled={busy || !text.trim()}
+        title="Add to pool"
+        aria-label="Add task to pool"
+      >＋</button>
+    </form>
+  );
+}
+
 // ── SortablePoolChip ─────────────────────────────────────────────────────────
-function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow, onTouchDragStart }) {
+function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, onScheduleNow, onMarkDone, onTouchDragStart }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const handleRef = useRef(null);
   const lastMouseDownTarget = useRef(null);
@@ -1436,6 +1481,16 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, 
       <span className="timebox-chip-desc">{task.description}</span>
       <div className="timebox-chip-row">
         <span className="timebox-chip-dur">{task.duration || 30}m</span>
+        {onMarkDone && (
+          <button
+            className="timebox-chip-done-btn"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onMarkDone(task.id); }}
+            title="Mark done"
+            aria-label={`Mark "${task.description}" done`}
+          >✓</button>
+        )}
         {onScheduleNow && (
           <button
             className="timebox-chip-schedule-btn"
@@ -1780,6 +1835,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
               <button className="timebox-nav-btn" onClick={() => setDayOffset(o => o + 1)}>›</button>
             </div>
             <div className="timebox-task-sidebar-hd">Task Pool</div>
+            <SidebarQuickAdd onAddTask={onAddTask} />
             <div className="timebox-task-sidebar-body">
               {(() => {
                 const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
@@ -1804,6 +1860,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
                           onEdit={setEditingTask}
                           onToggleMit={handleToggleMit}
                           onScheduleNow={handleQuickSchedule}
+                          onMarkDone={onMarkDone}
                           onTouchDragStart={handleChipTouchDragStart}
                         />
                       ))}

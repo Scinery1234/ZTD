@@ -206,6 +206,68 @@
   border-color: rgba(249, 115, 22, 0.5);
 }
 
+/* Mark-done button on a pool chip */
+.timebox-chip-done-btn {
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: rgba(74, 222, 128, 0.9);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.timebox-chip-done-btn:hover {
+  background: rgba(74, 222, 128, 0.28);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+/* Quick-add task box in the sidebar */
+.timebox-sidebar-add {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.timebox-sidebar-add-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.9);
+  outline: none;
+}
+.timebox-sidebar-add-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+.timebox-sidebar-add-input:focus { border-color: rgba(249, 115, 22, 0.5); }
+.timebox-sidebar-add-btn {
+  flex-shrink: 0;
+  width: 30px;
+  border: none;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.timebox-sidebar-add-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* Light theme */
+[data-theme="light"] .timebox-sidebar-add-input {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #1c1209;
+}
+[data-theme="light"] .timebox-sidebar-add-input::placeholder { color: rgba(0, 0, 0, 0.4); }
+
 @media (max-width: 700px) {
   .timebox-day-layout {
     flex-direction: column;

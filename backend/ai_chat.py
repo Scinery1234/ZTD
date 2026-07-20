@@ -87,6 +87,31 @@ def _parse_due(value):
     return parsed.strftime("%Y-%m-%d") if parsed else text
 
 
+_subtask_seq = 0
+
+
+def _new_subtask_id():
+    """Unique-per-process subtask id (matches the client's `st-*` convention)."""
+    global _subtask_seq
+    _subtask_seq += 1
+    return f"st-ai-{_subtask_seq}"
+
+
+def _normalize_subtasks(raw):
+    """Coerce a stored subtask list into [{id, text, done}] dicts."""
+    items = []
+    for s in raw or []:
+        if isinstance(s, dict):
+            items.append({
+                "id": s.get("id") or _new_subtask_id(),
+                "text": (s.get("text") or "").strip(),
+                "done": bool(s.get("done")),
+            })
+        elif s is not None:
+            items.append({"id": _new_subtask_id(), "text": str(s).strip(), "done": False})
+    return items
+
+
 # ---- Tool schemas (strict so inputs validate exactly) ----
 TOOLS = [
     {
@@ -244,6 +269,49 @@ TOOLS = [
                 "ids": {"type": "array", "items": {"type": "integer"}},
             },
             "required": ["ids"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "manage_subtasks",
+        "description": (
+            "Add, rename, check off / uncheck, or remove the subtasks (checklist "
+            "items) of a single task. Call list_tasks first to get the task's id "
+            "and its current subtasks — each is returned with a 1-based `index`. "
+            "Reference existing subtasks by that index for update/remove. Use "
+            "empty arrays for the operations you don't need."
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "integer", "description": "Parent task id (from list_tasks)."},
+                "add": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "New subtask texts to append.",
+                },
+                "update": {
+                    "type": "array",
+                    "description": "Edits to existing subtasks, targeted by 1-based index.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "index": {"type": "integer", "description": "1-based index from list_tasks."},
+                            "text": {"type": "string", "description": "New text (omit to keep)."},
+                            "done": {"type": "boolean", "description": "Completed state (omit to keep)."},
+                        },
+                        "required": ["index"],
+                        "additionalProperties": False,
+                    },
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "1-based indices of subtasks to remove.",
+                },
+            },
+            "required": ["task_id", "add", "update", "remove"],
             "additionalProperties": False,
         },
     },
@@ -413,6 +481,9 @@ class TaskChatService:
             "'everything urgent'), call list_tasks first to resolve real ids, then "
             "act. Never guess ids.\n"
             "- Prefer a single bulk tool call over many small ones.\n"
+            "- A task can have subtasks (a checklist). Use manage_subtasks to add, "
+            "rename, check off, or remove them — call list_tasks first to get the "
+            "task id and the subtasks' 1-based indices.\n"
             "- Priority must be one of: urgent, today, tomorrow, later. Recurring "
             "must be one of: daily, weekly, monthly.\n"
             "- Only delete tasks the user clearly asked to delete. If a request is "
@@ -452,6 +523,8 @@ class TaskChatService:
                 return self._update_tasks(user.id, args, undo_ops, actions)
             if name == "delete_tasks":
                 return self._delete_tasks(user.id, args, undo_ops, actions)
+            if name == "manage_subtasks":
+                return self._manage_subtasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              "assistant", name, args)
@@ -494,6 +567,11 @@ class TaskChatService:
                 "scheduled_time": t.scheduled_time,
                 "scheduled_date": t.scheduled_date,
                 "duration": t.duration,
+                # 1-based indices so manage_subtasks can target them directly.
+                "subtasks": [
+                    {"index": i + 1, "text": s.get("text", ""), "done": bool(s.get("done"))}
+                    for i, s in enumerate(_normalize_subtasks(t.subtasks_list()))
+                ],
             })
         return {"content": {"tasks": rows, "count": len(rows)}}
 
@@ -654,6 +732,48 @@ class TaskChatService:
             actions.append({"action": "deleted", "count": len(removed)})
         return {"content": {"deleted_count": len(removed)}}
 
+    def _manage_subtasks(self, user_id, args, undo_ops, actions):
+        task = self.Task.query.filter_by(id=args.get("task_id"), user_id=user_id).first()
+        if not task:
+            return {"content": {"error": "Task not found."}, "is_error": True}
+
+        before = task.to_dict()  # full snapshot (includes subtasks) for undo
+        items = _normalize_subtasks(task.subtasks_list())
+        n = len(items)
+
+        # Apply edits first (no length change), then removals high→low, then adds,
+        # so every 1-based index still refers to the original list.
+        for upd in (args.get("update") or []):
+            idx = upd.get("index")
+            if not isinstance(idx, int) or not (1 <= idx <= n):
+                continue
+            if upd.get("text") is not None and str(upd["text"]).strip():
+                items[idx - 1]["text"] = str(upd["text"]).strip()
+            if upd.get("done") is not None:
+                items[idx - 1]["done"] = bool(upd["done"])
+
+        remove = sorted({i for i in (args.get("remove") or [])
+                         if isinstance(i, int) and 1 <= i <= n}, reverse=True)
+        for i in remove:
+            items.pop(i - 1)
+
+        for txt in (args.get("add") or []):
+            text = (str(txt) if txt is not None else "").strip()
+            if text:
+                items.append({"id": _new_subtask_id(), "text": text, "done": False})
+
+        task.subtasks = json.dumps(items)
+        self.db.session.commit()
+
+        undo_ops.append({"type": "updated", "before": [before]})
+        actions.append({"action": "updated", "count": 1})
+        return {"content": {
+            "task_id": task.id,
+            "subtask_count": len(items),
+            "subtasks": [{"index": i + 1, "text": s["text"], "done": s["done"]}
+                         for i, s in enumerate(items)],
+        }}
+
     # ---- undo application ----
     def _apply_inverse(self, user_id, op):
         kind = op.get("type")
@@ -675,6 +795,9 @@ class TaskChatService:
                     for field in _EDITABLE_FIELDS:
                         if field in d:
                             setattr(task, field, d[field])
+                    # Subtasks live outside _EDITABLE_FIELDS; restore when snapshotted.
+                    if "subtasks" in d:
+                        task.subtasks = json.dumps(d.get("subtasks") or [])
                 else:
                     self.db.session.add(self._task_from_dict(user_id, d))
 

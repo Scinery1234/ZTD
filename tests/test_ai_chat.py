@@ -94,6 +94,61 @@ class AIChatToolTests(unittest.TestCase):
         self.assertEqual(t.priority, 'later')
         self.assertEqual(t.category, '')
 
+    def test_manage_subtasks_add_update_remove(self):
+        self._add([{'description': 'Ship feature', 'category': '',
+                    'priority': '', 'recurring': '', 'due': ''}])
+        tid = Task.query.filter_by(user_id=self.user.id).first().id
+
+        # Add three subtasks.
+        ops, actions = [], []
+        res = self.svc._manage_subtasks(
+            self.user.id,
+            {'task_id': tid, 'add': ['Write code', 'Write tests', 'Docs'],
+             'update': [], 'remove': []},
+            ops, actions)
+        self.assertEqual(res['content']['subtask_count'], 3)
+        subs = Task.query.get(tid).subtasks_list()
+        self.assertEqual([s['text'] for s in subs], ['Write code', 'Write tests', 'Docs'])
+        self.assertTrue(all(s['id'] for s in subs))  # every subtask has an id
+
+        # Check off #1, rename #2, remove #3 (1-based indices, one call).
+        ops, actions = [], []
+        res = self.svc._manage_subtasks(
+            self.user.id,
+            {'task_id': tid, 'add': [],
+             'update': [{'index': 1, 'done': True}, {'index': 2, 'text': 'Write unit tests'}],
+             'remove': [3]},
+            ops, actions)
+        subs = Task.query.get(tid).subtasks_list()
+        self.assertEqual(len(subs), 2)
+        self.assertTrue(subs[0]['done'])
+        self.assertEqual(subs[1]['text'], 'Write unit tests')
+
+        # Undo restores the pre-edit subtask list (3 items, none done).
+        token = self.svc._save_undo(self.user.id, ops, actions)
+        self.assertTrue(self.svc.undo(self.user, token)['undone'])
+        subs = Task.query.get(tid).subtasks_list()
+        self.assertEqual([s['text'] for s in subs], ['Write code', 'Write tests', 'Docs'])
+        self.assertFalse(any(s['done'] for s in subs))
+
+    def test_manage_subtasks_unknown_task(self):
+        ops, actions = [], []
+        res = self.svc._manage_subtasks(
+            self.user.id, {'task_id': 99999, 'add': ['x'], 'update': [], 'remove': []},
+            ops, actions)
+        self.assertTrue(res.get('is_error'))
+
+    def test_list_tasks_exposes_subtasks(self):
+        self._add([{'description': 'Parent', 'category': '',
+                    'priority': '', 'recurring': '', 'due': ''}])
+        tid = Task.query.filter_by(user_id=self.user.id).first().id
+        self.svc._manage_subtasks(self.user.id,
+                                  {'task_id': tid, 'add': ['step one'], 'update': [], 'remove': []},
+                                  [], [])
+        listed = self.svc._list_tasks(self.user.id, {'query': '', 'category': '', 'priority': ''})
+        row = listed['content']['tasks'][0]
+        self.assertEqual(row['subtasks'], [{'index': 1, 'text': 'step one', 'done': False}])
+
     def test_delete_tasks_and_undo(self):
         self._add([
             {'description': 'A', 'category': '', 'priority': '', 'recurring': '', 'due': ''},

@@ -198,8 +198,16 @@ class CoachingServiceTests(unittest.TestCase):
         # ACT defusion, not cognitive restructuring.
         self.assertIn("I'm having the thought", system)
         self.assertIn('never cognitive restructuring', system)
-        # Acute track withholds goal/values work and task capture.
-        self.assertIn('no task capture', system)
+
+    def test_recovery_asks_rather_than_directs(self):
+        # Feedback: at low capacity the coach must not direct ("do nothing" /
+        # "pick the most important thing"); it should offer and ask instead.
+        system = COACHES['recovery']['system']
+        self.assertIn("ASK, DON'T DIRECT", system)
+        # Acute track must not order someone with deadlines to stop / do nothing.
+        self.assertIn('never tell the user to stop', system)
+        # Stage 4 must not pressure a depleted user to choose the lever.
+        self.assertIn('Do NOT press the user to pick', system)
 
     def test_recovery_full_prompt_keeps_safety_and_task_layers(self):
         # The composed system prompt still carries the shared safety + task blocks.

@@ -373,6 +373,102 @@
 }
 .aih-composer button:disabled { opacity: 0.45; cursor: default; }
 
+/* Mic / dictation button (override the accent-filled send-button style) */
+.aih-composer .aih-mic {
+  width: 42px; height: 42px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 16px;
+}
+.aih-composer .aih-mic:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.aih-composer .aih-mic--on {
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  animation: aih-mic-pulse 1.1s ease-in-out infinite;
+}
+@keyframes aih-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+/* ── Voice menu (header) ───────────────────────────────────────────────── */
+.aih-voice { position: relative; display: inline-flex; }
+.aih-voice__btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: inherit;
+}
+.aih-voice__btn:hover { background: rgba(255, 255, 255, 0.16); }
+.aih-voice__btn--on { background: color-mix(in srgb, var(--accent) 32%, transparent); }
+.aih-voice__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 244px;
+  background: #241d14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.aih-voice__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.aih-voice__toggle { font-size: 13px; font-weight: 600; }
+.aih-voice__field { flex-direction: column; align-items: stretch; gap: 5px; }
+.aih-voice__label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255, 255, 255, 0.5); }
+.aih-voice__select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.aih-voice__range { width: 100%; accent-color: var(--accent); }
+.aih-voice__actions { display: flex; justify-content: flex-end; }
+.aih-voice__act {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: inherit;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+/* Little on/off switch */
+.aih-switch {
+  width: 38px; height: 22px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+  padding: 0;
+}
+.aih-switch--on { background: var(--accent); }
+.aih-switch__knob {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+.aih-switch--on .aih-switch__knob { transform: translateX(16px); }
+
 /* ── Consent gate ──────────────────────────────────────────────────────── */
 .aih-consent { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .aih-consent__body { flex: 1; overflow-y: auto; padding: 44px clamp(24px, 6vw, 56px) 24px; max-width: 620px; margin: 0 auto; width: 100%; }
@@ -687,6 +783,14 @@
 [data-theme="light"] .aih-rail__due, [data-theme="light"] .aih-rail__empty { color: #8a7d6a; }
 [data-theme="light"] .aih-composer { background: #f6f1e8; border-color: rgba(0, 0, 0, 0.08); }
 [data-theme="light"] .aih-composer textarea { background: #fff; border-color: rgba(0, 0, 0, 0.14); color: #1c1209; }
+[data-theme="light"] .aih-composer .aih-mic { background: rgba(0, 0, 0, 0.06); }
+[data-theme="light"] .aih-composer .aih-mic:hover:not(:disabled) { background: rgba(0, 0, 0, 0.12); }
+[data-theme="light"] .aih-voice__btn { background: rgba(0, 0, 0, 0.06); }
+[data-theme="light"] .aih-voice__btn:hover { background: rgba(0, 0, 0, 0.12); }
+[data-theme="light"] .aih-voice__menu { background: #fffdf9; border-color: rgba(0, 0, 0, 0.12); }
+[data-theme="light"] .aih-voice__select { background: #fff; border-color: rgba(0, 0, 0, 0.14); color: #1c1209; }
+[data-theme="light"] .aih-voice__label { color: #8a7d6a; }
+[data-theme="light"] .aih-switch { background: rgba(0, 0, 0, 0.2); }
 [data-theme="light"] .aih-consent__lead, [data-theme="light"] .aih-consent__b { color: #6b6155; }
 [data-theme="light"] .aih-check { border-color: rgba(0, 0, 0, 0.25); }
 [data-theme="light"] .aih-consent__item { border-color: rgba(0, 0, 0, 0.08); }

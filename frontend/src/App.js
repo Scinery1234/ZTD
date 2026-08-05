@@ -221,7 +221,7 @@ function CompletedSection({ doneTasks, onUnmarkDone }) {
 }
 
 // ---- Categories drag-drop view ----
-const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onAddTask, onReorderCategories }) => {
+const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onAddTask, onReorderCategories, hats, onBulkDone, onBulkDelete, onBulkUpdate }) => {
   const [items, setItems] = useState(categories);
 
   useEffect(() => { setItems(categories); }, [categories]);
@@ -264,6 +264,10 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
               onAddTask={(taskData) =>
                 onAddTask({ ...taskData, input: taskData.input ? `${taskData.input} @${category}`.trim() : taskData.input, category })
               }
+              hats={hats}
+              onBulkDone={onBulkDone}
+              onBulkDelete={onBulkDelete}
+              onBulkUpdate={onBulkUpdate}
             />
           ))}
         </div>
@@ -807,6 +811,10 @@ function TaskApp() {
               onAddTask={addTask}
               categoryOrder={categoryOrder}
               onReorderCategories={saveCategoryOrder}
+              hats={hats}
+              onBulkDone={bulkMarkDone}
+              onBulkDelete={bulkDelete}
+              onBulkUpdate={bulkUpdate}
             />
           )}
 

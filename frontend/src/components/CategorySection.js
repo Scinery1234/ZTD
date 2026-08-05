@@ -5,14 +5,18 @@ import TaskList from './TaskList';
 import CategoryTaskAdder from './CategoryTaskAdder';
 import './CategorySection.css';
 
-const CategorySection = ({ 
-  category, 
-  tasks, 
-  onUpdate, 
-  onDelete, 
-  onMarkDone, 
+const CategorySection = ({
+  category,
+  tasks,
+  onUpdate,
+  onDelete,
+  onMarkDone,
   onCategoryClick,
-  onAddTask 
+  onAddTask,
+  hats,
+  onBulkDone,
+  onBulkDelete,
+  onBulkUpdate,
 }) => {
   const {
     attributes,
@@ -49,6 +53,10 @@ const CategorySection = ({
         onMarkDone={onMarkDone}
         onCategoryClick={onCategoryClick}
         viewMode="active"
+        hats={hats}
+        onBulkDone={onBulkDone}
+        onBulkDelete={onBulkDelete}
+        onBulkUpdate={onBulkUpdate}
       />
       <CategoryTaskAdder 
         category={category}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { useKeyboardViewport } from '../hooks/useKeyboardViewport';
+import { useVoice } from '../hooks/useVoice';
 import './AIHub.css';
 
 /*
@@ -82,6 +83,17 @@ const TOOLS = [
     desc: 'Process emotional resistance and settle the nervous system, one gentle question at a time.',
   },
   {
+    id: 'recovery',
+    kind: 'coach',
+    icon: '🔋',
+    accent: '#5a8f7b',
+    name: 'Recovery Coach',
+    tagline: 'When you’re running on empty',
+    desc: 'A gentle, state-paced space for burnout and depletion. We settle your system first, then take one small step — regulate before reason.',
+    steps: ['Regulate', 'Label', 'Defuse', 'One Lever'],
+    marker: 'Stage',
+  },
+  {
     id: 'clarity',
     kind: 'coach',
     icon: '🧿',
@@ -112,6 +124,7 @@ const COACH_OPENERS = {
   action: 'Hey, I’m here. What’s on your mind — what are you wanting to do but finding yourself resisting?',
   exec: 'Hi, I’m here with you. Take a breath — there’s no rush. How are you feeling right now, in this moment?',
   charge: 'Welcome. Whenever you’re ready: on a scale of 1 to 10, how would you rate the emotional charge you’re carrying right now?',
+  recovery: 'I’m glad you’re here, and I’ll keep this light. Two quick things to start: on a scale of 0 to 10, how much is left in the tank right now — and is this more of a today thing, or a months thing?',
   clarity: 'Hi, I’m glad you’re here. Let’s find some clarity together — shall we begin?',
 };
 
@@ -348,8 +361,91 @@ function ModuleStrip({ onSelect }) {
   );
 }
 
+// ── Voice menu: toggle spoken replies + pick a voice ─────────────────────────
+function VoiceMenu({ voice }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  if (!voice.supported) return null;
+
+  return (
+    <div className="aih-voice" ref={ref}>
+      <button
+        className={`aih-voice__btn${voice.enabled ? ' aih-voice__btn--on' : ''}`}
+        onClick={() => setOpen((v) => !v)}
+        title={voice.enabled ? 'Voice on — replies read aloud' : 'Voice off'}
+        aria-label="Voice options"
+      >
+        {voice.speaking ? '🔊' : (voice.enabled ? '🔈' : '🔇')}
+      </button>
+      {open && (
+        <div className="aih-voice__menu" role="menu">
+          <label className="aih-voice__row aih-voice__toggle">
+            <span>Read replies aloud</span>
+            <button
+              className={`aih-switch${voice.enabled ? ' aih-switch--on' : ''}`}
+              onClick={voice.toggleEnabled}
+              role="switch"
+              aria-checked={voice.enabled}
+              aria-label="Toggle spoken replies"
+            ><span className="aih-switch__knob" /></button>
+          </label>
+
+          <div className="aih-voice__row aih-voice__field">
+            <span className="aih-voice__label">Voice</span>
+            <select
+              className="aih-voice__select"
+              value={voice.voiceURI}
+              onChange={(e) => voice.setVoiceURI(e.target.value)}
+            >
+              <option value="">Default</option>
+              {voice.voices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name}{v.lang ? ` (${v.lang})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="aih-voice__row aih-voice__field">
+            <span className="aih-voice__label">Speed</span>
+            <input
+              className="aih-voice__range"
+              type="range"
+              min="0.7"
+              max="1.3"
+              step="0.05"
+              value={voice.rate}
+              onChange={(e) => voice.setRate(parseFloat(e.target.value))}
+            />
+          </div>
+
+          <div className="aih-voice__actions">
+            {voice.speaking ? (
+              <button className="aih-voice__act" onClick={voice.stop}>⏹ Stop</button>
+            ) : (
+              <button
+                className="aih-voice__act"
+                onClick={() => voice.speak('Hi, this is how I sound. I can read your coaching and tasks aloud.')}
+              >▶ Preview</button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Conversation (shared by guide + assistant + coaches) ─────────────────────
 function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule, onOpenMemory, onCollapse }) {
+  const voice = useVoice();
   const isCoach = tool.kind === 'coach';
   const seed = isCoach
     ? [{ role: 'assistant', content: COACH_OPENERS[tool.id] }]
@@ -444,6 +540,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
     const text = input.trim();
     if (!text || busy || !messages) return;
     if (isCoach && detectCrisis(text)) onCrisis();
+    voice.stop(); // barge-in: silence any in-progress speech when the user sends
 
     const history = toHistory(messages);
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
@@ -462,6 +559,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
           goalActions: res.goal_actions || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
+        voice.speakIfEnabled(res.reply);
         const s = detectStepIn(res.reply);
         if (s) setStep((cur) => Math.max(cur, s));
         if ((res.tasks_added || []).length > 0 || (res.task_actions || []).length > 0 ||
@@ -476,6 +574,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
           actions: res.actions || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
+        voice.speakIfEnabled(res.reply);
         if ((res.actions || []).length > 0) onTasksChanged?.();
       }
     } catch (err) {
@@ -486,7 +585,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
     } finally {
       setBusy(false);
     }
-  }, [input, busy, messages, isCoach, tool.id, hatId, onTasksChanged, onCrisis, detectStepIn]);
+  }, [input, busy, messages, isCoach, tool.id, hatId, onTasksChanged, onCrisis, detectStepIn, voice]);
 
   const undo = useCallback(async (index, token) => {
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, undoing: true } : m)));
@@ -533,6 +632,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
           {onOpenMemory && (
             <button className="aih-memory-btn" onClick={onOpenMemory} title="What the AI remembers about you">🧠</button>
           )}
+          <VoiceMenu voice={voice} />
           <button className="aih-sos" onClick={onCrisis} title="Crisis support">🆘</button>
           {onCollapse && (
             <button className="aih-collapse" onClick={onCollapse} title="Collapse panel" aria-label="Collapse AI panel">»</button>
@@ -642,12 +742,27 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
       </div>
 
       <div className="aih-composer">
+        {voice.sttSupported && (
+          <button
+            className={`aih-mic${voice.listening ? ' aih-mic--on' : ''}`}
+            onClick={() => voice.listening
+              ? voice.stopListening()
+              : voice.startListening((t) => setInput((cur) => (cur ? `${cur} ${t}` : t)))}
+            disabled={busy || messages === null}
+            title={voice.listening ? 'Stop dictation' : 'Speak your message'}
+            aria-label={voice.listening ? 'Stop dictation' : 'Dictate a message'}
+          >
+            {voice.listening ? '⏺' : '🎤'}
+          </button>
+        )}
         <textarea
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={isCoach ? 'Type your response…' : 'Ask me to add, edit, or delete tasks…'}
+          placeholder={voice.listening
+            ? 'Listening…'
+            : (isCoach ? 'Type your response…' : 'Ask me to add, edit, or delete tasks…')}
           rows={1}
           disabled={busy || messages === null}
         />

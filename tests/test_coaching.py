@@ -180,6 +180,33 @@ class CoachingServiceTests(unittest.TestCase):
         self.assertEqual(set(openers), set(COACHES))
         self.assertTrue(all(openers.values()))
 
+    # ---- Recovery Coach (burnout / depletion modality) ----
+    def test_recovery_coach_registered(self):
+        self.assertIn('recovery', COACHES)
+        self.assertIn('recovery', MODULE_IDS)
+        self.assertTrue(COACHES['recovery']['opener'].strip())
+        # Opener runs the depletion gate (tank rating + today/months).
+        self.assertIn('tank', COACHES['recovery']['opener'].lower())
+
+    def test_recovery_prompt_encodes_hard_constraints(self):
+        system = COACHES['recovery']['system']
+        # Organising principle and the core reframe.
+        self.assertIn('REGULATE BEFORE YOU REASON', system)
+        self.assertIn('This is depletion, not incapacity.', system)
+        # Structural-integrity clause must be present verbatim-ish.
+        self.assertIn('not a way of making unacceptable conditions acceptable', system)
+        # ACT defusion, not cognitive restructuring.
+        self.assertIn("I'm having the thought", system)
+        self.assertIn('never cognitive restructuring', system)
+        # Acute track withholds goal/values work and task capture.
+        self.assertIn('no task capture', system)
+
+    def test_recovery_full_prompt_keeps_safety_and_task_layers(self):
+        # The composed system prompt still carries the shared safety + task blocks.
+        prompt = self.svc._system_prompt(self.user, COACHES['recovery'], 'recovery')
+        self.assertIn('Lifeline 13 11 14', prompt)   # safety block appended
+        self.assertIn('depletion, not incapacity', prompt)
+
     # ---- offer-first guidance ("adds tasks too prematurely") ----
     def test_task_awareness_is_offer_first(self):
         self.assertIn('OFFER FIRST', _TASK_AWARENESS)

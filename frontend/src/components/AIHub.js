@@ -83,6 +83,17 @@ const TOOLS = [
     desc: 'Process emotional resistance and settle the nervous system, one gentle question at a time.',
   },
   {
+    id: 'recovery',
+    kind: 'coach',
+    icon: '🔋',
+    accent: '#5a8f7b',
+    name: 'Recovery Coach',
+    tagline: 'When you’re running on empty',
+    desc: 'A gentle, state-paced space for burnout and depletion. We settle your system first, then take one small step — regulate before reason.',
+    steps: ['Regulate', 'Label', 'Defuse', 'One Lever'],
+    marker: 'Stage',
+  },
+  {
     id: 'clarity',
     kind: 'coach',
     icon: '🧿',
@@ -113,6 +124,7 @@ const COACH_OPENERS = {
   action: 'Hey, I’m here. What’s on your mind — what are you wanting to do but finding yourself resisting?',
   exec: 'Hi, I’m here with you. Take a breath — there’s no rush. How are you feeling right now, in this moment?',
   charge: 'Welcome. Whenever you’re ready: on a scale of 1 to 10, how would you rate the emotional charge you’re carrying right now?',
+  recovery: 'I’m glad you’re here, and I’ll keep this light. Two quick things to start: on a scale of 0 to 10, how much is left in the tank right now — and is this more of a today thing, or a months thing?',
   clarity: 'Hi, I’m glad you’re here. Let’s find some clarity together — shall we begin?',
 };
 

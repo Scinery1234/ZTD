@@ -287,8 +287,10 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
     onCancel();
   };
 
+  // The typed text doubles as the blocked-slot label ("Lunch", "School run"),
+  // so blocking time can be named in the same breath as creating it.
   const handleBlockTime = () => {
-    onBlockTime(slot.startMin, slot.endMin);
+    onBlockTime(slot.startMin, slot.endMin, desc.trim());
     onCancel();
   };
 
@@ -334,7 +336,12 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
           >
             + Add Task
           </button>
-          <button className="slot-popup-btn slot-popup-btn--block" onClick={handleBlockTime}>
+          <button
+            className="slot-popup-btn slot-popup-btn--block"
+            onClick={handleBlockTime}
+            title={desc.trim() ? `Block this time as “${desc.trim()}”`
+                               : 'Block this time (type a name above to label it)'}
+          >
             Block Time
           </button>
           <button className="slot-popup-btn slot-popup-btn--cancel" onClick={onCancel}>
@@ -537,6 +544,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   const [pendingSlot, setPendingSlot] = useState(null);
   const [unscheduledOpen, setUnscheduledOpen] = useState(true);
   const [dragOverMins, setDragOverMins] = useState(null);
+  const [editingBlockIdx, setEditingBlockIdx] = useState(null);   // blocked-slot being named
 
   // Refs so drag handlers always read the latest state without re-registering listeners
   const localTasksRef = useRef(localTasks);
@@ -980,13 +988,19 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   };
 
 
-  const handleConfirmBlock = (startMin, endMin) => {
-    const next = [...blockedTimes, { date, start: formatTime(startMin), end: formatTime(endMin) }];
+  const handleConfirmBlock = (startMin, endMin, label = '') => {
+    const next = [...blockedTimes,
+                  { date, start: formatTime(startMin), end: formatTime(endMin), label }];
     onBlockedTimesChange(next);
   };
 
   const removeBlocked = (idx) => {
     const next = blockedTimes.filter((_, i) => i !== idx);
+    onBlockedTimesChange(next);
+  };
+
+  const renameBlocked = (idx, label) => {
+    const next = blockedTimes.map((b, i) => (i === idx ? { ...b, label } : b));
     onBlockedTimesChange(next);
   };
 
@@ -1118,18 +1132,48 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             <span className="timebox-midnight-label">↑ {addDays(date, 1).slice(5).replace('-', '/')} ↓</span>
           </div>
 
-          {/* Blocked times */}
-          {dateBlockedForDay.map((b, i) => (
-            <div
-              key={i}
-              className="timebox-blocked"
-              style={{ top: timeToY(b.start), height: Math.max(8, timeToY(b.end) - timeToY(b.start)) }}
-              onClick={() => removeBlocked(blockedTimes.indexOf(b))}
-              title="Click to remove blocked time"
-            >
-              <span className="timebox-blocked-label">Blocked · {b.start}–{b.end}</span>
-            </div>
-          ))}
+          {/* Blocked times — click the label to name it, ✕ to remove */}
+          {dateBlockedForDay.map((b, i) => {
+            const realIdx = blockedTimes.indexOf(b);
+            return (
+              <div
+                key={i}
+                className="timebox-blocked"
+                style={{ top: timeToY(b.start), height: Math.max(8, timeToY(b.end) - timeToY(b.start)) }}
+              >
+                {editingBlockIdx === realIdx ? (
+                  <input
+                    className="timebox-blocked-input"
+                    autoFocus
+                    defaultValue={b.label || ''}
+                    placeholder="Name this block…"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => { renameBlocked(realIdx, e.target.value.trim()); setEditingBlockIdx(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { renameBlocked(realIdx, e.target.value.trim()); setEditingBlockIdx(null); }
+                      if (e.key === 'Escape') setEditingBlockIdx(null);
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="timebox-blocked-label"
+                    onClick={(e) => { e.stopPropagation(); setEditingBlockIdx(realIdx); }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title="Click to name this blocked time"
+                  >
+                    {b.label ? b.label : 'Blocked'} · {b.start}–{b.end}
+                  </span>
+                )}
+                <button
+                  className="timebox-blocked-remove"
+                  onClick={(e) => { e.stopPropagation(); removeBlocked(realIdx); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Remove blocked time"
+                >✕</button>
+              </div>
+            );
+          })}
 
           {/* Active drag preview */}
           {blockDrag && blockDrag.endMin !== blockDrag.startMin && (

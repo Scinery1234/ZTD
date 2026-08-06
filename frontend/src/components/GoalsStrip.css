@@ -450,3 +450,127 @@
 [data-theme="light"] .goal-form__row select option { background: #fff; color: #1c1209; }
 [data-theme="light"] .goal-form__cancel { border-color: rgba(0, 0, 0, 0.15); color: rgba(28, 18, 9, 0.6); }
 [data-theme="light"] .goal-form__error { color: #dc2626; }
+
+/* ── Milestone reorder, due dates & task panel ─────────────────────────────── */
+.goal-ms__order {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.goal-ms:hover .goal-ms__order { opacity: 1; }
+.goal-ms__move {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 8px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.goal-ms__move:hover:not(:disabled) { color: #f97316; }
+.goal-ms__move:disabled { opacity: 0.25; cursor: default; }
+
+.goal-ms__due,
+.goal-ms__tasks-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.goal-ms__due:hover,
+.goal-ms__tasks-btn:hover { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.07); }
+.goal-ms__due--set { color: #6ee7b7; }
+.goal-ms__tasks-btn.is-open { color: #f97316; background: rgba(249, 115, 22, 0.12); }
+
+.goal-ms__due-input {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  border-radius: 5px;
+  color: inherit;
+  padding: 1px 4px;
+  outline: none;
+  color-scheme: dark;
+}
+
+.goal-ms-tasks {
+  margin: 4px 0 6px 18px;
+  padding: 7px 9px;
+  background: rgba(0, 0, 0, 0.18);
+  border-left: 2px solid rgba(249, 115, 22, 0.5);
+  border-radius: 0 7px 7px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.goal-ms-tasks__hd {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.goal-ms-tasks__tag {
+  background: rgba(249, 115, 22, 0.18);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: rgba(251, 191, 36, 0.95);
+  border-radius: 20px;
+  padding: 1px 7px;
+  font-size: 9.5px;
+}
+.goal-ms-tasks__empty { font-size: 11px; color: rgba(255, 255, 255, 0.3); }
+.goal-ms-tasks__row { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.goal-ms-tasks__dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: rgba(249, 115, 22, 0.7); flex-shrink: 0;
+}
+.goal-ms-tasks__desc { flex: 1; min-width: 0; color: rgba(255, 255, 255, 0.75); }
+.goal-ms-tasks__due { font-size: 10px; color: #6ee7b7; flex-shrink: 0; }
+
+/* ── Achieved & archived shelf ─────────────────────────────────────────────── */
+.goals-past { margin-top: 8px; }
+.goals-past__toggle {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 3px 0;
+}
+.goals-past__toggle:hover { color: rgba(255, 255, 255, 0.75); }
+.goals-past__empty { font-size: 11.5px; color: rgba(255, 255, 255, 0.3); padding: 4px 0 2px 12px; }
+.goals-past__list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 2px 12px; }
+.goals-past__row { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.goals-past__icon { flex-shrink: 0; }
+.goals-past__title { flex: 1; min-width: 0; color: rgba(255, 255, 255, 0.7); }
+.goals-past__status {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.3);
+}
+.goals-past__btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: inherit;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.goals-past__btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+.goals-past__btn--del:hover { color: #f87171; border-color: rgba(248, 113, 113, 0.45); }
+
+[data-theme="light"] .goal-ms__due-input { color-scheme: light; }
+[data-theme="light"] .goal-ms-tasks { background: rgba(0, 0, 0, 0.04); }

@@ -452,6 +452,26 @@ function TaskApp() {
     }
   }, []);
 
+  // Achieved + archived goals, loaded on demand when the user opens the shelf.
+  const fetchPastGoals = useCallback(async () => {
+    try {
+      const all = asArray(await api.getGoals(true));
+      return all.filter((g) => g.status && g.status !== 'active');
+    } catch (err) {
+      console.error('Error fetching past goals:', err);
+      return [];
+    }
+  }, []);
+
+  const restoreGoal = async (id) => {
+    try { await api.updateGoal(id, { status: 'active' }); await fetchGoals(); }
+    catch (err) { alert(err.message || 'Could not restore goal'); }
+  };
+  const deleteGoalForever = async (id) => {
+    try { await api.deleteGoal(id); await fetchGoals(); }
+    catch (err) { console.error('Goal delete failed:', err); }
+  };
+
   const createGoal = async (data) => {
     await api.createGoal(data);   // limit errors bubble to the form
     await fetchGoals();
@@ -488,8 +508,23 @@ function TaskApp() {
     try { await api.updateMilestone(goalId, milestoneId, { title }); await fetchGoals(); }
     catch (err) { console.error('Milestone rename failed:', err); }
   };
-  const addLinkedTask = async (milestone) => {
-    await addTask({ description: milestone.title, milestone_id: milestone.id });
+  const setMilestoneDue = async (goalId, milestoneId, due) => {
+    try { await api.updateMilestone(goalId, milestoneId, { due: due || '' }); await fetchGoals(); }
+    catch (err) { console.error('Milestone due date failed:', err); }
+  };
+  const reorderMilestones = async (goalId, ids) => {
+    try { await api.reorderMilestones(goalId, ids); await fetchGoals(); }
+    catch (err) { console.error('Milestone reorder failed:', err); }
+  };
+  // Tasks created under a milestone land in the normal task list, tagged with
+  // the goal's name — that tag is the visible link from a task back to its goal.
+  const addLinkedTask = async (milestone, goal, description) => {
+    await addTask({
+      description: (description || milestone.title),
+      milestone_id: milestone.id,
+      category: (goal?.title || '').trim().slice(0, 100),
+      ...(milestone.due ? { due: milestone.due } : {}),
+    });
   };
 
   // Load in background — shell renders immediately; banner until first sync completes
@@ -764,6 +799,12 @@ function TaskApp() {
                 onRemoveMilestone={removeMilestone}
                 onRenameGoal={renameGoal}
                 onRenameMilestone={renameMilestone}
+                onMilestoneDue={setMilestoneDue}
+                onReorderMilestones={reorderMilestones}
+                onFetchPastGoals={fetchPastGoals}
+                onRestoreGoal={restoreGoal}
+                onDeleteGoal={deleteGoalForever}
+                tasks={getVisibleTasks()}
                 onAddLinkedTask={addLinkedTask}
               />
               {atLimit ? (

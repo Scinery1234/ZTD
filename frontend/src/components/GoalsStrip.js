@@ -92,10 +92,12 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
           </select>
         )}
         <input
+          type="date"
           className="goal-form__date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
-          placeholder="Target (YYYY-MM-DD)"
+          title="Target date (optional)"
+          aria-label="Target date (optional)"
         />
         <select value={cadence} onChange={(e) => setCadence(Number(e.target.value))} aria-label="Check-in rhythm">
           {CADENCES.map(([d, label]) => <option key={d} value={d}>Check in {label.toLowerCase()}</option>)}
@@ -114,7 +116,8 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
 function GoalCard({
   goal, hat, onCheckin, onAchieve, onArchive,
   onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
-  onRenameGoal, onRenameMilestone,
+  onRenameGoal, onRenameMilestone, onMilestoneDue, onReorderMilestones,
+  tasks,
 }) {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [note, setNote] = useState('');
@@ -138,6 +141,37 @@ function GoalCard({
     const t = msText.trim();
     setEditingMsId(null);
     if (t && t !== m.title && onRenameMilestone) await onRenameMilestone(goal.id, m.id, t);
+  };
+
+  // Optional milestone due dates, reordering, and the per-milestone task panel.
+  const [dueEditId, setDueEditId] = useState(null);
+  const [openTasksId, setOpenTasksId] = useState(null);
+  const [taskText, setTaskText] = useState('');
+
+  const milestones = goal.milestones || [];
+  const openMs = milestones.find((m) => m.id === openTasksId) || null;
+
+  // Real tasks already linked to each milestone, from the live task list.
+  const tasksByMilestone = {};
+  (tasks || []).forEach((t) => {
+    if (t.milestone_id != null) {
+      (tasksByMilestone[t.milestone_id] = tasksByMilestone[t.milestone_id] || []).push(t);
+    }
+  });
+
+  const move = (idx, delta) => {
+    const next = [...milestones];
+    const to = idx + delta;
+    if (to < 0 || to >= next.length) return;
+    [next[idx], next[to]] = [next[to], next[idx]];
+    if (onReorderMilestones) onReorderMilestones(goal.id, next.map((m) => m.id));
+  };
+
+  const submitLinkedTask = async () => {
+    const text = taskText.trim();
+    if (!openMs) return;
+    await onAddLinkedTask(openMs, goal, text || openMs.title);
+    setTaskText('');
   };
 
   const submitCheckin = async () => {
@@ -206,8 +240,22 @@ function GoalCard({
       )}
 
       <div className="goal-card__milestones">
-        {(goal.milestones || []).map((m) => (
+        {milestones.map((m, i) => (
           <div key={m.id} className={`goal-ms${m.done ? ' goal-ms--done' : ''}`}>
+            <span className="goal-ms__order">
+              <button
+                className="goal-ms__move"
+                title="Move up"
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >▴</button>
+              <button
+                className="goal-ms__move"
+                title="Move down"
+                disabled={i === milestones.length - 1}
+                onClick={() => move(i, 1)}
+              >▾</button>
+            </span>
             <label className="goal-ms__main">
               <input
                 type="checkbox"
@@ -234,13 +282,33 @@ function GoalCard({
                 >{m.title}</span>
               )}
             </label>
-            {!m.done && (
-              <button
-                className="goal-ms__task"
-                title="Create a task for this milestone"
-                onClick={() => onAddLinkedTask(m)}
-              >→ task</button>
+            {/* Optional target date — empty until you set one */}
+            {onMilestoneDue && (
+              dueEditId === m.id ? (
+                <input
+                  type="date"
+                  className="goal-ms__due-input"
+                  autoFocus
+                  defaultValue={m.due || ''}
+                  onBlur={(e) => { onMilestoneDue(goal.id, m.id, e.target.value); setDueEditId(null); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { onMilestoneDue(goal.id, m.id, e.target.value); setDueEditId(null); }
+                    if (e.key === 'Escape') setDueEditId(null);
+                  }}
+                />
+              ) : (
+                <button
+                  className={`goal-ms__due${m.due ? ' goal-ms__due--set' : ''}`}
+                  title={m.due ? `Due ${m.due} — click to change` : 'Set an optional due date'}
+                  onClick={() => setDueEditId(m.id)}
+                >{m.due ? `📅 ${m.due.slice(5)}` : '📅'}</button>
+              )
             )}
+            <button
+              className={`goal-ms__tasks-btn${openTasksId === m.id ? ' is-open' : ''}`}
+              title="Tasks for this milestone"
+              onClick={() => setOpenTasksId((id) => (id === m.id ? null : m.id))}
+            >☰ {(tasksByMilestone[m.id] || []).length || ''}</button>
             <button
               className="goal-ms__remove"
               title="Remove milestone"
@@ -248,6 +316,39 @@ function GoalCard({
             >✕</button>
           </div>
         ))}
+        {/* Task panel for the open milestone: its real tasks, and a box to add
+            more. Tasks land in the normal task list, tagged with the goal. */}
+        {openMs && (
+          <div className="goal-ms-tasks">
+            <div className="goal-ms-tasks__hd">
+              Tasks for “{openMs.title}”
+              <span className="goal-ms-tasks__tag">{goal.title}</span>
+            </div>
+            {(tasksByMilestone[openMs.id] || []).length === 0 ? (
+              <div className="goal-ms-tasks__empty">No tasks yet — add the first step.</div>
+            ) : (
+              (tasksByMilestone[openMs.id] || []).map((t) => (
+                <div key={t.id} className="goal-ms-tasks__row">
+                  <span className="goal-ms-tasks__dot" />
+                  <span className="goal-ms-tasks__desc">{t.description}</span>
+                  {t.due && <span className="goal-ms-tasks__due">{t.due.slice(5)}</span>}
+                </div>
+              ))
+            )}
+            <div className="goal-ms__add-row">
+              <input
+                value={taskText}
+                onChange={(e) => setTaskText(e.target.value)}
+                placeholder="Add a task for this milestone…"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitLinkedTask();
+                  if (e.key === 'Escape') setOpenTasksId(null);
+                }}
+              />
+              <button onClick={submitLinkedTask}>+</button>
+            </div>
+          </div>
+        )}
         {addingMilestone ? (
           <div className="goal-ms__add-row">
             <input
@@ -309,8 +410,18 @@ export default function GoalsStrip({
   goals, hats, selectedHatIds,
   onCreate, onCheckin, onAchieve, onArchive,
   onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
-  onRenameGoal, onRenameMilestone,
+  onRenameGoal, onRenameMilestone, onMilestoneDue, onReorderMilestones,
+  onFetchPastGoals, onRestoreGoal, onDeleteGoal, tasks,
 }) {
+  const [pastOpen, setPastOpen] = useState(false);
+  const [pastGoals, setPastGoals] = useState(null);   // null = not loaded yet
+
+  const togglePast = async () => {
+    const next = !pastOpen;
+    setPastOpen(next);
+    if (next && onFetchPastGoals) setPastGoals(await onFetchPastGoals());
+  };
+
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch { return false; }
   });
@@ -379,6 +490,9 @@ export default function GoalsStrip({
                   onAddLinkedTask={onAddLinkedTask}
                   onRenameGoal={onRenameGoal}
                   onRenameMilestone={onRenameMilestone}
+                  onMilestoneDue={onMilestoneDue}
+                  onReorderMilestones={onReorderMilestones}
+                  tasks={tasks}
                 />
               ))}
               {!adding && (
@@ -396,6 +510,50 @@ export default function GoalsStrip({
               onSave={create}
               onCancel={() => setAdding(false)}
             />
+          )}
+
+          {/* Achieved & archived goals — loaded on demand */}
+          {onFetchPastGoals && (
+            <div className="goals-past">
+              <button className="goals-past__toggle" onClick={togglePast}>
+                {pastOpen ? '▾' : '▸'} Achieved &amp; archived
+              </button>
+              {pastOpen && (
+                pastGoals === null ? (
+                  <div className="goals-past__empty">Loading…</div>
+                ) : pastGoals.length === 0 ? (
+                  <div className="goals-past__empty">Nothing here yet — finished goals land here.</div>
+                ) : (
+                  <div className="goals-past__list">
+                    {pastGoals.map((g) => (
+                      <div key={g.id} className="goals-past__row">
+                        <span className="goals-past__icon">{g.status === 'achieved' ? '🏆' : '📦'}</span>
+                        <span className="goals-past__title">{g.title}</span>
+                        <span className="goals-past__status">{g.status}</span>
+                        {onRestoreGoal && (
+                          <button
+                            className="goals-past__btn"
+                            title="Make this an active goal again"
+                            onClick={async () => { await onRestoreGoal(g.id); setPastGoals(await onFetchPastGoals()); }}
+                          >↺ Restore</button>
+                        )}
+                        {onDeleteGoal && (
+                          <button
+                            className="goals-past__btn goals-past__btn--del"
+                            title="Delete permanently"
+                            onClick={async () => {
+                              if (!window.confirm(`Delete “${g.title}” for good? This can't be undone.`)) return;
+                              await onDeleteGoal(g.id);
+                              setPastGoals(await onFetchPastGoals());
+                            }}
+                          >🗑</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           )}
         </div>
       )}

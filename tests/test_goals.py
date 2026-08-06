@@ -202,6 +202,38 @@ class MilestoneTests(GoalsBase):
                                   headers=self.auth)
         self.assertEqual(res2.get_json()['milestones'], [])
 
+    def test_milestone_optional_due_date(self):
+        g = self._goal()
+        mid = g['milestones'][0]['id']
+        self.assertIsNone(g['milestones'][0]['due'])      # optional: unset by default
+        res = self.client.put(f"/api/goals/{g['id']}/milestones/{mid}",
+                              json={'due': '2026-09-01'}, headers=self.auth)
+        self.assertEqual(res.get_json()['milestones'][0]['due'], '2026-09-01')
+        # Empty string clears it again.
+        res2 = self.client.put(f"/api/goals/{g['id']}/milestones/{mid}",
+                               json={'due': ''}, headers=self.auth)
+        self.assertIsNone(res2.get_json()['milestones'][0]['due'])
+
+    def test_milestone_reorder(self):
+        g = self._goal(milestones=['A', 'B', 'C'])
+        ids = [m['id'] for m in g['milestones']]
+        flipped = [ids[2], ids[0], ids[1]]
+        res = self.client.put(f"/api/goals/{g['id']}/milestones/reorder",
+                              json={'ids': flipped}, headers=self.auth)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([m['title'] for m in res.get_json()['milestones']],
+                         ['C', 'A', 'B'])
+
+    def test_milestone_reorder_scoped_to_owner(self):
+        g = self._goal()
+        res = self.client.post('/api/auth/register', json={
+            'name': 'X', 'email': 'reorder-other@example.com', 'password': 'password123',
+        })
+        other = {'Authorization': f"Bearer {res.get_json()['access_token']}"}
+        res2 = self.client.put(f"/api/goals/{g['id']}/milestones/reorder",
+                               json={'ids': []}, headers=other)
+        self.assertEqual(res2.status_code, 404)
+
     def test_milestone_cap(self):
         g = self._goal(milestones=[f'm{i}' for i in range(MAX_MILESTONES_PER_GOAL + 3)])
         self.assertEqual(len(g['milestones']), MAX_MILESTONES_PER_GOAL)

@@ -114,11 +114,31 @@ function GoalForm({ hats, defaultHatId, onSave, onCancel }) {
 function GoalCard({
   goal, hat, onCheckin, onAchieve, onArchive,
   onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
+  onRenameGoal, onRenameMilestone,
 }) {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [note, setNote] = useState('');
   const [addingMilestone, setAddingMilestone] = useState(false);
   const [milestoneText, setMilestoneText] = useState('');
+
+  // Inline rename of the goal title and of individual milestones.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleText, setTitleText] = useState(goal.title);
+  const [editingMsId, setEditingMsId] = useState(null);
+  const [msText, setMsText] = useState('');
+
+  const startTitleEdit = () => { setTitleText(goal.title); setEditingTitle(true); };
+  const commitTitle = async () => {
+    const t = titleText.trim();
+    setEditingTitle(false);
+    if (t && t !== goal.title && onRenameGoal) await onRenameGoal(goal.id, t);
+  };
+  const startMsEdit = (m) => { setMsText(m.title); setEditingMsId(m.id); };
+  const commitMs = async (m) => {
+    const t = msText.trim();
+    setEditingMsId(null);
+    if (t && t !== m.title && onRenameMilestone) await onRenameMilestone(goal.id, m.id, t);
+  };
 
   const submitCheckin = async () => {
     await onCheckin(goal.id, note.trim());
@@ -139,7 +159,27 @@ function GoalCard({
     <div className={`goal-card${goal.checkin_due ? ' goal-card--due' : ''}`}>
       <div className="goal-card__top">
         <span className="goal-card__title" title={goal.why || undefined}>
-          🎯 {goal.title}
+          🎯{' '}
+          {editingTitle ? (
+            <input
+              className="goal-card__title-input"
+              autoFocus
+              value={titleText}
+              onChange={(e) => setTitleText(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitTitle();
+                if (e.key === 'Escape') setEditingTitle(false);
+              }}
+            />
+          ) : (
+            <span
+              className="goal-card__title-text"
+              role="button"
+              title="Click to rename"
+              onClick={startTitleEdit}
+            >{goal.title}</span>
+          )}
           {progress.total > 0 && (
             <span className="goal-card__pct">{progress.done}/{progress.total}</span>
           )}
@@ -174,7 +214,25 @@ function GoalCard({
                 checked={m.done}
                 onChange={() => onToggleMilestone(goal.id, m)}
               />
-              <span className="goal-ms__title">{m.title}</span>
+              {editingMsId === m.id ? (
+                <input
+                  className="goal-ms__title-input"
+                  autoFocus
+                  value={msText}
+                  onChange={(e) => setMsText(e.target.value)}
+                  onBlur={() => commitMs(m)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitMs(m);
+                    if (e.key === 'Escape') setEditingMsId(null);
+                  }}
+                />
+              ) : (
+                <span
+                  className="goal-ms__title"
+                  title="Click to rename"
+                  onClick={(e) => { e.preventDefault(); startMsEdit(m); }}
+                >{m.title}</span>
+              )}
             </label>
             {!m.done && (
               <button
@@ -251,6 +309,7 @@ export default function GoalsStrip({
   goals, hats, selectedHatIds,
   onCreate, onCheckin, onAchieve, onArchive,
   onToggleMilestone, onAddMilestone, onRemoveMilestone, onAddLinkedTask,
+  onRenameGoal, onRenameMilestone,
 }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch { return false; }
@@ -318,6 +377,8 @@ export default function GoalsStrip({
                   onAddMilestone={onAddMilestone}
                   onRemoveMilestone={onRemoveMilestone}
                   onAddLinkedTask={onAddLinkedTask}
+                  onRenameGoal={onRenameGoal}
+                  onRenameMilestone={onRenameMilestone}
                 />
               ))}
               {!adding && (

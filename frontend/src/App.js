@@ -480,6 +480,14 @@ function TaskApp() {
     try { await api.deleteMilestone(goalId, milestoneId); await fetchGoals(); }
     catch (err) { console.error('Milestone remove failed:', err); }
   };
+  const renameGoal = async (goalId, title) => {
+    try { await api.updateGoal(goalId, { title }); await fetchGoals(); }
+    catch (err) { alert(err.message || 'Could not rename goal'); }
+  };
+  const renameMilestone = async (goalId, milestoneId, title) => {
+    try { await api.updateMilestone(goalId, milestoneId, { title }); await fetchGoals(); }
+    catch (err) { console.error('Milestone rename failed:', err); }
+  };
   const addLinkedTask = async (milestone) => {
     await addTask({ description: milestone.title, milestone_id: milestone.id });
   };
@@ -754,6 +762,8 @@ function TaskApp() {
                 onToggleMilestone={toggleMilestone}
                 onAddMilestone={addMilestone}
                 onRemoveMilestone={removeMilestone}
+                onRenameGoal={renameGoal}
+                onRenameMilestone={renameMilestone}
                 onAddLinkedTask={addLinkedTask}
               />
               {atLimit ? (

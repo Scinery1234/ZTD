@@ -315,6 +315,38 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "combine_tasks",
+        "description": (
+            "Merge several tasks into one. The kept task absorbs the others: each "
+            "merged task becomes a subtask of the kept task (its own subtasks are "
+            "carried across too), and the merged tasks are then deleted. Use when "
+            "the user wants to combine, merge, or roll up duplicate or related "
+            "tasks. Get ids from list_tasks first, and confirm with the user "
+            "before combining."
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keep_id": {
+                    "type": "integer",
+                    "description": "Id of the task to keep; the others fold into it.",
+                },
+                "merge_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Ids of the tasks to fold into keep_id and then delete.",
+                },
+                "new_description": {
+                    "type": "string",
+                    "description": "Optional new title for the kept task (empty = keep its current title).",
+                },
+            },
+            "required": ["keep_id", "merge_ids", "new_description"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -468,27 +500,51 @@ class TaskChatService:
         threads = (thread_context_block(self.ChatThread, user.id, "assistant")
                    if self.ChatThread is not None else "")
         return (
-            "You are the task assistant for MadeHappen, a to-do app. You help the "
-            "user add, delete, and bulk-modify their tasks through the provided "
-            "tools.\n\n"
+            "You are the task assistant for MadeHappen, a to-do app. You are a full "
+            "task manager: you can add, edit, reschedule, change due dates, move "
+            "between hats/categories, reprioritise, combine, delete, and manage "
+            "subtasks (checklists) — one task or many at once — through the "
+            "provided tools.\n\n"
             f"Today is {today}.\n"
             "The user's workspaces ('hats') are:\n"
             f"{hat_lines}\n"
             f"New tasks default to hat id {default_hat_id} unless the user clearly "
             "means another hat.\n\n"
+            "Your toolkit:\n"
+            "- add_tasks — create new tasks.\n"
+            "- update_tasks — change any field on one or many tasks at once: "
+            "description, priority, due date, recurring, hat, category, or "
+            "schedule (bulk edits go in a single call). A task's tag IS its "
+            "category, so tagging or categorising means setting `category`, and "
+            "untagging / uncategorising means setting `category` to an empty "
+            "string.\n"
+            "- manage_subtasks — see, add, rename, check off / uncheck, or remove a "
+            "task's checklist items (1-based indices from list_tasks).\n"
+            "- combine_tasks — merge related or duplicate tasks into one; the "
+            "others become subtasks of the kept task and are then removed.\n"
+            "- delete_tasks — remove tasks for good.\n"
+            "- list_tasks — read the current tasks (with ids and subtasks).\n\n"
             "Guidelines:\n"
             "- When the request refers to existing tasks ('my groceries', "
             "'everything urgent'), call list_tasks first to resolve real ids, then "
             "act. Never guess ids.\n"
             "- Prefer a single bulk tool call over many small ones.\n"
-            "- A task can have subtasks (a checklist). Use manage_subtasks to add, "
-            "rename, check off, or remove them — call list_tasks first to get the "
-            "task id and the subtasks' 1-based indices.\n"
             "- Priority must be one of: urgent, today, tomorrow, later. Recurring "
             "must be one of: daily, weekly, monthly.\n"
-            "- Only delete tasks the user clearly asked to delete. If a request is "
-            "ambiguous or would affect many tasks unexpectedly, ask a brief "
-            "clarifying question instead of acting.\n"
+            "- Finding duplicates: if the user asks (or you notice tasks that "
+            "clearly overlap), review the list, point out the likely duplicates, "
+            "and offer to combine them (combine_tasks) or delete the extras. Flag "
+            "only genuine overlaps, and confirm before merging or deleting.\n"
+            "- CONFIRM BEFORE CHANGING EXISTING TASKS. Adding brand-new tasks can "
+            "go straight through, but before you edit, reschedule, change a due "
+            "date, move, reprioritise, combine, delete, or alter subtasks on tasks "
+            "that already exist, first tell the user plainly what you're about to "
+            "do (name the tasks and the change) and ask them to confirm — then act "
+            "only once they say yes. If their latest message is already a clear "
+            "go-ahead ('yes', 'do it', 'delete them'), that counts as the "
+            "confirmation; proceed without asking twice. A single unambiguous "
+            "edit still gets a quick confirm; never batch-change or delete without "
+            "one.\n"
             "- After acting, reply with one short, friendly sentence summarizing "
             "what you changed.\n\n"
             "The user's current tasks (may be truncated — ids are real; ⏰ marks "
@@ -525,6 +581,8 @@ class TaskChatService:
                 return self._delete_tasks(user.id, args, undo_ops, actions)
             if name == "manage_subtasks":
                 return self._manage_subtasks(user.id, args, undo_ops, actions)
+            if name == "combine_tasks":
+                return self._combine_tasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              "assistant", name, args)
@@ -772,6 +830,55 @@ class TaskChatService:
             "subtask_count": len(items),
             "subtasks": [{"index": i + 1, "text": s["text"], "done": s["done"]}
                          for i, s in enumerate(items)],
+        }}
+
+    def _combine_tasks(self, user_id, args, undo_ops, actions):
+        keep = self.Task.query.filter_by(id=args.get("keep_id"), user_id=user_id).first()
+        if not keep:
+            return {"content": {"error": "Task to keep not found."}, "is_error": True}
+
+        # Resolve the tasks to fold in: real, user-owned, and not the kept task.
+        seen = {keep.id}
+        merge_tasks = []
+        for mid in (args.get("merge_ids") or []):
+            if mid in seen:
+                continue
+            seen.add(mid)
+            m = self.Task.query.filter_by(id=mid, user_id=user_id).first()
+            if m:
+                merge_tasks.append(m)
+        if not merge_tasks:
+            return {"content": {"error": "No other tasks to combine."}, "is_error": True}
+
+        before_keep = keep.to_dict()          # for the update inverse
+        items = _normalize_subtasks(keep.subtasks_list())
+        removed = []
+        for m in merge_tasks:
+            # The merged task becomes a subtask; its own subtasks carry across.
+            items.append({"id": _new_subtask_id(),
+                          "text": (m.description or "").strip(),
+                          "done": False})
+            for s in _normalize_subtasks(m.subtasks_list()):
+                items.append({"id": _new_subtask_id(), "text": s["text"], "done": s["done"]})
+            removed.append(m.to_dict())
+            self.db.session.delete(m)
+
+        new_desc = (args.get("new_description") or "").strip()
+        if new_desc:
+            keep.description = new_desc
+        keep.subtasks = json.dumps(items)
+        self.db.session.commit()
+
+        # Two inverses: restore the kept task's title/subtasks, and bring the
+        # merged tasks back (undo() applies them in reverse, order-independent here).
+        undo_ops.append({"type": "updated", "before": [before_keep]})
+        undo_ops.append({"type": "deleted", "tasks": removed})
+        actions.append({"action": "combined", "count": len(removed) + 1})
+        return {"content": {
+            "kept_id": keep.id,
+            "description": keep.description,
+            "merged_count": len(removed),
+            "subtask_count": len(items),
         }}
 
     # ---- undo application ----

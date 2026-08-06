@@ -149,6 +149,52 @@ class AIChatToolTests(unittest.TestCase):
         row = listed['content']['tasks'][0]
         self.assertEqual(row['subtasks'], [{'index': 1, 'text': 'step one', 'done': False}])
 
+    def test_combine_tasks_folds_and_deletes(self):
+        self._add([
+            {'description': 'Book flights', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+            {'description': 'Book hotel', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+        ])
+        keep = Task.query.filter_by(description='Book flights').first()
+        merge = Task.query.filter_by(description='Book hotel').first()
+        # Give the kept task an existing subtask and the merged task one too.
+        self.svc._manage_subtasks(self.user.id,
+                                  {'task_id': keep.id, 'add': ['Compare prices'], 'update': [], 'remove': []}, [], [])
+        self.svc._manage_subtasks(self.user.id,
+                                  {'task_id': merge.id, 'add': ['Check cancellation'], 'update': [], 'remove': []}, [], [])
+
+        ops, actions = [], []
+        res = self.svc._combine_tasks(
+            self.user.id,
+            {'keep_id': keep.id, 'merge_ids': [merge.id], 'new_description': 'Book the trip'},
+            ops, actions)
+        self.assertEqual(res['content']['merged_count'], 1)
+        # Merged task is gone; kept task renamed and now carries the folded subtasks.
+        self.assertIsNone(Task.query.filter_by(description='Book hotel').first())
+        kept = Task.query.get(keep.id)
+        self.assertEqual(kept.description, 'Book the trip')
+        texts = [s['text'] for s in kept.subtasks_list()]
+        self.assertEqual(texts, ['Compare prices', 'Book hotel', 'Check cancellation'])
+
+        # Undo restores both tasks and the kept task's original title/subtasks.
+        token = self.svc._save_undo(self.user.id, ops, actions)
+        self.assertTrue(self.svc.undo(self.user, token)['undone'])
+        self.assertIsNotNone(Task.query.filter_by(description='Book hotel').first())
+        kept = Task.query.get(keep.id)
+        self.assertEqual(kept.description, 'Book flights')
+        self.assertEqual([s['text'] for s in kept.subtasks_list()], ['Compare prices'])
+
+    def test_combine_tasks_needs_a_valid_target(self):
+        ops, actions = [], []
+        res = self.svc._combine_tasks(
+            self.user.id, {'keep_id': 99999, 'merge_ids': [1], 'new_description': ''}, ops, actions)
+        self.assertTrue(res.get('is_error'))
+
+    def test_assistant_prompt_is_confirm_first(self):
+        hats = Hat.query.filter_by(user_id=self.user.id).all()
+        prompt = self.svc._system_prompt(self.user, hats, self.hat.id)
+        self.assertIn('CONFIRM BEFORE CHANGING EXISTING TASKS', prompt)
+        self.assertIn('combine_tasks', prompt)
+
     def test_delete_tasks_and_undo(self):
         self._add([
             {'description': 'A', 'category': '', 'priority': '', 'recurring': '', 'due': ''},

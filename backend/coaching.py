@@ -102,7 +102,7 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
 # session can also change or remove tasks — never just pile new ones on.
 _TASK_EDIT_TOOLS = [t for t in _ai_chat.TOOLS
                     if t["name"] in ("list_tasks", "update_tasks", "delete_tasks",
-                                     "manage_subtasks")]
+                                     "manage_subtasks", "combine_tasks")]
 
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 4000
@@ -762,6 +762,8 @@ class CoachingService:
                 return self._editor._delete_tasks(user.id, args, undo_ops, actions)
             if name == "manage_subtasks":
                 return self._editor._manage_subtasks(user.id, args, undo_ops, actions)
+            if name == "combine_tasks":
+                return self._editor._combine_tasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              coach_id, name, args)

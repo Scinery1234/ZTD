@@ -32,6 +32,7 @@ const GRID_HEIGHT = GRID_HOURS * PX_PER_HOUR;
 const MAX_GRID_MINS = GRID_HOURS * 60; // 1740
 const SNAP = 15; // minutes
 const LONG_PRESS_MS = 300; // ms before a touch-hold becomes a drag
+const UNDO_DEPTH = 20;     // scheduling changes kept on the timebox undo stack
 const TOUCH_SLOP = 14; // px of finger jitter tolerated during the hold
 const AUTOSCROLL_ZONE = 56; // px from a grid edge that triggers auto-scroll while dragging
 const AUTOSCROLL_MAX = 16; // max px scrolled per frame
@@ -1564,6 +1565,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);   // scheduling snapshots
   const containerRef = useRef(null);
   const [dismissed, setDismissed] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 0);
@@ -1729,6 +1731,56 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     saveBlockedTimes(next);
   }, []);
 
+  // ── Undo for scheduling changes ────────────────────────────────────────────
+  // Every persisted schedule change (drag, auto-schedule, quick-schedule, clear)
+  // funnels through here first. `tasks` still holds the pre-change values at
+  // this point, so we can snapshot them before the new state lands.
+  const tasksRef = useRef(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  const pushUndo = useCallback((ids, label) => {
+    const idSet = new Set(ids);
+    const before = tasksRef.current
+      .filter(t => idSet.has(t.id))
+      .map(t => ({ id: t.id, scheduled_time: t.scheduled_time ?? null,
+                   scheduled_date: t.scheduled_date ?? null, duration: t.duration }));
+    if (before.length === 0) return;
+    setUndoStack(prev => [...prev.slice(-(UNDO_DEPTH - 1)), { label, before }]);
+  }, []);
+
+  const trackedApplyTaskUpdates = useCallback((updates) => {
+    if (Array.isArray(updates) && updates.length) {
+      pushUndo(updates.map(u => u.id), updates.length > 1 ? 'schedule change' : 'move');
+    }
+    if (onApplyTaskUpdates) onApplyTaskUpdates(updates);
+  }, [onApplyTaskUpdates, pushUndo]);
+
+  const handleUndo = useCallback(async () => {
+    const entry = undoStack[undoStack.length - 1];
+    if (!entry) return;
+    setUndoStack(prev => prev.slice(0, -1));
+    for (const t of entry.before) {
+      await onUpdate(t.id, {
+        scheduled_time: t.scheduled_time,
+        scheduled_date: t.scheduled_date,
+        ...(t.duration != null ? { duration: t.duration } : {}),
+      });
+    }
+  }, [undoStack, onUpdate]);
+
+  // Clear the day: send everything scheduled on this date back to the pool.
+  const handleClearDay = useCallback(async () => {
+    const onDay = tasks.filter(t => isOnDaysGrid(t, selectedDay));
+    if (onDay.length === 0) return;
+    if (!window.confirm(
+      `Clear ${onDay.length} scheduled task${onDay.length === 1 ? '' : 's'} from this day? `
+      + 'They go back to the task pool — nothing is deleted.')) return;
+    pushUndo(onDay.map(t => t.id), 'clear day');
+    for (const t of onDay) {
+      await onUpdate(t.id, { scheduled_time: null, scheduled_date: null });
+    }
+  }, [tasks, selectedDay, onUpdate, pushUndo]);
+
   const handleQuickSchedule = useCallback(async (task) => {
     const date = selectedDay;
     const win = dayWindows[date] || { start: '07:00', end: '24:00' };
@@ -1751,8 +1803,9 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     const slot = advancePastBlockedGrid(cursor, dur, allBlocked);
     if (slot + dur > wEnd) return;
     const scheduled = gridMinsToSchedule(slot, date);
+    pushUndo([task.id], 'schedule');
     await onUpdate(task.id, { scheduled_time: scheduled.scheduled_time, scheduled_date: scheduled.scheduled_date });
-  }, [selectedDay, dayWindows, blockedTimes, tasks, futureTasks, dayOffset, onUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDay, dayWindows, blockedTimes, tasks, futureTasks, dayOffset, onUpdate, pushUndo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMit = (taskId) => {
     setMitIds(prev => {
@@ -1832,7 +1885,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,
     onAddTask,
-    onApplyTaskUpdates,
+    onApplyTaskUpdates: trackedApplyTaskUpdates,
     onMarkDone,
     onEditTask: setEditingTask,
     onCalendarDeleteEvent,
@@ -1855,6 +1908,21 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
       <div className="timebox-subview-toggle">
         <button className={`timebox-sub-btn ${subView === 'day' ? 'active' : ''}`} onClick={() => setSubView('day')}>Day</button>
         <button className={`timebox-sub-btn ${subView === 'week' ? 'active' : ''}`} onClick={() => setSubView('week')}>Week</button>
+        <button
+          className="timebox-sub-btn timebox-undo-btn"
+          onClick={handleUndo}
+          disabled={undoStack.length === 0}
+          title={undoStack.length
+            ? `Undo ${undoStack[undoStack.length - 1].label}`
+            : 'Nothing to undo'}
+        >↶ Undo</button>
+        {subView === 'day' && (
+          <button
+            className="timebox-sub-btn timebox-clear-btn"
+            onClick={handleClearDay}
+            title="Send every scheduled task on this day back to the pool"
+          >Clear day</button>
+        )}
         {onSyncToCalendar && (
           <button
             className={`timebox-sub-btn timebox-sync-btn${calendarConnected ? ' connected' : ''}`}

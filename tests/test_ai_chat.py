@@ -183,6 +183,44 @@ class AIChatToolTests(unittest.TestCase):
         self.assertEqual(kept.description, 'Book flights')
         self.assertEqual([s['text'] for s in kept.subtasks_list()], ['Compare prices'])
 
+    def test_add_tasks_skips_duplicate_within_one_call(self):
+        _, _, _ = self._add([
+            {'description': 'Buy milk', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+            {'description': 'Buy milk', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+        ])
+        self.assertEqual(Task.query.filter_by(description='Buy milk').count(), 1)
+
+    def test_add_tasks_skips_repeat_add_in_same_run(self):
+        # The model re-issuing an identical add_tasks later in the tool loop was
+        # the duplicate-task bug: the run-scoped guard must swallow the second.
+        self.svc._run_created = set()
+        ops, actions = [], []
+        one = {'tasks': [{'description': 'Call the dentist', 'category': '',
+                          'priority': '', 'recurring': '', 'due': ''}]}
+        self.svc._add_tasks(self.user, self.hat.id, one, ops, actions)
+        res = self.svc._add_tasks(self.user, self.hat.id, one, ops, actions)
+        self.assertEqual(res['content']['added_count'], 0)
+        self.assertEqual(res['content']['skipped_as_duplicate'], 1)
+        self.assertEqual(Task.query.filter_by(description='Call the dentist').count(), 1)
+
+    def test_add_tasks_allows_genuine_repeat_outside_window(self):
+        from datetime import datetime, timedelta
+        self.svc._run_created = set()
+        self.svc._add_tasks(self.user, self.hat.id,
+                            {'tasks': [{'description': 'Water plants', 'category': '',
+                                        'priority': '', 'recurring': '', 'due': ''}]}, [], [])
+        # Age the first one past the duplicate window, and clear the run scope
+        # (as a new chat turn would) — a deliberate re-add should now succeed.
+        t = Task.query.filter_by(description='Water plants').first()
+        t.created_at = datetime.utcnow() - timedelta(minutes=30)
+        db.session.commit()
+        self.svc._run_created = set()
+        res = self.svc._add_tasks(self.user, self.hat.id,
+                                  {'tasks': [{'description': 'Water plants', 'category': '',
+                                              'priority': '', 'recurring': '', 'due': ''}]}, [], [])
+        self.assertEqual(res['content']['added_count'], 1)
+        self.assertEqual(Task.query.filter_by(description='Water plants').count(), 2)
+
     def test_combine_tasks_needs_a_valid_target(self):
         ops, actions = [], []
         res = self.svc._combine_tasks(

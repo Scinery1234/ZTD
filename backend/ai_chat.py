@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     import anthropic
@@ -67,6 +67,8 @@ MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 12        # client-supplied prior turns to carry into context
 MAX_TOOL_ITERATIONS = 8       # safety cap on the agentic loop
 MAX_UNDO_ENTRIES = 10         # per-user undo-stack depth
+DUP_WINDOW = timedelta(minutes=2)   # re-adding the same title within this window
+                                    # is treated as an accidental duplicate
 
 # Fields the model is allowed to set/change on a task (also what undo restores).
 _EDITABLE_FIELDS = ("description", "category", "priority", "recurring", "due",
@@ -363,10 +365,14 @@ class TaskChatService:
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.ChatThread = ChatThread     # cross-conversation awareness
         self.client = anthropic.Anthropic() if anthropic is not None else None
+        # (description, hat_id) pairs created during the current run — guards
+        # against the model re-issuing an identical add later in the tool loop.
+        self._run_created = set()
 
     # ---- public entry point ----
     def run(self, user, hat_id, message, history):
         """Execute one chat turn. Returns a JSON-serializable dict."""
+        self._run_created = set()   # fresh duplicate-guard scope for this turn
         hats = self.Hat.query.filter_by(user_id=user.id).order_by(self.Hat.position, self.Hat.id).all()
         default_hat_id = self._resolve_default_hat(user.id, hat_id, hats)
 
@@ -638,12 +644,34 @@ class TaskChatService:
         created_ids = []
         clashes = []
         skipped_limit = 0
+        skipped_duplicate = 0
         for item in items:
             desc = (item.get("description") or "").strip()
             if not desc:
                 continue
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
+                continue
+
+            # Duplicate guard. The task snapshot in the system prompt is built
+            # once per run, so after adding a task the model still sees a list
+            # without it — which used to tempt a second, identical add_tasks call
+            # later in the agentic loop. Skip a repeat of anything this run
+            # already created, or of an identical task created moments ago (a
+            # double-submitted request), while still allowing a genuine re-add
+            # of the same title later on.
+            hid = self._valid_hat_id(user.id, item.get("hat_id"), default_hat_id)
+            key = (desc.lower(), hid)
+            if key in self._run_created:
+                skipped_duplicate += 1
+                continue
+            recent = (self.Task.query
+                      .filter_by(user_id=user.id, description=desc)
+                      .filter(self.Task.created_at >= datetime.utcnow() - DUP_WINDOW)
+                      .first())
+            if recent is not None:
+                self._run_created.add(key)
+                skipped_duplicate += 1
                 continue
 
             # Natural-language scheduling: clean name + a real calendar slot.
@@ -669,7 +697,7 @@ class TaskChatService:
                        .filter_by(user_id=user.id).scalar() or 0)
             task = self.Task(
                 user_id=user.id,
-                hat_id=self._valid_hat_id(user.id, item.get("hat_id"), default_hat_id),
+                hat_id=hid,
                 description=desc,
                 category=(item.get("category") or "").strip(),
                 priority=(item.get("priority") or "").strip(),
@@ -683,6 +711,7 @@ class TaskChatService:
             self.db.session.add(task)
             self.db.session.flush()  # assign id
             created_ids.append(task.id)
+            self._run_created.add(key)
         self.db.session.commit()
 
         if created_ids:
@@ -698,6 +727,11 @@ class TaskChatService:
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not added."
+        if skipped_duplicate:
+            result["skipped_as_duplicate"] = skipped_duplicate
+            result["note"] = ("Already on the list — these were added moments ago, "
+                              "so they were not added again. Do not retry: treat "
+                              "them as saved and tell the user they're on the list.")
         return {"content": result}
 
     def _update_tasks(self, user_id, args, undo_ops, actions):

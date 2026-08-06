@@ -577,6 +577,8 @@ class CoachingService:
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
                                                 check_task_limit)
         self.client = anthropic.Anthropic() if anthropic is not None else None
+        # (description, hat_id) saved during the current turn — duplicate guard.
+        self._run_created = set()
 
     # ---- public entry point ----
     def run(self, user, coach_id, message, history, hat_id=None):
@@ -585,6 +587,7 @@ class CoachingService:
         if coach is None:
             raise ValueError(f"Unknown coach: {coach_id}")
 
+        self._run_created = set()   # fresh duplicate-guard scope for this turn
         crisis = detect_crisis(message)
 
         hats = (self.Hat.query.filter_by(user_id=user.id)
@@ -782,12 +785,29 @@ class CoachingService:
         created = []
         clashes = []
         skipped_limit = 0
+        skipped_duplicate = 0
         for item in items:
             desc = (item.get("description") or "").strip()
             if not desc:
                 continue
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
+                continue
+
+            # Same duplicate guard as the task assistant: the coach's task
+            # snapshot is built once per turn, so a task saved earlier in the
+            # tool loop is still absent from it and can tempt a second save.
+            key = (desc.lower(), default_hat_id)
+            if key in self._run_created:
+                skipped_duplicate += 1
+                continue
+            recent = (self.Task.query
+                      .filter_by(user_id=user.id, description=desc)
+                      .filter(self.Task.created_at >= datetime.utcnow() - _ai_chat.DUP_WINDOW)
+                      .first())
+            if recent is not None:
+                self._run_created.add(key)
+                skipped_duplicate += 1
                 continue
 
             # Natural-language scheduling: clean name + a real calendar slot.
@@ -834,6 +854,7 @@ class CoachingService:
             )
             self.db.session.add(task)
             self.db.session.flush()
+            self._run_created.add(key)
             created.append({"id": task.id, "description": desc,
                             "scheduled_time": sched_time, "scheduled_date": sched_date})
         self.db.session.commit()
@@ -856,4 +877,8 @@ class CoachingService:
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not saved."
+        if skipped_duplicate:
+            result["skipped_as_duplicate"] = skipped_duplicate
+            result["note"] = ("Already on the list — saved moments ago, so not "
+                              "saved again. Do not retry; treat them as saved.")
         return {"content": result}

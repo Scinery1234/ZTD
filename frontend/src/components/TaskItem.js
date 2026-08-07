@@ -113,6 +113,15 @@ const TaskItem = ({
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
 
+  // Inline due-date editing straight from the list row (no full edit mode).
+  const [dueEditing, setDueEditing] = useState(false);
+  const commitDue = (value) => {
+    setDueEditing(false);
+    const v = (value || '').trim();
+    if (v !== (task.due || '')) onUpdate({ due: v });
+  };
+  const dueEditable = viewMode === 'active' && !selectMode;
+
   // Sync local subtasks if task prop changes
   React.useEffect(() => {
     setLocalSubtasks(asSubtaskList(task.subtasks));
@@ -410,12 +419,41 @@ const TaskItem = ({
             {task.milestone_id != null && (
               <span className="task-goal-pill" title="Works toward a goal milestone">🎯</span>
             )}
-            {task.due && (
-              <span className={`task-due ${isOverdue() ? 'overdue' : ''}`}>
+            {dueEditing ? (
+              <input
+                type="date"
+                className="task-due-input"
+                defaultValue={task.due || ''}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => commitDue(e.target.value)}
+                onBlur={(e) => commitDue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitDue(e.target.value);
+                  if (e.key === 'Escape') setDueEditing(false);
+                }}
+              />
+            ) : task.due ? (
+              <span
+                className={`task-due ${isOverdue() ? 'overdue' : ''} ${dueEditable ? 'editable' : ''}`}
+                onClick={dueEditable ? (e) => { e.stopPropagation(); setDueEditing(true); } : undefined}
+                onPointerDown={dueEditable ? (e) => e.stopPropagation() : undefined}
+                title={dueEditable ? 'Click to change the due date' : undefined}
+                role={dueEditable ? 'button' : undefined}
+              >
                 {isOverdue() ? '⚠ ' : ''}
                 {formatDate(task.due)}
               </span>
-            )}
+            ) : dueEditable ? (
+              <button
+                type="button"
+                className="task-due-add"
+                onClick={(e) => { e.stopPropagation(); setDueEditing(true); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Add a due date"
+              >＋ due</button>
+            ) : null}
             {totalCount > 0 && (
               <span className="subtask-progress-pill">
                 {doneCount}/{totalCount}

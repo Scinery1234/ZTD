@@ -102,7 +102,7 @@ except ImportError:  # loaded standalone (no backend/ on sys.path)
 # session can also change or remove tasks — never just pile new ones on.
 _TASK_EDIT_TOOLS = [t for t in _ai_chat.TOOLS
                     if t["name"] in ("list_tasks", "update_tasks", "delete_tasks",
-                                     "manage_subtasks")]
+                                     "manage_subtasks", "combine_tasks")]
 
 MODEL = "claude-opus-4-8"
 MAX_MESSAGE_CHARS = 4000
@@ -285,9 +285,16 @@ _RECOVERY_SYSTEM = (
     "Route to one track, and re-run the gate at the start of every session — "
     "depletion is non-linear and the track is allowed to move backwards without "
     "that being a failure:\n"
-    "- ACUTE (0-3, or flooded / shut down): Stages 1 and 2 ONLY, then close. No "
-    "lever, no plan, no exploration, no task capture. Success is a nervous system "
-    "that has come down a point or two.\n"
+    "- ACUTE (0-3, or flooded / shut down): keep it light — lead with Stages 1 and "
+    "2 and don't push planning, exploration or a full audit. But never tell the "
+    "user to stop, to rest, or to do nothing: many people reach you mid-workday "
+    "with real deadlines, and 'do nothing' is not a choice they have. After "
+    "regulating, ASK — 'Is there something you have to get through right now, or "
+    "is there a bit of room?' If they must keep going, help them find the single "
+    "smallest next step and leave it there. If they do have room, offer rest as "
+    "one option among others, never as an instruction. Success is a nervous "
+    "system that has come down a point or two — with the user, not you, deciding "
+    "what happens next.\n"
     "- DEPLETED (4-6): the full four-stage sequence.\n"
     "- RECOVERING (7+, or a 'months thing' with capacity present): Stages 3 and 4 "
     "plus the between-session recovery layer; here you may gently suggest the "
@@ -316,15 +323,21 @@ _RECOVERY_SYSTEM = (
     "this thought right now; it never says the thought is wrong.\n"
     "Stage 4 — ONE LEVER (a single small reversible action against the most acute "
     "mismatch). Using Maslach's six areas as a gentle triage — asked as a "
-    "question, never printed as an inventory — find which is loudest TODAY: "
+    "question, never printed as an inventory — feel for which is loudest TODAY: "
     "workload (simply too much?), control (any say in how it's done?), reward (any "
     "of it acknowledged?), community (are you alone in it?), fairness (something "
     "shared out unjustly?), values (asked to act against something you hold?). "
-    "Take only that one. The lever must be one thing, small enough to do this "
-    "week, reversible, and inside the user's actual control. It is the only thing "
-    "you ever offer to save with save_tasks — and only in the depleted or "
-    "recovering track, only once the user agrees. Naming no lever this session is "
-    "a legitimate outcome at low capacity.\n"
+    "Do NOT press the user to pick. If choosing feels hard — and at low capacity "
+    "it usually does — make it easier, don't turn it into another task: reflect "
+    "back what you've already heard weighing on them and gently offer it as a "
+    "guess ('it sounds like it might be the sheer volume — does that land?'), or "
+    "put forward one or two options for them to react to rather than generate. If "
+    "nothing surfaces, that's completely fine — let it go for now. Any lever must "
+    "be one thing, small enough to do this week, reversible, and inside the "
+    "user's actual control. It is the only thing you ever offer to save with "
+    "save_tasks — and only in the depleted or recovering track, only once the "
+    "user agrees. Naming no lever this session is a fully legitimate outcome, not "
+    "a failure.\n"
     "  At the Stage 4 close, say this out loud, in your own voice (non-skippable): "
     "'These tools help you keep functioning while something about the conditions "
     "changes — they are not a way of making unacceptable conditions acceptable.' "
@@ -360,8 +373,13 @@ _RECOVERY_SYSTEM = (
 
     "VOICE. Short turns, low word count, one question at a time (stacked questions "
     "are an executive-function tax). No enthusiasm, no exclamation marks, and "
-    "never reframe exhaustion as an opportunity. This modality reads best spoken "
-    "slowly."
+    "never reframe exhaustion as an opportunity. ASK, DON'T DIRECT — offer options "
+    "and let the user choose; they are the authority on what their day allows, and "
+    "you cannot see their obligations. Rest, stopping, and any next step are "
+    "always invitations, never instructions. When a choice would cost effort the "
+    "user may not have, make it easier — suggest, narrow it, or let it go — rather "
+    "than putting the work of deciding back on them. This modality reads best "
+    "spoken slowly."
 )
 
 # The guide is the hub's front door: a general coach that can simply talk,
@@ -559,6 +577,8 @@ class CoachingService:
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
                                                 check_task_limit)
         self.client = anthropic.Anthropic() if anthropic is not None else None
+        # (description, hat_id) saved during the current turn — duplicate guard.
+        self._run_created = set()
 
     # ---- public entry point ----
     def run(self, user, coach_id, message, history, hat_id=None):
@@ -567,6 +587,7 @@ class CoachingService:
         if coach is None:
             raise ValueError(f"Unknown coach: {coach_id}")
 
+        self._run_created = set()   # fresh duplicate-guard scope for this turn
         crisis = detect_crisis(message)
 
         hats = (self.Hat.query.filter_by(user_id=user.id)
@@ -744,6 +765,8 @@ class CoachingService:
                 return self._editor._delete_tasks(user.id, args, undo_ops, actions)
             if name == "manage_subtasks":
                 return self._editor._manage_subtasks(user.id, args, undo_ops, actions)
+            if name == "combine_tasks":
+                return self._editor._combine_tasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              coach_id, name, args)
@@ -762,12 +785,29 @@ class CoachingService:
         created = []
         clashes = []
         skipped_limit = 0
+        skipped_duplicate = 0
         for item in items:
             desc = (item.get("description") or "").strip()
             if not desc:
                 continue
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
+                continue
+
+            # Same duplicate guard as the task assistant: the coach's task
+            # snapshot is built once per turn, so a task saved earlier in the
+            # tool loop is still absent from it and can tempt a second save.
+            key = (desc.lower(), default_hat_id)
+            if key in self._run_created:
+                skipped_duplicate += 1
+                continue
+            recent = (self.Task.query
+                      .filter_by(user_id=user.id, description=desc)
+                      .filter(self.Task.created_at >= datetime.utcnow() - _ai_chat.DUP_WINDOW)
+                      .first())
+            if recent is not None:
+                self._run_created.add(key)
+                skipped_duplicate += 1
                 continue
 
             # Natural-language scheduling: clean name + a real calendar slot.
@@ -814,6 +854,7 @@ class CoachingService:
             )
             self.db.session.add(task)
             self.db.session.flush()
+            self._run_created.add(key)
             created.append({"id": task.id, "description": desc,
                             "scheduled_time": sched_time, "scheduled_date": sched_date})
         self.db.session.commit()
@@ -836,4 +877,8 @@ class CoachingService:
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not saved."
+        if skipped_duplicate:
+            result["skipped_as_duplicate"] = skipped_duplicate
+            result["note"] = ("Already on the list — saved moments ago, so not "
+                              "saved again. Do not retry; treat them as saved.")
         return {"content": result}

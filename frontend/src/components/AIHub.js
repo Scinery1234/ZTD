@@ -454,6 +454,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
   const [messages, setMessages] = useState(null); // null = loading saved chat
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const sendingRef = useRef(false);   // in-flight latch: one send == one request
   const [step, setStep] = useState(1);
   const [railOpen, setRailOpen] = useState(false); // mobile toggle
   const [justAdded, setJustAdded] = useState(new Set());
@@ -538,7 +539,10 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
 
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || busy || !messages) return;
+    // `busy` only flips after a re-render, so a ref latch is what actually
+    // guarantees one send == one request (double Enter, Enter + tap, …).
+    if (!text || busy || sendingRef.current || !messages) return;
+    sendingRef.current = true;
     if (isCoach && detectCrisis(text)) onCrisis();
     voice.stop(); // barge-in: silence any in-progress speech when the user sends
 
@@ -584,6 +588,7 @@ function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, on
       setMessages((prev) => [...prev, { role: 'assistant', content: msg, error: true }]);
     } finally {
       setBusy(false);
+      sendingRef.current = false;
     }
   }, [input, busy, messages, isCoach, tool.id, hatId, onTasksChanged, onCrisis, detectStepIn, voice]);
 

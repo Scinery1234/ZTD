@@ -414,6 +414,7 @@ class GoalMilestone(db.Model):
     position = db.Column(db.Integer, default=0)
     done = db.Column(db.Boolean, default=False)
     done_at = db.Column(db.DateTime, nullable=True)
+    due = db.Column(db.String(10), nullable=True)           # YYYY-MM-DD, optional
 
     def to_dict(self):
         return goals_mod.milestone_to_dict(self)
@@ -2135,8 +2136,36 @@ def goals_milestone_update(goal_id, milestone_id):
     if 'done' in data:
         m.done = bool(data['done'])
         m.done_at = datetime.utcnow() if m.done else None
+    if 'due' in data:
+        # Optional target date on a milestone; '' or null clears it.
+        m.due = (data.get('due') or '').strip()[:10] or None
     db.session.commit()
     return jsonify(m.goal.to_dict())
+
+
+@app.route('/api/goals/<int:goal_id>/milestones/reorder', methods=['PUT'])
+@jwt_required()
+def goals_milestone_reorder(goal_id):
+    """Persist a new milestone order: body {ids: [...]} in the desired order."""
+    user_id = int(get_jwt_identity())
+    goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+    if not goal:
+        return jsonify({'error': 'Goal not found'}), 404
+    ids = (request.json or {}).get('ids') or []
+    by_id = {m.id: m for m in goal.milestones}
+    pos = 0
+    for mid in ids:
+        m = by_id.get(mid)
+        if m is not None:
+            m.position = pos
+            pos += 1
+    # Anything the client didn't mention keeps its relative order at the end.
+    for m in sorted(by_id.values(), key=lambda x: (x.position or 0, x.id)):
+        if m.id not in ids:
+            m.position = pos
+            pos += 1
+    db.session.commit()
+    return jsonify(goal.to_dict())
 
 
 @app.route('/api/goals/<int:goal_id>/milestones/<int:milestone_id>', methods=['DELETE'])
@@ -2196,6 +2225,7 @@ def migrate_db():
             'ALTER TABLE task ADD COLUMN gcal_event_id VARCHAR(200)',
             'ALTER TABLE task ADD COLUMN ms_event_id VARCHAR(200)',
             'ALTER TABLE task ADD COLUMN milestone_id INTEGER',
+            'ALTER TABLE goal_milestone ADD COLUMN due VARCHAR(10)',
         ]:
             try:
                 with db.engine.connect() as conn:

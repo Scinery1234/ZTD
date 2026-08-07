@@ -149,6 +149,90 @@ class AIChatToolTests(unittest.TestCase):
         row = listed['content']['tasks'][0]
         self.assertEqual(row['subtasks'], [{'index': 1, 'text': 'step one', 'done': False}])
 
+    def test_combine_tasks_folds_and_deletes(self):
+        self._add([
+            {'description': 'Book flights', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+            {'description': 'Book hotel', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+        ])
+        keep = Task.query.filter_by(description='Book flights').first()
+        merge = Task.query.filter_by(description='Book hotel').first()
+        # Give the kept task an existing subtask and the merged task one too.
+        self.svc._manage_subtasks(self.user.id,
+                                  {'task_id': keep.id, 'add': ['Compare prices'], 'update': [], 'remove': []}, [], [])
+        self.svc._manage_subtasks(self.user.id,
+                                  {'task_id': merge.id, 'add': ['Check cancellation'], 'update': [], 'remove': []}, [], [])
+
+        ops, actions = [], []
+        res = self.svc._combine_tasks(
+            self.user.id,
+            {'keep_id': keep.id, 'merge_ids': [merge.id], 'new_description': 'Book the trip'},
+            ops, actions)
+        self.assertEqual(res['content']['merged_count'], 1)
+        # Merged task is gone; kept task renamed and now carries the folded subtasks.
+        self.assertIsNone(Task.query.filter_by(description='Book hotel').first())
+        kept = Task.query.get(keep.id)
+        self.assertEqual(kept.description, 'Book the trip')
+        texts = [s['text'] for s in kept.subtasks_list()]
+        self.assertEqual(texts, ['Compare prices', 'Book hotel', 'Check cancellation'])
+
+        # Undo restores both tasks and the kept task's original title/subtasks.
+        token = self.svc._save_undo(self.user.id, ops, actions)
+        self.assertTrue(self.svc.undo(self.user, token)['undone'])
+        self.assertIsNotNone(Task.query.filter_by(description='Book hotel').first())
+        kept = Task.query.get(keep.id)
+        self.assertEqual(kept.description, 'Book flights')
+        self.assertEqual([s['text'] for s in kept.subtasks_list()], ['Compare prices'])
+
+    def test_add_tasks_skips_duplicate_within_one_call(self):
+        _, _, _ = self._add([
+            {'description': 'Buy milk', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+            {'description': 'Buy milk', 'category': '', 'priority': '', 'recurring': '', 'due': ''},
+        ])
+        self.assertEqual(Task.query.filter_by(description='Buy milk').count(), 1)
+
+    def test_add_tasks_skips_repeat_add_in_same_run(self):
+        # The model re-issuing an identical add_tasks later in the tool loop was
+        # the duplicate-task bug: the run-scoped guard must swallow the second.
+        self.svc._run_created = set()
+        ops, actions = [], []
+        one = {'tasks': [{'description': 'Call the dentist', 'category': '',
+                          'priority': '', 'recurring': '', 'due': ''}]}
+        self.svc._add_tasks(self.user, self.hat.id, one, ops, actions)
+        res = self.svc._add_tasks(self.user, self.hat.id, one, ops, actions)
+        self.assertEqual(res['content']['added_count'], 0)
+        self.assertEqual(res['content']['skipped_as_duplicate'], 1)
+        self.assertEqual(Task.query.filter_by(description='Call the dentist').count(), 1)
+
+    def test_add_tasks_allows_genuine_repeat_outside_window(self):
+        from datetime import datetime, timedelta
+        self.svc._run_created = set()
+        self.svc._add_tasks(self.user, self.hat.id,
+                            {'tasks': [{'description': 'Water plants', 'category': '',
+                                        'priority': '', 'recurring': '', 'due': ''}]}, [], [])
+        # Age the first one past the duplicate window, and clear the run scope
+        # (as a new chat turn would) — a deliberate re-add should now succeed.
+        t = Task.query.filter_by(description='Water plants').first()
+        t.created_at = datetime.utcnow() - timedelta(minutes=30)
+        db.session.commit()
+        self.svc._run_created = set()
+        res = self.svc._add_tasks(self.user, self.hat.id,
+                                  {'tasks': [{'description': 'Water plants', 'category': '',
+                                              'priority': '', 'recurring': '', 'due': ''}]}, [], [])
+        self.assertEqual(res['content']['added_count'], 1)
+        self.assertEqual(Task.query.filter_by(description='Water plants').count(), 2)
+
+    def test_combine_tasks_needs_a_valid_target(self):
+        ops, actions = [], []
+        res = self.svc._combine_tasks(
+            self.user.id, {'keep_id': 99999, 'merge_ids': [1], 'new_description': ''}, ops, actions)
+        self.assertTrue(res.get('is_error'))
+
+    def test_assistant_prompt_is_confirm_first(self):
+        hats = Hat.query.filter_by(user_id=self.user.id).all()
+        prompt = self.svc._system_prompt(self.user, hats, self.hat.id)
+        self.assertIn('CONFIRM BEFORE CHANGING EXISTING TASKS', prompt)
+        self.assertIn('combine_tasks', prompt)
+
     def test_delete_tasks_and_undo(self):
         self._add([
             {'description': 'A', 'category': '', 'priority': '', 'recurring': '', 'due': ''},

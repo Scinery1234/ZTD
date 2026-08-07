@@ -49,6 +49,7 @@ def milestone_to_dict(m):
         "done": bool(m.done),
         "done_at": m.done_at.isoformat() if m.done_at else None,
         "position": m.position or 0,
+        "due": getattr(m, "due", None),
     }
 
 

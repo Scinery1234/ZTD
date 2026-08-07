@@ -279,6 +279,8 @@ export const api = {
     apiFetch(`/goals/${goalId}/milestones/${milestoneId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMilestone: (goalId, milestoneId) =>
     apiFetch(`/goals/${goalId}/milestones/${milestoneId}`, { method: 'DELETE' }),
+  reorderMilestones: (goalId, ids) =>
+    apiFetch(`/goals/${goalId}/milestones/reorder`, { method: 'PUT', body: JSON.stringify({ ids }) }),
 
   // AI memory — persistent notes the hub keeps between conversations
   coachMemoryList: () => apiFetch('/coach/memory'),

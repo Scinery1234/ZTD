@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     import anthropic
@@ -67,6 +67,8 @@ MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 12        # client-supplied prior turns to carry into context
 MAX_TOOL_ITERATIONS = 8       # safety cap on the agentic loop
 MAX_UNDO_ENTRIES = 10         # per-user undo-stack depth
+DUP_WINDOW = timedelta(minutes=2)   # re-adding the same title within this window
+                                    # is treated as an accidental duplicate
 
 # Fields the model is allowed to set/change on a task (also what undo restores).
 _EDITABLE_FIELDS = ("description", "category", "priority", "recurring", "due",
@@ -315,6 +317,38 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "combine_tasks",
+        "description": (
+            "Merge several tasks into one. The kept task absorbs the others: each "
+            "merged task becomes a subtask of the kept task (its own subtasks are "
+            "carried across too), and the merged tasks are then deleted. Use when "
+            "the user wants to combine, merge, or roll up duplicate or related "
+            "tasks. Get ids from list_tasks first, and confirm with the user "
+            "before combining."
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keep_id": {
+                    "type": "integer",
+                    "description": "Id of the task to keep; the others fold into it.",
+                },
+                "merge_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Ids of the tasks to fold into keep_id and then delete.",
+                },
+                "new_description": {
+                    "type": "string",
+                    "description": "Optional new title for the kept task (empty = keep its current title).",
+                },
+            },
+            "required": ["keep_id", "merge_ids", "new_description"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -331,10 +365,14 @@ class TaskChatService:
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.ChatThread = ChatThread     # cross-conversation awareness
         self.client = anthropic.Anthropic() if anthropic is not None else None
+        # (description, hat_id) pairs created during the current run — guards
+        # against the model re-issuing an identical add later in the tool loop.
+        self._run_created = set()
 
     # ---- public entry point ----
     def run(self, user, hat_id, message, history):
         """Execute one chat turn. Returns a JSON-serializable dict."""
+        self._run_created = set()   # fresh duplicate-guard scope for this turn
         hats = self.Hat.query.filter_by(user_id=user.id).order_by(self.Hat.position, self.Hat.id).all()
         default_hat_id = self._resolve_default_hat(user.id, hat_id, hats)
 
@@ -468,27 +506,51 @@ class TaskChatService:
         threads = (thread_context_block(self.ChatThread, user.id, "assistant")
                    if self.ChatThread is not None else "")
         return (
-            "You are the task assistant for MadeHappen, a to-do app. You help the "
-            "user add, delete, and bulk-modify their tasks through the provided "
-            "tools.\n\n"
+            "You are the task assistant for MadeHappen, a to-do app. You are a full "
+            "task manager: you can add, edit, reschedule, change due dates, move "
+            "between hats/categories, reprioritise, combine, delete, and manage "
+            "subtasks (checklists) — one task or many at once — through the "
+            "provided tools.\n\n"
             f"Today is {today}.\n"
             "The user's workspaces ('hats') are:\n"
             f"{hat_lines}\n"
             f"New tasks default to hat id {default_hat_id} unless the user clearly "
             "means another hat.\n\n"
+            "Your toolkit:\n"
+            "- add_tasks — create new tasks.\n"
+            "- update_tasks — change any field on one or many tasks at once: "
+            "description, priority, due date, recurring, hat, category, or "
+            "schedule (bulk edits go in a single call). A task's tag IS its "
+            "category, so tagging or categorising means setting `category`, and "
+            "untagging / uncategorising means setting `category` to an empty "
+            "string.\n"
+            "- manage_subtasks — see, add, rename, check off / uncheck, or remove a "
+            "task's checklist items (1-based indices from list_tasks).\n"
+            "- combine_tasks — merge related or duplicate tasks into one; the "
+            "others become subtasks of the kept task and are then removed.\n"
+            "- delete_tasks — remove tasks for good.\n"
+            "- list_tasks — read the current tasks (with ids and subtasks).\n\n"
             "Guidelines:\n"
             "- When the request refers to existing tasks ('my groceries', "
             "'everything urgent'), call list_tasks first to resolve real ids, then "
             "act. Never guess ids.\n"
             "- Prefer a single bulk tool call over many small ones.\n"
-            "- A task can have subtasks (a checklist). Use manage_subtasks to add, "
-            "rename, check off, or remove them — call list_tasks first to get the "
-            "task id and the subtasks' 1-based indices.\n"
             "- Priority must be one of: urgent, today, tomorrow, later. Recurring "
             "must be one of: daily, weekly, monthly.\n"
-            "- Only delete tasks the user clearly asked to delete. If a request is "
-            "ambiguous or would affect many tasks unexpectedly, ask a brief "
-            "clarifying question instead of acting.\n"
+            "- Finding duplicates: if the user asks (or you notice tasks that "
+            "clearly overlap), review the list, point out the likely duplicates, "
+            "and offer to combine them (combine_tasks) or delete the extras. Flag "
+            "only genuine overlaps, and confirm before merging or deleting.\n"
+            "- CONFIRM BEFORE CHANGING EXISTING TASKS. Adding brand-new tasks can "
+            "go straight through, but before you edit, reschedule, change a due "
+            "date, move, reprioritise, combine, delete, or alter subtasks on tasks "
+            "that already exist, first tell the user plainly what you're about to "
+            "do (name the tasks and the change) and ask them to confirm — then act "
+            "only once they say yes. If their latest message is already a clear "
+            "go-ahead ('yes', 'do it', 'delete them'), that counts as the "
+            "confirmation; proceed without asking twice. A single unambiguous "
+            "edit still gets a quick confirm; never batch-change or delete without "
+            "one.\n"
             "- After acting, reply with one short, friendly sentence summarizing "
             "what you changed.\n\n"
             "The user's current tasks (may be truncated — ids are real; ⏰ marks "
@@ -525,6 +587,8 @@ class TaskChatService:
                 return self._delete_tasks(user.id, args, undo_ops, actions)
             if name == "manage_subtasks":
                 return self._manage_subtasks(user.id, args, undo_ops, actions)
+            if name == "combine_tasks":
+                return self._combine_tasks(user.id, args, undo_ops, actions)
             if self.CoachMemory is not None:
                 handled = handle_memory_tool(self.db, self.CoachMemory, user,
                                              "assistant", name, args)
@@ -580,12 +644,34 @@ class TaskChatService:
         created_ids = []
         clashes = []
         skipped_limit = 0
+        skipped_duplicate = 0
         for item in items:
             desc = (item.get("description") or "").strip()
             if not desc:
                 continue
             if self.check_task_limit(user) is not None:
                 skipped_limit += 1
+                continue
+
+            # Duplicate guard. The task snapshot in the system prompt is built
+            # once per run, so after adding a task the model still sees a list
+            # without it — which used to tempt a second, identical add_tasks call
+            # later in the agentic loop. Skip a repeat of anything this run
+            # already created, or of an identical task created moments ago (a
+            # double-submitted request), while still allowing a genuine re-add
+            # of the same title later on.
+            hid = self._valid_hat_id(user.id, item.get("hat_id"), default_hat_id)
+            key = (desc.lower(), hid)
+            if key in self._run_created:
+                skipped_duplicate += 1
+                continue
+            recent = (self.Task.query
+                      .filter_by(user_id=user.id, description=desc)
+                      .filter(self.Task.created_at >= datetime.utcnow() - DUP_WINDOW)
+                      .first())
+            if recent is not None:
+                self._run_created.add(key)
+                skipped_duplicate += 1
                 continue
 
             # Natural-language scheduling: clean name + a real calendar slot.
@@ -611,7 +697,7 @@ class TaskChatService:
                        .filter_by(user_id=user.id).scalar() or 0)
             task = self.Task(
                 user_id=user.id,
-                hat_id=self._valid_hat_id(user.id, item.get("hat_id"), default_hat_id),
+                hat_id=hid,
                 description=desc,
                 category=(item.get("category") or "").strip(),
                 priority=(item.get("priority") or "").strip(),
@@ -625,6 +711,7 @@ class TaskChatService:
             self.db.session.add(task)
             self.db.session.flush()  # assign id
             created_ids.append(task.id)
+            self._run_created.add(key)
         self.db.session.commit()
 
         if created_ids:
@@ -640,6 +727,11 @@ class TaskChatService:
         if skipped_limit:
             result["skipped_due_to_task_limit"] = skipped_limit
             result["note"] = "Free tier task limit reached; some tasks were not added."
+        if skipped_duplicate:
+            result["skipped_as_duplicate"] = skipped_duplicate
+            result["note"] = ("Already on the list — these were added moments ago, "
+                              "so they were not added again. Do not retry: treat "
+                              "them as saved and tell the user they're on the list.")
         return {"content": result}
 
     def _update_tasks(self, user_id, args, undo_ops, actions):
@@ -772,6 +864,55 @@ class TaskChatService:
             "subtask_count": len(items),
             "subtasks": [{"index": i + 1, "text": s["text"], "done": s["done"]}
                          for i, s in enumerate(items)],
+        }}
+
+    def _combine_tasks(self, user_id, args, undo_ops, actions):
+        keep = self.Task.query.filter_by(id=args.get("keep_id"), user_id=user_id).first()
+        if not keep:
+            return {"content": {"error": "Task to keep not found."}, "is_error": True}
+
+        # Resolve the tasks to fold in: real, user-owned, and not the kept task.
+        seen = {keep.id}
+        merge_tasks = []
+        for mid in (args.get("merge_ids") or []):
+            if mid in seen:
+                continue
+            seen.add(mid)
+            m = self.Task.query.filter_by(id=mid, user_id=user_id).first()
+            if m:
+                merge_tasks.append(m)
+        if not merge_tasks:
+            return {"content": {"error": "No other tasks to combine."}, "is_error": True}
+
+        before_keep = keep.to_dict()          # for the update inverse
+        items = _normalize_subtasks(keep.subtasks_list())
+        removed = []
+        for m in merge_tasks:
+            # The merged task becomes a subtask; its own subtasks carry across.
+            items.append({"id": _new_subtask_id(),
+                          "text": (m.description or "").strip(),
+                          "done": False})
+            for s in _normalize_subtasks(m.subtasks_list()):
+                items.append({"id": _new_subtask_id(), "text": s["text"], "done": s["done"]})
+            removed.append(m.to_dict())
+            self.db.session.delete(m)
+
+        new_desc = (args.get("new_description") or "").strip()
+        if new_desc:
+            keep.description = new_desc
+        keep.subtasks = json.dumps(items)
+        self.db.session.commit()
+
+        # Two inverses: restore the kept task's title/subtasks, and bring the
+        # merged tasks back (undo() applies them in reverse, order-independent here).
+        undo_ops.append({"type": "updated", "before": [before_keep]})
+        undo_ops.append({"type": "deleted", "tasks": removed})
+        actions.append({"action": "combined", "count": len(removed) + 1})
+        return {"content": {
+            "kept_id": keep.id,
+            "description": keep.description,
+            "merged_count": len(removed),
+            "subtask_count": len(items),
         }}
 
     # ---- undo application ----

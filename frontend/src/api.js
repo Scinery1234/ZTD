@@ -161,6 +161,8 @@ export const api = {
   resendVerification: () =>
     apiFetch('/auth/resend-verification', { method: 'POST' }),
   me: () => apiFetch('/auth/me'),
+  deleteAccount: (password) =>
+    apiFetch('/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
 
   // Hats
   getHats: () => apiFetch('/hats'),

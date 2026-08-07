@@ -820,6 +820,37 @@ def get_me():
     return jsonify(user.to_dict())
 
 
+@app.route('/api/auth/me', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    """Permanently delete the account and everything belonging to it.
+
+    Required by the App Store (guideline 5.1.1(v)): an app that lets people
+    create an account must let them delete it from inside the app, not just
+    deactivate it. Password confirmation guards against a stolen or borrowed
+    session doing this by accident.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    password = (request.json or {}).get('password') or ''
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({'error': 'Password is incorrect'}), 401
+
+    # Every table that carries user data. Milestones go before goals so the
+    # child rows never outlive their parent.
+    for model in (GoalMilestone, Goal, CoachMemory, TimeboxDismissed,
+                  ChatThread, ChatUndo, DoneTask, Task, Hat, CalendarConnection):
+        model.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'deleted': True,
+                    'message': 'Your account and all its data have been deleted.'})
+
+
 # === Hat Endpoints ===
 
 @app.route('/api/hats', methods=['GET'])

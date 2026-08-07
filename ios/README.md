@@ -135,20 +135,34 @@ The splash background is set to the app's dark chrome (`#1c1209`) in
    task content; declare account data and user content, linked to identity.
 5. Submit for review.
 
-### Review notes worth planning for
+### Compliance already handled in the code
 
-- **Thin wrappers get rejected.** Apple's guideline 4.2 targets apps that are
-  just a website in a shell. The native touches in `src/native.js` (haptics,
-  status bar, splash, safe areas) help, but the strongest defences are offline
-  behaviour and genuinely native features — push notifications for due tasks, a
-  home-screen widget, or Siri Shortcuts for adding a task. Consider adding at
-  least one before the first submission.
-- **Sign in with Apple** becomes mandatory if you ever add third-party social
+- **Account deletion** (guideline 5.1.1(v)) — required for any app with
+  accounts. `DELETE /api/auth/me` removes the user and every row they own; the
+  UI sits next to *Sign out* and asks for the password plus a typed `DELETE`.
+- **No purchases inside the app** (guideline 3.1.1) — Apple takes a commission
+  on digital goods and rejects Stripe checkout for them. Every route into the
+  pricing page goes through `openPricing()`, which does nothing when
+  `isNative()`, so the native build shows no plans, no upgrade nudges, and no
+  path to checkout. Upgrades stay on the web. If you later want paid tiers in
+  the app, that means StoreKit plus server-side receipt validation.
+- **Thin-wrapper risk** (guideline 4.2) — mitigated by real device capability:
+  **local notifications** remind the user before a scheduled task starts (and on
+  the morning of a due date), scheduled by the device itself, and an **offline
+  task cache** means the app opens with real content with no network. Both are
+  things a web page cannot do.
+
+Still worth adding if review pushes back: a home-screen widget or Siri
+Shortcuts — both need native Swift, so they're a Mac-side job.
+
+### Other review notes
+
+- **Sign in with Apple** becomes mandatory only if you add third-party social
   login (guideline 4.8). Email/password alone does not trigger it.
-- **Paid tiers must use Apple's in-app purchase** for digital content, at 15–30%
-  commission — Stripe checkout inside the app will be rejected. The usual
-  approach for the first release is to ship the free tier only and keep upgrades
-  on the web, without linking to them from inside the app.
+- **Notification permission** is requested lazily, the first time there's
+  actually something to remind about — asking on launch reads as spammy and gets
+  denied more often. Add a `NSUserNotificationsUsageDescription`-style rationale
+  in your App Store notes if asked.
 
 ---
 

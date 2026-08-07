@@ -36,9 +36,19 @@ load_dotenv()
 # React build's /static/* assets, which the SPA catch-all below serves.
 app = Flask(__name__, static_folder=None)
 
-# Restrict CORS to the known frontend origin in production
+# Restrict CORS to the known frontend origin in production.
+# The iOS/iPadOS shell (Capacitor) serves the same web build from a native
+# WKWebView, so its requests arrive from capacitor://localhost rather than the
+# web origin — without these the mobile app can't reach the API at all.
 _frontend_origin = os.getenv('FRONTEND_URL')
-CORS(app, origins=[_frontend_origin, 'http://localhost:3000'] if _frontend_origin else '*')
+_NATIVE_ORIGINS = [
+    'capacitor://localhost',   # iOS
+    'ionic://localhost',       # iOS (older webview scheme)
+    'http://localhost',        # Android / live-reload during development
+]
+CORS(app,
+     origins=([_frontend_origin, 'http://localhost:3000'] + _NATIVE_ORIGINS)
+     if _frontend_origin else '*')
 
 # --- Configuration ---
 

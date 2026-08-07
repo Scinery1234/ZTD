@@ -106,6 +106,17 @@ async function apiFetch(path, options = {}) {
 
   // If we got HTML here, request likely hit the frontend service (or SPA fallback) not the API.
   if (contentType.includes('text/html')) {
+    // A 5xx HTML body is a server-side crash (or a proxy error page), not a
+    // routing problem — saying "wrong URL" here sends debugging the wrong way.
+    if (res.status >= 500) {
+      throw Object.assign(
+        new Error(
+          `The server errored on ${url} (HTTP ${res.status}) and returned an HTML error ` +
+          'page instead of JSON. This is a backend failure — check the API server logs.'
+        ),
+        { status: res.status, data: { raw: raw.slice(0, 200) } }
+      );
+    }
     const isAuthPath = href.startsWith('/auth/');
     const prefix = isAuthPath
       ? 'Authentication request reached non-API endpoint.'

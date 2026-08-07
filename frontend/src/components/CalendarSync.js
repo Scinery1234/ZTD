@@ -28,6 +28,7 @@ export default function CalendarSync({ onClose, onSyncComplete }) {
     setConnecting(provider);
     try {
       const { url } = await api.calendarAuth(provider);
+      if (!url) throw new Error('The server did not return a consent URL.');
       window.location.href = url;
     } catch (err) {
       alert(err.message || 'Connection failed. Please try again.');

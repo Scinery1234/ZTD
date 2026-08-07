@@ -8,6 +8,7 @@ from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException, InternalServerError
 import os
 import re
 import json
@@ -108,6 +109,35 @@ def add_security_headers(response):
     if request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains; preload'
     return response
+
+
+# --- API errors always answer JSON ---
+# Flask's default error pages are HTML. When one of those reaches the frontend
+# it reports "API request reached non-API endpoint", which points at a URL
+# misconfiguration and hides the real server-side failure. Anything under /api
+# therefore serialises to JSON, whatever went wrong.
+
+def _is_api_request() -> bool:
+    path = request.path or ''
+    return path == '/api' or path.startswith('/api/')
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(exc):
+    if not _is_api_request():
+        return exc   # SPA / static paths keep the normal HTML error page
+    return jsonify({'error': exc.description or exc.name, 'status': exc.code}), exc.code
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_exception(exc):
+    app.logger.exception('Unhandled error on %s %s', request.method, request.path)
+    if not _is_api_request():
+        return InternalServerError()
+    return jsonify({
+        'error': 'Internal server error. Check the backend logs for details.',
+        'type': type(exc).__name__,
+    }), 500
 
 # --- Membership Tiers ---
 TIERS = {
@@ -1539,10 +1569,16 @@ def health():
         sdk_installed = True
     except ImportError:
         sdk_installed = False
+    # Calendar readiness (no secrets) — same idea for /api/calendar/auth/*,
+    # which answers 503 "not configured" when either half is missing.
+    calendar = {}
+    for _provider in CALENDAR_PROVIDERS:
+        _deps, _missing_env = _calendar_provider_ready(_provider)
+        calendar[_provider] = {'deps_installed': _deps, 'missing_env': _missing_env}
     return jsonify({'status': 'ok', 'ai': {
         'sdk_installed': sdk_installed,
         'api_key_set': bool(os.getenv('ANTHROPIC_API_KEY')),
-    }})
+    }, 'calendar': calendar})
 
 
 # === Admin endpoint (no Stripe required) ===
@@ -1572,6 +1608,62 @@ def admin_set_tier():
 
 # === Calendar OAuth & Sync Endpoints (premium) ===
 
+GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+MS_CALENDAR_SCOPES = ['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access']
+
+CALENDAR_PROVIDERS = {
+    'google': {
+        'label': 'Google Calendar',
+        'env': ('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'),
+        'package': 'google-auth-oauthlib',
+    },
+    'microsoft': {
+        'label': 'Microsoft Outlook',
+        'env': ('MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'),
+        'package': 'msal',
+    },
+}
+
+
+def _calendar_provider_ready(provider):
+    """(deps_installed, missing_env) for a provider — used by /api/health and
+    by the OAuth start endpoint to fail with a message that names the gap."""
+    spec = CALENDAR_PROVIDERS[provider]
+    try:
+        if provider == 'google':
+            import google_auth_oauthlib.flow  # noqa: F401
+            import googleapiclient.discovery  # noqa: F401
+        else:
+            import msal  # noqa: F401
+        deps_installed = True
+    except ImportError:
+        deps_installed = False
+    missing_env = [name for name in spec['env'] if not os.getenv(name)]
+    if not os.getenv('FRONTEND_URL'):
+        missing_env.append('FRONTEND_URL')
+    return deps_installed, missing_env
+
+
+def _calendar_setup_error(provider):
+    """A JSON 503 naming what this deployment is missing, or None when ready."""
+    spec = CALENDAR_PROVIDERS[provider]
+    deps_installed, missing_env = _calendar_provider_ready(provider)
+    if not deps_installed:
+        return jsonify({
+            'error': f"{spec['label']} sync isn't available on this server: the "
+                     f"{spec['package']} package is not installed. Redeploy the "
+                     "backend after installing requirements.txt.",
+            'not_configured': True,
+        }), 503
+    if missing_env:
+        return jsonify({
+            'error': f"{spec['label']} sync isn't configured on this server "
+                     f"(missing environment variable(s): {', '.join(missing_env)}).",
+            'not_configured': True,
+        }), 503
+    return None
+
+
 @app.route('/api/calendar/auth/<provider>', methods=['POST'])
 @jwt_required()
 def calendar_auth_start(provider):
@@ -1579,50 +1671,61 @@ def calendar_auth_start(provider):
     user = db.session.get(User, user_id)
     if not user or user.tier != 'premium':
         return jsonify({'error': 'Premium subscription required'}), 403
-    if provider not in ('google', 'microsoft'):
+    if provider not in CALENDAR_PROVIDERS:
         return jsonify({'error': 'Provider must be google or microsoft'}), 400
+
+    setup_error = _calendar_setup_error(provider)
+    if setup_error:
+        return setup_error
 
     base_url = os.getenv('FRONTEND_URL', 'http://localhost:5001').rstrip('/')
     redirect_uri = f"{base_url}/api/calendar/callback/{provider}"
     state = _make_signed_token(str(user_id), 'cal-oauth-state')
 
-    if provider == 'google':
-        from google_auth_oauthlib.flow import Flow
-        client_config = {
-            'web': {
-                'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
-                'client_secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
-                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
-                'token_uri': 'https://oauth2.googleapis.com/token',
-                'redirect_uris': [redirect_uri],
+    try:
+        if provider == 'google':
+            from google_auth_oauthlib.flow import Flow
+            client_config = {
+                'web': {
+                    'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
+                    'client_secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
+                    'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                    'token_uri': 'https://oauth2.googleapis.com/token',
+                    'redirect_uris': [redirect_uri],
+                }
             }
-        }
-        flow = Flow.from_client_config(
-            client_config,
-            scopes=['https://www.googleapis.com/auth/calendar.events'],
-            redirect_uri=redirect_uri,
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=GOOGLE_CALENDAR_SCOPES,
+                redirect_uri=redirect_uri,
+            )
+            auth_url, _ = flow.authorization_url(
+                access_type='offline',
+                include_granted_scopes='true',
+                prompt='consent',
+                state=state,
+            )
+            return jsonify({'url': auth_url})
+
+        import msal
+        authority = 'https://login.microsoftonline.com/common'
+        app_ms = msal.ConfidentialClientApplication(
+            os.getenv('MICROSOFT_CLIENT_ID', ''),
+            authority=authority,
+            client_credential=os.getenv('MICROSOFT_CLIENT_SECRET', ''),
         )
-        auth_url, _ = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true',
-            prompt='consent',
+        auth_url = app_ms.get_authorization_request_url(
+            scopes=MS_CALENDAR_SCOPES,
+            redirect_uri=redirect_uri,
             state=state,
         )
         return jsonify({'url': auth_url})
-
-    import msal
-    authority = 'https://login.microsoftonline.com/common'
-    app_ms = msal.ConfidentialClientApplication(
-        os.getenv('MICROSOFT_CLIENT_ID', ''),
-        authority=authority,
-        client_credential=os.getenv('MICROSOFT_CLIENT_SECRET', ''),
-    )
-    auth_url = app_ms.get_authorization_request_url(
-        scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
-        redirect_uri=redirect_uri,
-        state=state,
-    )
-    return jsonify({'url': auth_url})
+    except Exception as exc:
+        label = CALENDAR_PROVIDERS[provider]['label']
+        app.logger.exception('Calendar auth start failed (%s)', provider)
+        return jsonify({
+            'error': f"Could not start the {label} connection: {type(exc).__name__}.",
+        }), 502
 
 
 @app.route('/api/calendar/callback/<provider>', methods=['GET'])
@@ -1667,7 +1770,7 @@ def calendar_auth_callback(provider):
             }
             flow = Flow.from_client_config(
                 client_config,
-                scopes=['https://www.googleapis.com/auth/calendar.events'],
+                scopes=GOOGLE_CALENDAR_SCOPES,
                 redirect_uri=redirect_uri,
             )
             flow.fetch_token(code=code)
@@ -1690,7 +1793,7 @@ def calendar_auth_callback(provider):
             )
             result = app_ms.acquire_token_by_authorization_code(
                 code=code,
-                scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
+                scopes=MS_CALENDAR_SCOPES,
                 redirect_uri=redirect_uri,
             )
             if 'access_token' not in result:

@@ -280,6 +280,7 @@
     width: 100%;
     max-height: none;
     flex-direction: row;
+    flex-wrap: wrap;          /* day-nav + quick-add on top, pool strip below */
     align-items: center;
     padding: 6px 8px;
     gap: 6px;
@@ -314,19 +315,41 @@
   /* Hide "Task Pool" heading — space is precious */
   .timebox-task-sidebar-hd { display: none; }
 
-  /* Pool items scroll horizontally */
+  /* Quick-add keeps a fixed, compact footprint here. Left to size itself it
+     consumed the whole row and collapsed the pool to zero width. */
+  .timebox-sidebar-add {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border-bottom: none;
+    gap: 4px;
+  }
+  .timebox-sidebar-add-input { font-size: 12px; padding: 5px 7px; }
+  .timebox-sidebar-add-btn { width: 26px; font-size: 15px; }
+
+  /* Pool items scroll horizontally. min-width:0 lets this flex child shrink
+     below its content so it actually gets a width to scroll within. */
   .timebox-task-sidebar-body {
-    flex: 1;
+    flex: 1 0 100%;           /* own row, full width, so several chips show */
+    min-width: 0;
     flex-direction: row;
     overflow-y: hidden;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 0;
+    padding: 0 0 4px;
     gap: 6px;
     align-items: center;
+    /* Keep a visible scroll indicator — with no scrollbar there's nothing to
+       show the strip continues past the edge. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
   }
-  .timebox-task-sidebar-body::-webkit-scrollbar { display: none; }
+  .timebox-task-sidebar-body::-webkit-scrollbar { height: 3px; }
+  .timebox-task-sidebar-body::-webkit-scrollbar-track { background: transparent; }
+  .timebox-task-sidebar-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 2px;
+  }
 
   .timebox-sidebar-chip {
     flex-shrink: 0;
@@ -1557,6 +1580,16 @@
 [data-theme="light"] .timebox-nav-btn:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.09);
   color: #1c1209;
+}
+
+/* The day label sat at near-white on a near-white page — effectively invisible
+   in light mode, which is where it matters most on a phone. */
+[data-theme="light"] .timebox-nav-date-label {
+  color: rgba(28, 18, 9, 0.78);
+}
+[data-theme="light"] .timebox-nav-date-label:hover {
+  color: #b45309;
+  background: rgba(249, 115, 22, 0.12);
 }
 
 [data-theme="light"] .timebox-week-range {

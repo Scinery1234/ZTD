@@ -231,11 +231,59 @@ function loadDayWindows() {
 }
 function saveDayWindows(v) { localStorage.setItem('mh_day_windows', JSON.stringify(v)); }
 
-function loadBlockedTimes() {
-  try { return JSON.parse(localStorage.getItem('mh_blocked_times') || '[]'); }
+// Blocks used to live in localStorage (device-only, one-off). They're now
+// server-synced rules; this reads any legacy entries once so nothing is lost.
+const LEGACY_BLOCKS_KEY = 'mh_blocked_times';
+
+function loadLegacyBlocks() {
+  try { return JSON.parse(localStorage.getItem(LEGACY_BLOCKS_KEY) || '[]'); }
   catch { return []; }
 }
-function saveBlockedTimes(v) { localStorage.setItem('mh_blocked_times', JSON.stringify(v)); }
+function clearLegacyBlocks() {
+  try { localStorage.removeItem(LEGACY_BLOCKS_KEY); } catch { /* ignore */ }
+}
+
+const WEEKDAYS = [0, 1, 2, 3, 4];   // Mon–Fri (weekdayIndex maps Mon→0)
+
+/** 0 = Monday … 6 = Sunday for a YYYY-MM-DD string (local time). */
+function weekdayIndex(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return (d.getDay() + 6) % 7;
+}
+
+/** Does a block rule produce an occurrence on this date? */
+function blockOccursOn(block, dateStr) {
+  if ((block.exceptions || []).includes(dateStr)) return false;
+  const rec = block.recurrence || 'none';
+  if (rec === 'none') return block.date === dateStr;
+
+  const from = block.recur_from || block.date;
+  if (from && dateStr < from) return false;
+  if (block.recur_until && dateStr > block.recur_until) return false;
+
+  if (rec === 'daily') return true;
+  if (rec === 'weekdays') return WEEKDAYS.includes(weekdayIndex(dateStr));
+  if (rec === 'weekly') return (block.recur_days || []).includes(weekdayIndex(dateStr));
+  return false;
+}
+
+/**
+ * Expand block rules into the concrete slots shown on one day. Keeps the shape
+ * the grid already expects ({date, start, end, label}) and adds the rule id so
+ * a slot can be renamed, skipped, or deleted as a whole series.
+ */
+function blocksForDate(blocks, dateStr) {
+  return (blocks || [])
+    .filter(b => blockOccursOn(b, dateStr))
+    .map(b => ({
+      id: b.id,
+      date: dateStr,
+      start: b.start,
+      end: b.end,
+      label: b.label || '',
+      recurring: (b.recurrence || 'none') !== 'none',
+    }));
+}
 
 function loadMit() {
   try { return JSON.parse(localStorage.getItem('mh_mit_tasks') || '[]'); }
@@ -266,6 +314,7 @@ function saveDismissed(dateStr, ids) {
 function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   const [desc, setDesc] = useState('');
   const [priority, setPriority] = useState('');
+  const [repeat, setRepeat] = useState('none');   // blocks only; tasks ignore it
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -291,7 +340,7 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
   // The typed text doubles as the blocked-slot label ("Lunch", "School run"),
   // so blocking time can be named in the same breath as creating it.
   const handleBlockTime = () => {
-    onBlockTime(slot.startMin, slot.endMin, desc.trim());
+    onBlockTime(slot.startMin, slot.endMin, desc.trim(), repeat);
     onCancel();
   };
 
@@ -329,6 +378,19 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
           <option value="tomorrow">Tomorrow</option>
           <option value="later">Later</option>
         </select>
+        {/* Repeat applies to blocked time only — a task keeps its own recurrence */}
+        <select
+          className="slot-popup-priority"
+          value={repeat}
+          onChange={(e) => setRepeat(e.target.value)}
+          aria-label="Repeat this block"
+          title="Repeat (blocked time only)"
+        >
+          <option value="none">Doesn't repeat</option>
+          <option value="daily">Every day</option>
+          <option value="weekdays">Every weekday</option>
+          <option value="weekly">Weekly on this day</option>
+        </select>
         <div className="slot-popup-actions">
           <button
             className="slot-popup-btn slot-popup-btn--task"
@@ -343,7 +405,7 @@ function SlotPopup({ slot, date, onAddTask, onBlockTime, onCancel }) {
             title={desc.trim() ? `Block this time as “${desc.trim()}”`
                                : 'Block this time (type a name above to label it)'}
           >
-            Block Time
+            {repeat === 'none' ? 'Block Time' : 'Block (repeats)'}
           </button>
           <button className="slot-popup-btn slot-popup-btn--cancel" onClick={onCancel}>
             Cancel
@@ -533,7 +595,7 @@ function TaskEditModal({ task, hats, onSave, onClose }) {
 }
 
 // ── TimeboxDayColumn ─────────────────────────────────────────────────────────
-function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blockedTimes, onBlockedTimesChange, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro, externalDragPreview }) {
+function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocks, onBlockCreate, onBlockRename, onBlockDelete, mitIds, onToggleMit, onUpdateTask, onAddTask, onApplyTaskUpdates, onMarkDone, isWeekView, onEditTask, dismissedIds, onCalendarDeleteEvent, onPinPomodoro, externalDragPreview }) {
   const gridRef = useRef(null);
   const wrapperRef = useRef(null);
   const dragRafRef = useRef(null);
@@ -595,12 +657,13 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
     const ordered = [...pool].sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999));
     // Build blocked list in grid minutes (0–1740) so we can schedule past midnight
     const allBlockedGrid = [
-      ...blockedTimes
-        .filter(b => b.date === date || b.date === nextDayDate)
-        .map(b => {
-          const offset = b.date === nextDayDate ? 1440 : 0;
-          return { start: parseMinutes(b.start) + offset, end: parseMinutes(b.end) + offset };
-        }),
+      ...[
+        ...blocksForDate(blocks, date),
+        ...blocksForDate(blocks, nextDayDate).map(b => ({ ...b, _next: true })),
+      ].map(b => {
+        const offset = b._next ? 1440 : 0;
+        return { start: parseMinutes(b.start) + offset, end: parseMinutes(b.end) + offset };
+      }),
       ...localTasks
         .filter(t => isOnDaysGrid(t, date))
         .map(t => {
@@ -630,7 +693,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
       api.updateTask(u.id, { scheduled_time: u.scheduled_time, scheduled_date: u.scheduled_date })
     ));
     if (onApplyTaskUpdates) onApplyTaskUpdates(updates);
-  }, [localTasks, blockedTimes, date, windowStart, windowEnd, dismissedIds, onApplyTaskUpdates]);
+  }, [localTasks, blocks, date, windowStart, windowEnd, dismissedIds, onApplyTaskUpdates]);
 
   // ── Task / window drag ─────────────────────────────────────────────────────
   const startPointerDrag = useCallback((type, extra, e) => {
@@ -989,20 +1052,17 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
   };
 
 
-  const handleConfirmBlock = (startMin, endMin, label = '') => {
-    const next = [...blockedTimes,
-                  { date, start: formatTime(startMin), end: formatTime(endMin), label }];
-    onBlockedTimesChange(next);
-  };
-
-  const removeBlocked = (idx) => {
-    const next = blockedTimes.filter((_, i) => i !== idx);
-    onBlockedTimesChange(next);
-  };
-
-  const renameBlocked = (idx, label) => {
-    const next = blockedTimes.map((b, i) => (i === idx ? { ...b, label } : b));
-    onBlockedTimesChange(next);
+  const handleConfirmBlock = (startMin, endMin, label = '', recurrence = 'none') => {
+    const payload = {
+      start: formatTime(startMin), end: formatTime(endMin), label, recurrence,
+    };
+    if (recurrence === 'none') {
+      payload.date = date;
+    } else {
+      payload.recur_from = date;                    // series starts from this day
+      if (recurrence === 'weekly') payload.recur_days = [weekdayIndex(date)];
+    }
+    onBlockCreate(payload);
   };
 
   // ── HTML5 drag-from-sidebar handlers ──────────────────────────────────────
@@ -1064,7 +1124,7 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const hourLabels = Array.from({ length: GRID_HOURS }, (_, h) => h);
-  const dateBlockedForDay = blockedTimes.filter(b => b.date === date);
+  const dateBlockedForDay = blocksForDate(blocks, date);
   const isToday = date === toLocalDateStr(new Date());
   const nowMinutes = useNowMinutes();
 
@@ -1133,48 +1193,46 @@ function TimeboxDayColumn({ date, tasks, hats, dayWindow, onWindowChange, blocke
             <span className="timebox-midnight-label">↑ {addDays(date, 1).slice(5).replace('-', '/')} ↓</span>
           </div>
 
-          {/* Blocked times — click the label to name it, ✕ to remove */}
-          {dateBlockedForDay.map((b, i) => {
-            const realIdx = blockedTimes.indexOf(b);
-            return (
-              <div
-                key={i}
-                className="timebox-blocked"
-                style={{ top: timeToY(b.start), height: Math.max(8, timeToY(b.end) - timeToY(b.start)) }}
-              >
-                {editingBlockIdx === realIdx ? (
-                  <input
-                    className="timebox-blocked-input"
-                    autoFocus
-                    defaultValue={b.label || ''}
-                    placeholder="Name this block…"
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onBlur={(e) => { renameBlocked(realIdx, e.target.value.trim()); setEditingBlockIdx(null); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { renameBlocked(realIdx, e.target.value.trim()); setEditingBlockIdx(null); }
-                      if (e.key === 'Escape') setEditingBlockIdx(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="timebox-blocked-label"
-                    onClick={(e) => { e.stopPropagation(); setEditingBlockIdx(realIdx); }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    title="Click to name this blocked time"
-                  >
-                    {b.label ? b.label : 'Blocked'} · {b.start}–{b.end}
-                  </span>
-                )}
-                <button
-                  className="timebox-blocked-remove"
-                  onClick={(e) => { e.stopPropagation(); removeBlocked(realIdx); }}
+          {/* Blocks — click the label to name it, ✕ to remove */}
+          {dateBlockedForDay.map((b) => (
+            <div
+              key={b.id}
+              className="timebox-blocked"
+              style={{ top: timeToY(b.start), height: Math.max(8, timeToY(b.end) - timeToY(b.start)) }}
+            >
+              {editingBlockIdx === b.id ? (
+                <input
+                  className="timebox-blocked-input"
+                  autoFocus
+                  defaultValue={b.label || ''}
+                  placeholder="Name this block…"
+                  onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
-                  title="Remove blocked time"
-                >✕</button>
-              </div>
-            );
-          })}
+                  onBlur={(e) => { onBlockRename(b, e.target.value.trim()); setEditingBlockIdx(null); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { onBlockRename(b, e.target.value.trim()); setEditingBlockIdx(null); }
+                    if (e.key === 'Escape') setEditingBlockIdx(null);
+                  }}
+                />
+              ) : (
+                <span
+                  className="timebox-blocked-label"
+                  onClick={(e) => { e.stopPropagation(); setEditingBlockIdx(b.id); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Click to name this block"
+                >
+                  {b.recurring && <span className="timebox-blocked-recur" title="Repeats">↻ </span>}
+                  {b.label ? b.label : 'Blocked'} · {b.start}–{b.end}
+                </span>
+              )}
+              <button
+                className="timebox-blocked-remove"
+                onClick={(e) => { e.stopPropagation(); onBlockDelete(b); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title={b.recurring ? 'Remove this or the whole series' : 'Remove block'}
+              >✕</button>
+            </div>
+          ))}
 
           {/* Active drag preview */}
           {blockDrag && blockDrag.endMin !== blockDrag.startMin && (
@@ -1562,7 +1620,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const [dayOffset, setDayOffset] = useState(0);
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
-  const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
+  const [blocks, setBlocks] = useState([]);   // server-synced block rules
   const [weekStartOffset, setWeekStartOffset] = useState(0);
   const [editingTask, setEditingTask] = useState(null);
   const [undoStack, setUndoStack] = useState([]);   // scheduling snapshots
@@ -1726,10 +1784,60 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     });
   }, []);
 
-  const handleBlockedTimesChange = useCallback((next) => {
-    setBlockedTimes(next);
-    saveBlockedTimes(next);
+  // ── Blocks: named calendar time that never enters the task list ───────────
+  const refreshBlocks = useCallback(async () => {
+    try { setBlocks(await api.getBlocks()); }
+    catch (err) { console.error('Could not load blocks:', err); }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let existing = [];
+      try { existing = await api.getBlocks(); } catch { return; }
+      // One-time migration of blocks that used to live in this device's
+      // localStorage, so upgrading doesn't silently lose them.
+      const legacy = loadLegacyBlocks();
+      if (legacy.length) {
+        for (const b of legacy) {
+          if (!b?.date || !b?.start || !b?.end) continue;
+          try {
+            await api.createBlock({ date: b.date, start: b.start, end: b.end,
+                                    label: b.label || '', recurrence: 'none' });
+          } catch { /* skip anything malformed */ }
+        }
+        clearLegacyBlocks();
+        try { existing = await api.getBlocks(); } catch { /* keep what we have */ }
+      }
+      if (!cancelled) setBlocks(existing);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleBlockCreate = useCallback(async (payload) => {
+    try { await api.createBlock(payload); await refreshBlocks(); }
+    catch (err) { alert(err.message || 'Could not save that block'); }
+  }, [refreshBlocks]);
+
+  const handleBlockRename = useCallback(async (block, label) => {
+    if ((block.label || '') === label) return;
+    try { await api.updateBlock(block.id, { label }); await refreshBlocks(); }
+    catch (err) { console.error('Block rename failed:', err); }
+  }, [refreshBlocks]);
+
+  const handleBlockDelete = useCallback(async (block) => {
+    // A repeat needs to know whether the user means this day or the series.
+    let onlyThisDay = false;
+    if (block.recurring) {
+      onlyThisDay = window.confirm(
+        `"${block.label || 'Blocked'}" repeats.\n\nOK = remove just ${block.date}.\n` +
+        'Cancel = remove the whole repeating block.');
+    }
+    try {
+      await api.deleteBlock(block.id, onlyThisDay ? block.date : undefined);
+      await refreshBlocks();
+    } catch (err) { console.error('Block delete failed:', err); }
+  }, [refreshBlocks]);
 
   // ── Undo for scheduling changes ────────────────────────────────────────────
   // Every persisted schedule change (drag, auto-schedule, quick-schedule, clear)
@@ -1791,8 +1899,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     const nowMins = now.getHours() * 60 + now.getMinutes();
     const taskSource = (dayOffset > 0 && futureTasks) ? futureTasks : tasks;
     const allBlocked = [
-      ...blockedTimes
-        .filter(b => b.date === date)
+      ...blocksForDate(blocks, date)
         .map(b => ({ start: parseMinutes(b.start), end: parseMinutes(b.end) })),
       ...taskSource
         .filter(t => isOnDaysGrid(t, date))
@@ -1805,7 +1912,7 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
     const scheduled = gridMinsToSchedule(slot, date);
     pushUndo([task.id], 'schedule');
     await onUpdate(task.id, { scheduled_time: scheduled.scheduled_time, scheduled_date: scheduled.scheduled_date });
-  }, [selectedDay, dayWindows, blockedTimes, tasks, futureTasks, dayOffset, onUpdate, pushUndo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDay, dayWindows, blocks, tasks, futureTasks, dayOffset, onUpdate, pushUndo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMit = (taskId) => {
     setMitIds(prev => {
@@ -1879,8 +1986,10 @@ function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onM
   const sharedProps = {
     tasks,
     hats,
-    blockedTimes,
-    onBlockedTimesChange: handleBlockedTimesChange,
+    blocks,
+    onBlockCreate: handleBlockCreate,
+    onBlockRename: handleBlockRename,
+    onBlockDelete: handleBlockDelete,
     mitIds,
     onToggleMit: handleToggleMit,
     onUpdateTask: onUpdate,

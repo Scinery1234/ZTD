@@ -1,0 +1,28 @@
+{
+  "name": "madehappen-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native iPhone/iPad shell for MadeHappen, wrapping the React app with Capacitor.",
+  "scripts": {
+    "build:web": "cd frontend && npm ci && npm run build:mobile",
+    "sync": "npx cap sync ios",
+    "ios:add": "npx cap add ios",
+    "ios:open": "npx cap open ios",
+    "ios:build": "npm run build:web && npx cap sync ios && npx cap open ios",
+    "ios:run": "npx cap run ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/ios": "^6.1.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/local-notifications": "^6.0.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0"
+  }
+}

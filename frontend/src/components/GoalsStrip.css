@@ -574,3 +574,36 @@
 
 [data-theme="light"] .goal-ms__due-input { color-scheme: light; }
 [data-theme="light"] .goal-ms-tasks { background: rgba(0, 0, 0, 0.04); }
+
+/* Light-theme overrides for the panel additions (reorder, due dates, task
+   panel, past-goals shelf) — without these they render as near-white on a
+   near-white page. */
+[data-theme="light"] .goal-ms__move { color: rgba(28, 18, 9, 0.35); }
+[data-theme="light"] .goal-ms__move:hover:not(:disabled) { color: #c2570c; }
+
+[data-theme="light"] .goal-ms__due,
+[data-theme="light"] .goal-ms__tasks-btn { color: rgba(28, 18, 9, 0.45); }
+[data-theme="light"] .goal-ms__due:hover,
+[data-theme="light"] .goal-ms__tasks-btn:hover {
+  color: rgba(28, 18, 9, 0.85);
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .goal-ms__due--set { color: #047857; }
+[data-theme="light"] .goal-ms__tasks-btn.is-open { color: #c2570c; background: rgba(249, 115, 22, 0.12); }
+
+[data-theme="light"] .goal-ms-tasks__hd { color: rgba(28, 18, 9, 0.55); }
+[data-theme="light"] .goal-ms-tasks__tag { color: #c2570c; }
+[data-theme="light"] .goal-ms-tasks__empty { color: rgba(28, 18, 9, 0.4); }
+[data-theme="light"] .goal-ms-tasks__desc { color: rgba(28, 18, 9, 0.8); }
+[data-theme="light"] .goal-ms-tasks__due { color: #047857; }
+
+[data-theme="light"] .goals-past__toggle { color: rgba(28, 18, 9, 0.55); }
+[data-theme="light"] .goals-past__toggle:hover { color: rgba(28, 18, 9, 0.85); }
+[data-theme="light"] .goals-past__empty { color: rgba(28, 18, 9, 0.45); }
+[data-theme="light"] .goals-past__title { color: rgba(28, 18, 9, 0.8); }
+[data-theme="light"] .goals-past__status { color: rgba(28, 18, 9, 0.42); }
+[data-theme="light"] .goals-past__btn {
+  color: rgba(28, 18, 9, 0.6);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+[data-theme="light"] .goals-past__btn:hover { color: #1c1209; border-color: rgba(0, 0, 0, 0.35); }

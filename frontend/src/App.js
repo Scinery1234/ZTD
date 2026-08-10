@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { isNative, syncReminders } from './native';
 import { api } from './api';
 import { asArray } from './utils/arrays';
 import TaskList from './components/TaskList';
@@ -43,6 +44,21 @@ import {
 // ---- Guest mode helpers (sessionStorage, cleared on tab close) ----
 const GUEST_TASKS_KEY = 'mh_guest_tasks';
 const GUEST_DONE_KEY = 'mh_guest_done';
+
+// ---- Offline cache ----
+// Last known task list, so the app opens with real content when the network is
+// unavailable rather than an empty screen. Read-only: edits still need the API.
+const TASK_CACHE_KEY = 'mh_tasks_cache';
+
+function cacheTasks(tasks) {
+  try { localStorage.setItem(TASK_CACHE_KEY, JSON.stringify(tasks || [])); }
+  catch { /* quota or private mode — the cache is optional */ }
+}
+
+function loadCachedTasks() {
+  try { return JSON.parse(localStorage.getItem(TASK_CACHE_KEY) || '[]'); }
+  catch { return []; }
+}
 
 function loadGuest(key) {
   try { return JSON.parse(sessionStorage.getItem(key) || '[]'); } catch { return []; }
@@ -313,6 +329,13 @@ function TaskApp() {
   const [categoryOrder, setCategoryOrder] = useState([]);
   const [showPricing, setShowPricing] = useState(false);
   const [limitError, setLimitError] = useState('');
+  // Apple requires digital purchases to go through StoreKit and rejects apps
+  // that sell subscriptions through anything else, so the native build never
+  // opens the pricing/checkout flow. Upgrades stay on the web.
+  const nativeApp = isNative();
+  const openPricing = useCallback(() => {
+    if (!nativeApp) setShowPricing(true);
+  }, [nativeApp]);
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState(null);
   const [showCalendarSync, setShowCalendarSync] = useState(false);
@@ -418,9 +441,14 @@ function TaskApp() {
   const fetchTasks = useCallback(async () => {
     try {
       const data = await api.getTasks();
-      setTasks(asArray(data));
+      const list = asArray(data);
+      setTasks(list);
+      cacheTasks(list);          // so the app still opens something offline
     } catch (err) {
       console.error('Error fetching tasks:', err);
+      // On a phone in a tunnel, showing the last known list beats a blank app.
+      const cached = loadCachedTasks();
+      if (cached.length) setTasks(cached);
     }
   }, []);
 
@@ -535,6 +563,14 @@ function TaskApp() {
       .finally(() => setDataSyncing(false));
   }, [fetchTasks, fetchDoneTasks, fetchGoals]);
 
+  // Keep on-device reminders in step with the task list. No-op on the web;
+  // in the app the device fires these itself, so they work offline.
+  useEffect(() => {
+    if (!nativeApp) return;
+    const t = setTimeout(() => { void syncReminders(tasks); }, 800);
+    return () => clearTimeout(t);      // debounce bursts of edits
+  }, [tasks, nativeApp]);
+
   const toggleHat = (hatId) => {
     if (hatId === null) {
       // "All" clicked — clear selection
@@ -565,7 +601,7 @@ function TaskApp() {
     } catch (err) {
       if (err.data?.upgrade_required) {
         setLimitError(err.message);
-        setShowPricing(true);
+        openPricing();
       } else {
         alert(`Failed to add task: ${err.message}`);
       }
@@ -714,7 +750,7 @@ function TaskApp() {
   return (
     <div className="app">
       <Header
-        onShowPricing={() => setShowPricing(true)}
+        onShowPricing={openPricing}
         onTogglePomodoro={() => setPomodoroOpen(o => !o)}
         pomodoroOpen={pomodoroOpen}
         onShowAnalytics={() => setViewMode(m => m === 'analytics' ? 'active' : 'analytics')}
@@ -750,7 +786,7 @@ function TaskApp() {
           {limitError && (
             <div className="limit-banner">
               {limitError}{' '}
-              <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade now</button>
+              <button className="limit-upgrade-btn" onClick={openPricing}>Upgrade now</button>
             </div>
           )}
 
@@ -810,7 +846,7 @@ function TaskApp() {
               {atLimit ? (
                 <div className="limit-banner">
                   Task limit reached.{' '}
-                  <button className="limit-upgrade-btn" onClick={() => setShowPricing(true)}>Upgrade to add more</button>
+                  <button className="limit-upgrade-btn" onClick={openPricing}>Upgrade to add more</button>
                 </div>
               ) : (
                 <TaskForm onAdd={addTask} categories={getCategories()} hats={hats} />
@@ -888,7 +924,7 @@ function TaskApp() {
           )}
 
           {viewMode === 'analytics' && (
-            <AnalyticsView onShowPricing={() => setShowPricing(true)} />
+            <AnalyticsView onShowPricing={openPricing} />
           )}
           </div>{/* end view-content */}
           </>

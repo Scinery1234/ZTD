@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import { api } from '../api';
+import { isNative } from '../native';
+import DeleteAccount from './DeleteAccount';
 import './Header.css';
 
 const TIER_COLORS = {
@@ -114,12 +116,18 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
                   )}
                 </div>
               )}
-              <button className="header-btn" onClick={onShowPricing}>
-                Plans
-              </button>
+              {/* Apple takes a cut of digital purchases and rejects apps that
+                  sell subscriptions outside StoreKit, so the native build shows
+                  no plans/upgrade route at all. */}
+              {!isNative() && (
+                <button className="header-btn" onClick={onShowPricing}>
+                  Plans
+                </button>
+              )}
               <button className="header-btn logout-btn" onClick={logout}>
                 Sign out
               </button>
+              <DeleteAccount onDeleted={logout} />
             </div>
           </div>
         )}

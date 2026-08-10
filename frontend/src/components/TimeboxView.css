@@ -881,6 +881,7 @@
 .timebox-blocked-label:hover {
   color: rgba(255, 255, 255, 0.75);
 }
+.timebox-blocked-recur { opacity: 0.75; }
 
 /* Naming a blocked slot */
 .timebox-blocked-input {

@@ -360,6 +360,53 @@ class TimeboxDismissed(db.Model):
     __table_args__ = (db.UniqueConstraint('user_id', 'date', name='uq_dismissed_user_date'),)
 
 
+class TimeBlock(db.Model):
+    """Named time that isn't a task — a school run, a standup, a gym slot.
+
+    Blocks show on the timebox grid and auto-schedule routes around them, but
+    they never appear in the task list and never count toward task limits.
+
+    Recurrence is stored as a rule rather than materialised rows: occurrences
+    are expanded for whichever days are on screen, so "every weekday" doesn't
+    grow the table forever and editing the series stays a single-row edit.
+    Skipping one occurrence appends its date to `exceptions`.
+    """
+    __tablename__ = 'time_block'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    label = db.Column(db.String(120), default='')
+    start = db.Column(db.String(5), nullable=False)     # HH:MM
+    end = db.Column(db.String(5), nullable=False)       # HH:MM
+    date = db.Column(db.String(10), nullable=True)      # one-off; null when recurring
+    recurrence = db.Column(db.String(10), default='none')  # none|daily|weekdays|weekly
+    recur_days = db.Column(db.Text, default='[]')      # weekly: [0=Mon .. 6=Sun]
+    recur_from = db.Column(db.String(10), nullable=True)   # first day of the series
+    recur_until = db.Column(db.String(10), nullable=True)  # optional last day
+    exceptions = db.Column(db.Text, default='[]')      # YYYY-MM-DD skipped occurrences
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def _json_list(self, raw):
+        try:
+            v = json.loads(raw or '[]')
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'label': self.label or '',
+            'start': self.start,
+            'end': self.end,
+            'date': self.date,
+            'recurrence': self.recurrence or 'none',
+            'recur_days': self._json_list(self.recur_days),
+            'recur_from': self.recur_from,
+            'recur_until': self.recur_until,
+            'exceptions': self._json_list(self.exceptions),
+        }
+
+
 class CoachMemory(db.Model):
     """A short durable note the AI hub keeps about a user, shared across the
     task assistant and every coach so conversations pick up where they left
@@ -2028,6 +2075,134 @@ def timebox_dismissed_put(date_str):
                                   TimeboxDismissed.date < cutoff).delete()
     db.session.commit()
     return jsonify({'saved': True, 'task_ids': ids})
+
+
+# === Time blocks (named calendar time that isn't a task) ===
+
+_RECURRENCES = ('none', 'daily', 'weekdays', 'weekly')
+
+
+def _hhmm(value, fallback=None):
+    """Accept HH:MM only; anything else falls back (or fails validation)."""
+    text = (value or '').strip()
+    if len(text) == 5 and text[2] == ':':
+        h, m = text[:2], text[3:]
+        if h.isdigit() and m.isdigit() and 0 <= int(h) <= 24 and 0 <= int(m) < 60:
+            return text
+    return fallback
+
+
+def _block_from_payload(block, data):
+    """Apply a create/update payload onto a TimeBlock. Returns an error string."""
+    # A supplied time must be valid — never silently fall back to the old value,
+    # or a typo like "9am" would look like it saved.
+    if 'start' in data:
+        start = _hhmm(data.get('start'))
+        if not start:
+            return 'start must be HH:MM'
+    else:
+        start = block.start
+    if 'end' in data:
+        end = _hhmm(data.get('end'))
+        if not end:
+            return 'end must be HH:MM'
+    else:
+        end = block.end
+    if not start or not end:
+        return 'start and end are required as HH:MM'
+    if end <= start:
+        return 'end must be after start'
+
+    recurrence = (data.get('recurrence') or block.recurrence or 'none').strip()
+    if recurrence not in _RECURRENCES:
+        return f'recurrence must be one of {", ".join(_RECURRENCES)}'
+
+    days = data.get('recur_days')
+    if days is not None:
+        days = sorted({int(d) for d in days if str(d).lstrip('-').isdigit() and 0 <= int(d) <= 6})
+        block.recur_days = json.dumps(days)
+    if recurrence == 'weekly' and not json.loads(block.recur_days or '[]'):
+        return 'weekly recurrence needs at least one weekday in recur_days'
+
+    block.label = (data.get('label') if data.get('label') is not None else block.label or '')[:120]
+    block.start, block.end, block.recurrence = start, end, recurrence
+    if 'date' in data:
+        block.date = (data.get('date') or None)
+    if 'recur_from' in data:
+        block.recur_from = (data.get('recur_from') or None)
+    if 'recur_until' in data:
+        block.recur_until = (data.get('recur_until') or None)
+
+    # A one-off needs a date; a series needs a start day to count from.
+    if recurrence == 'none' and not block.date:
+        return 'a one-off block needs a date'
+    if recurrence != 'none' and not block.recur_from:
+        block.recur_from = block.date or datetime.utcnow().strftime('%Y-%m-%d')
+    return None
+
+
+@app.route('/api/blocks', methods=['GET'])
+@jwt_required()
+def blocks_list():
+    """All of the user's blocks as rules — the client expands occurrences for
+    the days it's showing."""
+    user_id = int(get_jwt_identity())
+    rows = TimeBlock.query.filter_by(user_id=user_id).order_by(TimeBlock.start, TimeBlock.id).all()
+    return jsonify([b.to_dict() for b in rows])
+
+
+@app.route('/api/blocks', methods=['POST'])
+@jwt_required()
+def blocks_create():
+    user_id = int(get_jwt_identity())
+    block = TimeBlock(user_id=user_id)   # no defaults: create must supply times
+    err = _block_from_payload(block, request.json or {})
+    if err:
+        return jsonify({'error': err}), 400
+    db.session.add(block)
+    db.session.commit()
+    return jsonify(block.to_dict()), 201
+
+
+@app.route('/api/blocks/<int:block_id>', methods=['PUT'])
+@jwt_required()
+def blocks_update(block_id):
+    user_id = int(get_jwt_identity())
+    block = TimeBlock.query.filter_by(id=block_id, user_id=user_id).first()
+    if not block:
+        return jsonify({'error': 'Block not found'}), 404
+    err = _block_from_payload(block, request.json or {})
+    if err:
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    return jsonify(block.to_dict())
+
+
+@app.route('/api/blocks/<int:block_id>', methods=['DELETE'])
+@jwt_required()
+def blocks_delete(block_id):
+    """Delete the whole block, or with ?date=YYYY-MM-DD just skip that one
+    occurrence of a recurring series."""
+    user_id = int(get_jwt_identity())
+    block = TimeBlock.query.filter_by(id=block_id, user_id=user_id).first()
+    if not block:
+        return jsonify({'error': 'Block not found'}), 404
+
+    skip = (request.args.get('date') or '')[:10]
+    if skip and (block.recurrence or 'none') != 'none':
+        try:
+            ex = json.loads(block.exceptions or '[]')
+        except Exception:
+            ex = []
+        if skip not in ex:
+            ex.append(skip)
+        block.exceptions = json.dumps(ex)
+        db.session.commit()
+        return jsonify(block.to_dict())
+
+    db.session.delete(block)
+    db.session.commit()
+    return jsonify({'deleted': True})
 
 
 # === Saved chats (auto-resume per tool) ===

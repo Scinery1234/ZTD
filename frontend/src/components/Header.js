@@ -12,7 +12,7 @@ const TIER_COLORS = {
   premium: 'linear-gradient(135deg, #fbbf24, #f97316)',
 };
 
-const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics, analyticsActive, onShowCalendarSync }) => {
+const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics, analyticsActive, onShowCalendarSync, onToggleShell }) => {
   const { user, subscription, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const tier = subscription?.tier || user?.tier || 'free';
@@ -69,6 +69,15 @@ const Header = ({ onShowPricing, onTogglePomodoro, pomodoroOpen, onShowAnalytics
               >
                 {theme === 'light' ? '🌙' : '☀️'}
               </button>
+              {onToggleShell && (
+                <button
+                  className="header-btn shell-toggle-btn"
+                  onClick={onToggleShell}
+                  title="Try the coaching-first layout — the conversation becomes the home screen"
+                >
+                  💬 Coach-first
+                </button>
+              )}
               {onShowAnalytics && (tier === 'premium') && (
                 <button
                   className={`header-btn analytics-toggle-btn${analyticsActive ? ' active' : ''}`}

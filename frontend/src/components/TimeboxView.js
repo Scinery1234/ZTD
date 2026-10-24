@@ -272,7 +272,7 @@ function blockOccursOn(block, dateStr) {
  * the grid already expects ({date, start, end, label}) and adds the rule id so
  * a slot can be renamed, skipped, or deleted as a whole series.
  */
-function blocksForDate(blocks, dateStr) {
+export function blocksForDate(blocks, dateStr) {
   return (blocks || [])
     .filter(b => blockOccursOn(b, dateStr))
     .map(b => ({
@@ -1615,9 +1615,19 @@ function SortablePoolChip({ task, hats, mitIds, onDismiss, onEdit, onToggleMit, 
 }
 
 // ── TimeboxView (main) ────────────────────────────────────────────────────────
-function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected, onPinPomodoro }) {
+function TimeboxView({ tasks, hats, onUpdate, onAddTask, onApplyTaskUpdates, onMarkDone, maxHistoryDays = 14, onSyncToCalendar, onCalendarDeleteEvent, calendarConnected, onPinPomodoro, initialDate }) {
   const [subView, setSubView] = useState('day');
-  const [dayOffset, setDayOffset] = useState(0);
+  // `initialDate` lets a caller open the grid on a specific day — the Console
+  // shell uses it when a coach offers "shall we look at Thursday?". Day nav is
+  // offset-based, so convert once on mount and leave the arrows alone.
+  const [dayOffset, setDayOffset] = useState(() => {
+    if (!initialDate) return 0;
+    const target = new Date(`${initialDate}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / 86400000);
+  });
   const [mitIds, setMitIds] = useState(() => new Set(loadMit()));
   const [dayWindows, setDayWindows] = useState(loadDayWindows);
   const [blocks, setBlocks] = useState([]);   // server-synced block rules

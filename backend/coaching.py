@@ -152,20 +152,6 @@ _TASK_AWARENESS = (
     "side-effect, not the point of the conversation."
 )
 
-_SHOW_VIEW_AWARENESS = (
-    "\n\nSHOWING THEM THINGS: you can also put part of the app in front of the "
-    "user with show_view — their day calendar, their task list, or their goals. "
-    "It changes nothing; it gives them a button that opens the panel already "
-    "dated or filtered to whatever you're discussing. Reach for it when looking "
-    "would land better than telling: when they're overwhelmed by the whole list "
-    "and only a few things are truly due, when a plan needs to meet the actual "
-    "shape of their day, or when they ask what's on. Prefer it over reciting "
-    "tasks back at them. At most one per reply, and don't offer a panel in the "
-    "middle of regulating someone — settle the system first. When you do use "
-    "it, refer to it in half a clause (\"have a look if you want\") rather than "
-    "narrating what they're about to see."
-)
-
 
 def coaching_available() -> bool:
     """True when the feature can run (SDK importable + API key configured)."""
@@ -616,10 +602,9 @@ class CoachingService:
         actions = []          #   with ai_chat) + human-facing change summary
         modules = []          # module cards the guide asked the UI to show
         goal_actions = []     # goal changes this turn (for the UI receipt)
-        view_intents = []     # panels the coach offered to open (presentational)
         reply_text = ""
 
-        tools = [_SAVE_TASKS_TOOL] + _TASK_EDIT_TOOLS + [_ai_chat.SHOW_VIEW_TOOL]
+        tools = [_SAVE_TASKS_TOOL] + _TASK_EDIT_TOOLS
         if coach_id == "guide":
             tools = tools + [_RECOMMEND_MODULE_TOOL]
             if self.Goal is not None:
@@ -649,8 +634,7 @@ class CoachingService:
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name,
                                         block.input, added_tasks, undo_ops,
-                                        actions, coach_id, modules, goal_actions,
-                                        view_intents)
+                                        actions, coach_id, modules, goal_actions)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -675,7 +659,6 @@ class CoachingService:
             "task_actions": actions,
             "module_suggestions": modules,
             "goal_actions": goal_actions,
-            "view_intents": view_intents,
             "undo_token": undo_token,
             "undo_available": undo_token is not None,
         }
@@ -726,7 +709,6 @@ class CoachingService:
         return (
             f"{coach['system']}"
             f"{_TASK_AWARENESS}"
-            f"{_SHOW_VIEW_AWARENESS}"
             f"{goals_block}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
             f"\n\nToday is {today}."
@@ -753,10 +735,8 @@ class CoachingService:
 
     def _dispatch(self, user, default_hat_id, name, args, added_tasks,
                   undo_ops, actions, coach_id="", modules=None,
-                  goal_actions=None, view_intents=None):
+                  goal_actions=None):
         try:
-            if name == "show_view":
-                return _ai_chat.handle_show_view(args, view_intents)
             if self.Goal is not None and coach_id == "guide":
                 handled = goals_mod.handle_goal_tool(
                     self.db, self.Goal, self.Hat, user, name, args,

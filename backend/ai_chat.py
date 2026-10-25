@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from datetime import datetime, timedelta
 
 try:
@@ -113,123 +112,6 @@ def _normalize_subtasks(raw):
         elif s is not None:
             items.append({"id": _new_subtask_id(), "text": str(s).strip(), "done": False})
     return items
-
-
-# ── show_view ────────────────────────────────────────────────────────────────
-# The one tool here that changes nothing: it asks the client to put one of the
-# app's panels in front of the user. The model already has every syscall for
-# *reading and writing* a task; this gives it window management, so "shall we
-# look at Thursday?" can arrive with Thursday already loaded.
-#
-# The client renders an intent as a tappable chip, not an automatic jump — the
-# model offers a view, the user decides to look. Same principle as confirming
-# before edits: nothing moves on screen that the user didn't ask for.
-VIEWS = ("day", "tasks", "goals")
-MAX_VIEW_TASK_IDS = 50
-MAX_VIEW_LABEL_CHARS = 40
-
-SHOW_VIEW_TOOL = {
-    "name": "show_view",
-    "description": (
-        "Offer to open one of the app's panels for the user: the day calendar, "
-        "their task list, or their goals. Changes nothing — it shows them a "
-        "button that opens the panel already filtered or dated to what you're "
-        "discussing. Use it when seeing something would help more than "
-        "describing it ('shall we look at Thursday?', 'want to see the three "
-        "that are actually due?'). One per reply at most, and skip it when "
-        "the conversation isn't about looking at anything."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "view": {
-                "type": "string",
-                "enum": list(VIEWS),
-                "description": ("day = the timebox calendar for one date; "
-                                "tasks = the task list; goals = the goal panel."),
-            },
-            "date": {
-                "type": "string",
-                "description": ("For view=day: which date to open, natural "
-                                "language ok ('thursday', 'tomorrow') or "
-                                "YYYY-MM-DD. Empty = today."),
-            },
-            "task_ids": {
-                "type": "array",
-                "items": {"type": "integer"},
-                "description": ("Ids of the specific tasks under discussion, so "
-                                "the panel opens with them highlighted. Empty "
-                                "for none."),
-            },
-            "filter": {
-                "type": "object",
-                "description": "For view=tasks: narrow what's listed.",
-                "properties": {
-                    "priority": {"type": "string",
-                                 "enum": ["urgent", "today", "tomorrow", "later", ""]},
-                    "category": {"type": "string"},
-                    "due": {"type": "string", "enum": ["overdue", "today", "week", ""]},
-                },
-                "additionalProperties": False,
-            },
-            "label": {
-                "type": "string",
-                "description": ("Short button text in the user's own terms, 2-5 "
-                                "words — 'Show Thursday', 'See the three due'. "
-                                "Empty for a default."),
-            },
-        },
-        "required": ["view"],
-        "additionalProperties": False,
-    },
-}
-
-
-def handle_show_view(args, intents):
-    """Validate a show_view call and record the intent for the client.
-
-    Returns a tool result, or None if this isn't a show_view call. Never
-    touches the database — the whole point is that it's presentational.
-    """
-    view = (args.get("view") or "").strip()
-    if view not in VIEWS:
-        return {"content": {"error": f"Unknown view: {view!r}. "
-                                     f"Use one of {', '.join(VIEWS)}."},
-                "is_error": True}
-
-    intent = {"view": view}
-
-    raw_date = (args.get("date") or "").strip()
-    if raw_date and view == "day":
-        parsed = _parse_due(raw_date)
-        # _parse_due echoes text it can't read; only a real date is useful here.
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", parsed or ""):
-            return {"content": {"error": f"Couldn't read {raw_date!r} as a date. "
-                                         "Use YYYY-MM-DD."},
-                    "is_error": True}
-        intent["date"] = parsed
-
-    ids = [i for i in (args.get("task_ids") or []) if isinstance(i, int)]
-    if ids:
-        intent["task_ids"] = ids[:MAX_VIEW_TASK_IDS]
-
-    if view == "tasks":
-        raw_filter = args.get("filter") or {}
-        clean = {k: (raw_filter.get(k) or "").strip()
-                 for k in ("priority", "category", "due")
-                 if (raw_filter.get(k) or "").strip()}
-        if clean:
-            intent["filter"] = clean
-
-    label = (args.get("label") or "").strip()
-    if label:
-        intent["label"] = label[:MAX_VIEW_LABEL_CHARS]
-
-    if intents is not None:
-        intents.append(intent)
-    return {"content": {"ok": True,
-                        "note": ("Button shown. Mention it in one short clause "
-                                 "— don't describe the panel's contents.")}}
 
 
 # ---- Tool schemas (strict so inputs validate exactly) ----
@@ -500,12 +382,9 @@ class TaskChatService:
         # Accumulators across the agentic loop.
         undo_ops = []      # inverse operations, applied in reverse to undo this turn
         actions = []       # human-facing summary of what changed (for the UI)
-        view_intents = []  # panels the model offered to open (presentational)
 
         reply_text = ""
-        tools = TOOLS + [SHOW_VIEW_TOOL]
-        if self.CoachMemory is not None:
-            tools = tools + MEMORY_TOOLS
+        tools = TOOLS if self.CoachMemory is None else TOOLS + MEMORY_TOOLS
         for _ in range(MAX_TOOL_ITERATIONS):
             response = self.client.messages.create(
                 model=MODEL,
@@ -529,7 +408,7 @@ class TaskChatService:
             tool_results = []
             for block in tool_uses:
                 result = self._dispatch(user, default_hat_id, block.name, block.input,
-                                        undo_ops, actions, view_intents)
+                                        undo_ops, actions)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -548,7 +427,6 @@ class TaskChatService:
         return {
             "reply": reply_text,
             "actions": actions,
-            "view_intents": view_intents,
             "undo_token": undo_token,
             "undo_available": undo_token is not None,
         }
@@ -674,13 +552,7 @@ class TaskChatService:
             "edit still gets a quick confirm; never batch-change or delete without "
             "one.\n"
             "- After acting, reply with one short, friendly sentence summarizing "
-            "what you changed.\n"
-            "- SHOWING INSTEAD OF TELLING: show_view gives the user a button that "
-            "opens their day calendar, task list, or goals, already dated or "
-            "filtered to what you're discussing. It changes nothing. Use it when "
-            "they ask what's on, when a handful of tasks out of many are the "
-            "relevant ones, or when a change you just made is easier to check by "
-            "eye — instead of listing tasks back at them. One per reply at most.\n\n"
+            "what you changed.\n\n"
             "The user's current tasks (may be truncated — ids are real; ⏰ marks "
             "a planned slot on their calendar):\n"
             f"{snapshot}"
@@ -703,11 +575,8 @@ class TaskChatService:
             messages = messages[1:]
         return messages
 
-    def _dispatch(self, user, default_hat_id, name, args, undo_ops, actions,
-                  view_intents=None):
+    def _dispatch(self, user, default_hat_id, name, args, undo_ops, actions):
         try:
-            if name == "show_view":
-                return handle_show_view(args, view_intents)
             if name == "list_tasks":
                 return self._list_tasks(user.id, args)
             if name == "add_tasks":

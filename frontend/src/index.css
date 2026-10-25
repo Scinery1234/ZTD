@@ -55,3 +55,37 @@ code {
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.28);
 }
+
+/* ── Native shell (iOS / iPadOS via Capacitor) ─────────────────────────────────
+   Only applies inside the app — `is-native` is set by src/native.js, so the web
+   build is untouched. Keeps content clear of the notch, Dynamic Island and the
+   home indicator, and stops the webview bouncing like a web page. */
+.is-native body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overscroll-behavior-y: none;          /* no rubber-band on the whole page */
+  -webkit-user-select: none;            /* text selection reads as a web page */
+  user-select: none;
+}
+
+/* Inputs and notes must still be selectable/editable. */
+.is-native input,
+.is-native textarea,
+.is-native [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* iOS zooms the page when a font smaller than 16px takes focus. */
+.is-native input,
+.is-native textarea,
+.is-native select {
+  font-size: max(16px, 1em);
+}
+
+/* Kill the grey tap flash; we use haptics and :active styles instead. */
+.is-native * {
+  -webkit-tap-highlight-color: transparent;
+}

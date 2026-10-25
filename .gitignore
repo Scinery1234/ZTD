@@ -35,3 +35,16 @@ frontend.log
 # SQLite database
 backend/ztd.db
 backend/.env
+
+# --- iOS / Capacitor ---
+# The generated Xcode project (ios/App) IS committed so the app can be built
+# from a fresh clone; only build artefacts and per-developer state are ignored.
+node_modules/
+ios/App/Pods/
+ios/App/App/public/          # web build copied in by `cap sync` — regenerated
+ios/App/build/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
+*.mobileprovision
+*.p12

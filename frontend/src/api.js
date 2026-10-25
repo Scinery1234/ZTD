@@ -161,6 +161,8 @@ export const api = {
   resendVerification: () =>
     apiFetch('/auth/resend-verification', { method: 'POST' }),
   me: () => apiFetch('/auth/me'),
+  deleteAccount: (password) =>
+    apiFetch('/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
 
   // Hats
   getHats: () => apiFetch('/hats'),
@@ -281,6 +283,13 @@ export const api = {
     apiFetch(`/goals/${goalId}/milestones/${milestoneId}`, { method: 'DELETE' }),
   reorderMilestones: (goalId, ids) =>
     apiFetch(`/goals/${goalId}/milestones/reorder`, { method: 'PUT', body: JSON.stringify({ ids }) }),
+
+  // Time blocks — named calendar time that isn't a task (server-synced)
+  getBlocks: () => apiFetch('/blocks'),
+  createBlock: (data) => apiFetch('/blocks', { method: 'POST', body: JSON.stringify(data) }),
+  updateBlock: (id, data) => apiFetch(`/blocks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBlock: (id, date) =>
+    apiFetch(`/blocks/${id}${date ? `?date=${encodeURIComponent(date)}` : ''}`, { method: 'DELETE' }),
 
   // AI memory — persistent notes the hub keeps between conversations
   coachMemoryList: () => apiFetch('/coach/memory'),

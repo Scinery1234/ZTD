@@ -1,0 +1,25 @@
+{
+  "appId": "com.madehappen.app",
+  "appName": "MadeHappen",
+  "webDir": "frontend/build",
+  "ios": {
+    "contentInset": "always",
+    "scrollEnabled": true,
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "server": {
+    "iosScheme": "capacitor"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "backgroundColor": "#1c1209",
+      "showSpinner": false,
+      "launchAutoHide": true
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
+    }
+  }
+}

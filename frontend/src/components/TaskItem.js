@@ -115,12 +115,22 @@ const TaskItem = ({
 
   // Inline due-date editing straight from the list row (no full edit mode).
   const [dueEditing, setDueEditing] = useState(false);
+  const dueInputRef = useRef(null);
   const commitDue = (value) => {
     setDueEditing(false);
     const v = (value || '').trim();
     if (v !== (task.due || '')) onUpdate({ due: v });
   };
   const dueEditable = viewMode === 'active' && !selectMode;
+
+  // A bare date input only takes focus when clicked — the calendar itself sits
+  // behind a tiny icon. Pop it open so one tap on the badge is enough.
+  const openPicker = (el) => {
+    try { el?.showPicker?.(); } catch { /* unsupported / not user-activated */ }
+  };
+  useEffect(() => {
+    if (dueEditing) openPicker(dueInputRef.current);
+  }, [dueEditing]);
 
   // Sync local subtasks if task prop changes
   React.useEffect(() => {
@@ -425,7 +435,8 @@ const TaskItem = ({
                 className="task-due-input"
                 defaultValue={task.due || ''}
                 autoFocus
-                onClick={(e) => e.stopPropagation()}
+                ref={dueInputRef}
+                onClick={(e) => { e.stopPropagation(); openPicker(e.currentTarget); }}
                 onPointerDown={(e) => e.stopPropagation()}
                 onChange={(e) => commitDue(e.target.value)}
                 onBlur={(e) => commitDue(e.target.value)}

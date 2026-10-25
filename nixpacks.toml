@@ -1,5 +1,17 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "nodejs_20", "nodePackages.npm"]
+# Only the two interpreters. pip and npm deliberately aren't listed:
+#
+#   - npm ships inside nodejs_20.
+#   - pip is bootstrapped by `python3 -m venv` below, so the venv's own pip is
+#     what installs requirements.txt — the Nix-level one was never used.
+#
+# Both were previously requested as separate attributes (python311Packages.pip,
+# nodePackages.npm). Those attributes have been removed or broken by nixpkgs
+# churn, and when nixpacks bumped its pinned nixpkgs revision the setup phase
+# started failing with `nix-env -if ... exit code 100` before any of our code
+# was even copied into the image. Asking for less keeps this build off that
+# treadmill.
+nixPkgs = ["python311", "nodejs_20"]
 
 [phases.install]
 cmds = [

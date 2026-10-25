@@ -48,10 +48,7 @@ export function useShell() {
       persist(fromUrl);
       return fromUrl;
     }
-    // Console is the default: coaching is the way in, and the task list and
-    // calendar are panels you reach for from there. Classic remains one tap
-    // away (the rail's ⇄, or ?shell=classic) and is remembered once chosen.
-    return readStored() || SHELLS.CONSOLE;
+    return readStored() || SHELLS.CLASSIC;
   });
 
   const choose = useCallback((next) => {

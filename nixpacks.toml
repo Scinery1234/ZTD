@@ -24,4 +24,7 @@ cmds = [
 cmds = ["cd frontend && npm run build"]
 
 [start]
-cmd = "gunicorn -c gunicorn_config.py --bind 0.0.0.0:$PORT --workers 2 wsgi:app"
+# Absolute path for the same reason as railway.toml's startCommand (which
+# overrides this one): gunicorn lives in the venv and /opt/venv/bin is not on
+# PATH at start time. Kept in sync so a build driven by this file alone works.
+cmd = "/opt/venv/bin/gunicorn -c gunicorn_config.py --bind 0.0.0.0:$PORT --workers 2 wsgi:app"

@@ -2,6 +2,13 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "gunicorn -c gunicorn_config.py --bind 0.0.0.0:$PORT --workers 2 wsgi:app"
+# Absolute path, not bare `gunicorn`: the install phase puts it in the venv at
+# /opt/venv, and nothing adds /opt/venv/bin to PATH for the start command.
+# Older nixpacks did that implicitly; v1.41.0 only extends PATH with
+# /app/node_modules/.bin, so a bare `gunicorn` is "command not found" and the
+# container dies on boot with no replica ever passing the healthcheck.
+# The shebang on /opt/venv/bin/gunicorn also pins the interpreter to the venv,
+# so our dependencies resolve regardless of which python is first on PATH.
+startCommand = "/opt/venv/bin/gunicorn -c gunicorn_config.py --bind 0.0.0.0:$PORT --workers 2 wsgi:app"
 healthcheckPath = "/api/health"
 restartPolicyType = "on_failure"

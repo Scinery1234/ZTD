@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import text
+from sqlalchemy.exc import DatabaseError
+from contextlib import contextmanager
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -2430,12 +2432,60 @@ def goals_delete(goal_id):
     return jsonify({'deleted': True})
 
 
+# Arbitrary but stable key identifying "ZTD schema migrations" to Postgres.
+_MIGRATION_LOCK_ID = 0x7A7D0001
+
+
+@contextmanager
+def _schema_lock():
+    """Serialize schema changes across processes.
+
+    Every gunicorn worker runs migrate_db() as it boots, and they boot at the
+    same instant. db.create_all() inspects the schema and then issues CREATE
+    TABLE, which is not atomic — so on the deploy that first adds a table, two
+    workers both find it missing, both create it, and the loser dies with
+
+        UniqueViolation: duplicate key ... "pg_type_typname_nsp_index"
+
+    gunicorn treats one worker failing to boot as fatal and shuts the master
+    down, so the container crash-loops instead of serving.
+
+    Postgres advisory locks are held per session and released automatically if
+    the connection drops, so a worker killed mid-migration can't wedge the
+    others. Backends without them (SQLite in dev and tests) get a no-op: there
+    is only one process there.
+    """
+    if db.engine.dialect.name != 'postgresql':
+        yield
+        return
+    conn = db.engine.connect()
+    try:
+        conn.execute(text('SELECT pg_advisory_lock(:key)'), {'key': _MIGRATION_LOCK_ID})
+        conn.commit()
+        yield
+    finally:
+        try:
+            conn.execute(text('SELECT pg_advisory_unlock(:key)'), {'key': _MIGRATION_LOCK_ID})
+            conn.commit()
+        except Exception:
+            pass      # the lock dies with the session anyway
+        conn.close()
+
+
 def migrate_db():
     # Each statement runs in its own connection/transaction so a "column already
     # exists" failure on one doesn't abort and roll back the others (PostgreSQL
     # marks the whole transaction as aborted on any error).
-    with app.app_context():
-        db.create_all()   # creates any tables not yet in the DB (safe, idempotent)
+    with app.app_context(), _schema_lock():
+        try:
+            db.create_all()   # creates any tables not yet in the DB
+        except DatabaseError:
+            # Lost a race with a process that wasn't holding our lock — a
+            # one-off command, or an old container still winding down during a
+            # rolling deploy. Either way the tables now exist, which is all
+            # create_all was for; the ALTERs below are already idempotent.
+            db.session.rollback()
+            app.logger.info('create_all raced another process; tables already exist')
         for stmt in [
             'ALTER TABLE task ADD COLUMN duration INTEGER DEFAULT 30',
             'ALTER TABLE task ADD COLUMN scheduled_time VARCHAR(5)',

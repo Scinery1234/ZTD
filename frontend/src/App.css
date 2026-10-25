@@ -449,3 +449,43 @@
   background: rgba(34, 197, 94, 0.06);
   border-color: rgba(34, 197, 94, 0.18);
 }
+
+/* ── Console shell: scope banner on the task panel ────────────────────────
+   Shown when a coach's "show me" opened the list narrowed to specific tasks,
+   so it's never a mystery why the list looks short. */
+.console-scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+.console-scope button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fdba74;
+  background: transparent;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+.console-scope button:hover { background: rgba(249, 115, 22, 0.18); color: #fff; }
+
+[data-theme="light"] .console-scope {
+  color: #5c4a33;
+  background: rgba(249, 115, 22, 0.08);
+  border-color: rgba(249, 115, 22, 0.28);
+}
+[data-theme="light"] .console-scope button { color: #b45309; }
+[data-theme="light"] .console-scope button:hover { background: rgba(249, 115, 22, 0.14); color: #7c3a06; }
+
+/* The Console owns the viewport; the page itself must not also scroll. */
+body.shell-console { overflow: hidden; }

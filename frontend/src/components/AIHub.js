@@ -388,21 +388,25 @@ function TaskRail({ tasks, highlightIds }) {
 // `compact` is the Console shell's form: icon-only, so switching coach is one
 // tap from the composer rather than a trip back to a landing grid.
 function ModuleStrip({ onSelect, activeId, compact = false }) {
+  // In the Console the strip is the only way between spaces, so it lists the
+  // guide too — otherwise you can reach every coach but not get back without
+  // hunting for the header's back arrow.
+  const items = compact ? [GUIDE_TOOL, ...TOOLS] : TOOLS;
   return (
     <div className={`aih-modules${compact ? ' aih-modules--compact' : ''}`}>
       {!compact && <span className="aih-modules__label">Spaces</span>}
       <div className="aih-modules__row">
-        {TOOLS.map((t) => (
+        {items.map((t) => (
           <button
             key={t.id}
             className={`aih-module-chip${activeId === t.id ? ' aih-module-chip--on' : ''}`}
             style={{ '--accent': t.accent }}
             onClick={() => onSelect(t)}
             title={compact ? `${t.name} — ${t.tagline}` : t.desc}
-            aria-label={compact ? t.name : undefined}
+            aria-current={activeId === t.id ? 'true' : undefined}
           >
             <span className="aih-module-chip__icon">{t.icon}</span>
-            {!compact && t.name}
+            {t.name}
           </button>
         ))}
       </div>

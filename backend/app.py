@@ -1947,7 +1947,6 @@ def ai_chat():
             {'role': 'user', 'content': message},
             {'role': 'assistant', 'content': result['reply'],
              'actions': result.get('actions') or [],
-             'viewIntents': result.get('view_intents') or [],
              'undo_token': result.get('undo_token') if result.get('undo_available') else None},
         ])
         return jsonify(result)
@@ -2036,8 +2035,7 @@ def ai_coach():
              'tasksAdded': result.get('tasks_added') or [],
              'taskActions': result.get('task_actions') or [],
              'moduleSuggestions': result.get('module_suggestions') or [],
-             'goalActions': result.get('goal_actions') or [],
-             'viewIntents': result.get('view_intents') or []},
+             'goalActions': result.get('goal_actions') or []},
         ])
         return jsonify(result)
     except ValueError as e:
@@ -2216,13 +2214,8 @@ def blocks_delete(block_id):
 def chat_thread_get(tool_id):
     user_id = int(get_jwt_identity())
     thread = ChatThread.query.filter_by(user_id=user_id, tool_id=tool_id[:20]).first()
-    # updated_at lets the client show how long it's been since you last spoke,
-    # so a resumed conversation can mark the gap instead of pretending it's
-    # all one continuous sitting.
     return jsonify({'tool_id': tool_id,
-                    'messages': thread.messages_list() if thread else [],
-                    'updated_at': (thread.updated_at.isoformat()
-                                   if thread and thread.updated_at else None)})
+                    'messages': thread.messages_list() if thread else []})
 
 
 @app.route('/api/chat/thread/<string:tool_id>', methods=['DELETE'])

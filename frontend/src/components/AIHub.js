@@ -17,12 +17,6 @@ import './AIHub.css';
 const CONSENT_KEY = 'mh_ai_consent_v1';
 const CONSENT_MAX_AGE_DAYS = 90;
 
-// Consent is one decision for the whole app, not per shell — the Console shell
-// reads and writes the same record, so switching shells never re-asks.
-export function markConsented() {
-  try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ ts: Date.now() })); } catch { /* ignore */ }
-}
-
 const CRISIS_KEYWORDS = [
   'suicide', 'suicidal', 'kill myself', 'end my life', 'want to die',
   "don't want to live", 'dont want to live', 'self-harm', 'self harm',
@@ -40,7 +34,7 @@ const CRISIS_RESOURCES = [
 
 // Tool catalogue. `assistant` is the task CRUD chat; the rest are coaches served
 // by /api/coach. `steps` drives the little progress bar for structured coaches.
-export const TOOLS = [
+const TOOLS = [
   {
     id: 'assistant',
     kind: 'assistant',
@@ -115,7 +109,7 @@ export const TOOLS = [
 // The guide fronts the hub: a general coach that chats, helps set and chase
 // goals (task- and memory-aware), and hands off to the modules above when
 // one clearly fits. It lives outside TOOLS so it never lists itself.
-export const GUIDE_TOOL = {
+const GUIDE_TOOL = {
   id: 'guide',
   kind: 'coach',
   icon: '🧡',
@@ -146,53 +140,13 @@ function renderBold(text) {
   );
 }
 
-// A resumed conversation only earns a divider if real time has passed —
-// reopening the panel two minutes later is the same sitting.
-const RESUME_GAP_MS = 20 * 60 * 1000;
-
-function resumeGapLabel(iso) {
-  if (!iso) return null;
-  // Thread timestamps are naive UTC from the server; mark them as such so the
-  // browser doesn't read them as local time and compute a gap hours out.
-  const then = new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
-  const ms = Date.now() - then.getTime();
-  if (!Number.isFinite(ms) || ms < RESUME_GAP_MS) return null;
-
-  const time = then.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const days = Math.floor((startOfToday - then) / 86400000) + (then < startOfToday ? 1 : 0);
-
-  if (then >= startOfToday) return `earlier today, ${time}`;
-  if (days <= 1) return `yesterday, ${time}`;
-  if (days < 7) return `${then.toLocaleDateString([], { weekday: 'long' })}, ${time}`;
-  return then.toLocaleDateString([], { day: 'numeric', month: 'short' });
-}
-
-const VIEW_FALLBACK_LABEL = {
-  day: 'Open the day',
-  tasks: 'Open the list',
-  goals: 'Open goals',
-};
-
-function viewChipLabel(intent) {
-  if (intent?.label) return intent.label;
-  if (intent?.view === 'day' && intent.date) {
-    const d = new Date(`${intent.date}T00:00:00`);
-    if (!Number.isNaN(d.getTime())) {
-      return `Open ${d.toLocaleDateString([], { weekday: 'long' })}`;
-    }
-  }
-  return VIEW_FALLBACK_LABEL[intent?.view] || 'Open';
-}
-
 function toHistory(messages) {
   return messages
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
     .map((m) => ({ role: m.role, content: m.content }));
 }
 
-export function isConsentValid() {
+function isConsentValid() {
   try {
     const raw = localStorage.getItem(CONSENT_KEY);
     if (!raw) return false;
@@ -204,7 +158,7 @@ export function isConsentValid() {
 }
 
 // ── Crisis overlay ───────────────────────────────────────────────────────────
-export function CrisisOverlay({ onClose }) {
+function CrisisOverlay({ onClose }) {
   return (
     <div className="aih-crisis" role="dialog" aria-label="Crisis support">
       <div className="aih-crisis__card">
@@ -234,7 +188,7 @@ const CONSENT_ITEMS = [
   { k: 'age', t: 'I’m 18 years or older', b: 'These tools are designed for adults.' },
 ];
 
-export function ConsentGate({ onAccept, onCrisis }) {
+function ConsentGate({ onAccept, onCrisis }) {
   const [checks, setChecks] = useState({ notTherapy: false, ai: false, private: false, age: false });
   const all = Object.values(checks).every(Boolean);
   return (
@@ -276,7 +230,7 @@ function memorySource(coachId) {
   return tool ? { icon: tool.icon, name: tool.name } : { icon: '🧠', name: coachId };
 }
 
-export function MemoryPanel({ onClose }) {
+function MemoryPanel({ onClose }) {
   const [notes, setNotes] = useState(null); // null = loading
   const [error, setError] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
@@ -385,24 +339,21 @@ function TaskRail({ tasks, highlightIds }) {
 }
 
 // ── Module strip: compact pickers at the bottom of the guide chat ────────────
-// `compact` is the Console shell's form: icon-only, so switching coach is one
-// tap from the composer rather than a trip back to a landing grid.
-function ModuleStrip({ onSelect, activeId, compact = false }) {
+function ModuleStrip({ onSelect }) {
   return (
-    <div className={`aih-modules${compact ? ' aih-modules--compact' : ''}`}>
-      {!compact && <span className="aih-modules__label">Spaces</span>}
+    <div className="aih-modules">
+      <span className="aih-modules__label">Spaces</span>
       <div className="aih-modules__row">
         {TOOLS.map((t) => (
           <button
             key={t.id}
-            className={`aih-module-chip${activeId === t.id ? ' aih-module-chip--on' : ''}`}
+            className="aih-module-chip"
             style={{ '--accent': t.accent }}
             onClick={() => onSelect(t)}
-            title={compact ? `${t.name} — ${t.tagline}` : t.desc}
-            aria-label={compact ? t.name : undefined}
+            title={t.desc}
           >
             <span className="aih-module-chip__icon">{t.icon}</span>
-            {!compact && t.name}
+            {t.name}
           </button>
         ))}
       </div>
@@ -493,21 +444,8 @@ function VoiceMenu({ voice }) {
 }
 
 // ── Conversation (shared by guide + assistant + coaches) ─────────────────────
-// Used by two shells. The classic hub renders it in the right-hand dock, the
-// FAB overlay, or the standalone /coach page; the Console shell renders it as
-// the whole home screen. `variant` is the only thing that differs — the
-// transcript, persistence, voice, undo and tool receipts are identical, so
-// neither shell can drift from the other.
-export function Conversation({
-  tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule,
-  onOpenMemory, onCollapse,
-  variant = 'dock',      // 'dock' | 'console'
-  onNavIntent,           // (intent) => void — the user tapped a coach's "show me"
-  showRail = true,       // Console replaces the rail with real panels
-  briefPrompt,           // optional text the resume divider's "brief me" sends
-}) {
+function Conversation({ tool, hatId, tasks, onTasksChanged, onBack, onCrisis, onSelectModule, onOpenMemory, onCollapse }) {
   const voice = useVoice();
-  const isConsole = variant === 'console';
   const isCoach = tool.kind === 'coach';
   const seed = isCoach
     ? [{ role: 'assistant', content: COACH_OPENERS[tool.id] }]
@@ -520,9 +458,6 @@ export function Conversation({
   const [step, setStep] = useState(1);
   const [railOpen, setRailOpen] = useState(false); // mobile toggle
   const [justAdded, setJustAdded] = useState(new Set());
-  // Where the restored transcript ends and this sitting begins, so a resumed
-  // conversation can mark the gap instead of pretending it never happened.
-  const [resume, setResume] = useState(null); // { index, at }
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -545,7 +480,6 @@ export function Conversation({
           return;
         }
         setMessages(saved);
-        setResume({ index: saved.length, at: res.updated_at || null });
         // Restore the structured-coach progress bar from the transcript.
         let s = 1;
         saved.forEach((m) => {
@@ -563,7 +497,6 @@ export function Conversation({
   const startFresh = useCallback(async () => {
     try { await api.chatThreadClear(tool.id); } catch { /* clearing is best-effort */ }
     setMessages(seed);
-    setResume(null);
     setStep(1);
     inputRef.current?.focus();
   }, [tool.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -604,11 +537,8 @@ export function Conversation({
     prevIds.current = cur;
   }, [tasks]);
 
-  // `override` lets a chip (e.g. the resume divider's "brief me") send a
-  // canned line. Guarded by a type check because the send button passes its
-  // click event straight through as the first argument.
-  const send = useCallback(async (override) => {
-    const text = (typeof override === 'string' ? override : input).trim();
+  const send = useCallback(async () => {
+    const text = input.trim();
     // `busy` only flips after a re-render, so a ref latch is what actually
     // guarantees one send == one request (double Enter, Enter + tap, …).
     if (!text || busy || sendingRef.current || !messages) return;
@@ -631,7 +561,6 @@ export function Conversation({
           taskActions: res.task_actions || [],
           moduleSuggestions: res.module_suggestions || [],
           goalActions: res.goal_actions || [],
-          viewIntents: res.view_intents || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
         voice.speakIfEnabled(res.reply);
@@ -647,7 +576,6 @@ export function Conversation({
           role: 'assistant',
           content: res.reply,
           actions: res.actions || [],
-          viewIntents: res.view_intents || [],
           undo_token: res.undo_available ? res.undo_token : null,
         }]);
         voice.speakIfEnabled(res.reply);
@@ -683,14 +611,9 @@ export function Conversation({
   };
 
   const totalSteps = tool.steps?.length || 0;
-  // Computed once per restore, not per render — it reads the clock.
-  const gapLabel = useMemo(() => resumeGapLabel(resume?.at), [resume?.at]);
-  // "brief me" is an offer for the moment you arrive; once you've said
-  // something it's just clutter sitting in the history.
-  const atResumePoint = !!resume && (messages?.length ?? 0) === resume.index;
 
   return (
-    <div className={`aih-convo${isConsole ? ' aih-convo--console' : ''}`} style={{ '--accent': tool.accent }}>
+    <div className="aih-convo" style={{ '--accent': tool.accent }}>
       <header className="aih-convo__head">
         {onBack && <button className="aih-back" onClick={onBack} aria-label="Back to coach">←</button>}
         <span className="aih-convo__icon">{tool.icon}</span>
@@ -701,12 +624,10 @@ export function Conversation({
           </div>
         </div>
         <div className="aih-convo__actions">
-          {showRail && (
-            <button className="aih-rail-toggle" onClick={() => setRailOpen((v) => !v)}>
-              {railOpen ? 'Hide tasks' : 'Tasks'}
-              {tasks?.length ? <span className="aih-rail-toggle__count">{tasks.length}</span> : null}
-            </button>
-          )}
+          <button className="aih-rail-toggle" onClick={() => setRailOpen((v) => !v)}>
+            {railOpen ? 'Hide tasks' : 'Tasks'}
+            {tasks?.length ? <span className="aih-rail-toggle__count">{tasks.length}</span> : null}
+          </button>
           <button
             className="aih-fresh"
             onClick={startFresh}
@@ -740,8 +661,7 @@ export function Conversation({
             </div>
           )}
           {(messages || []).map((m, i) => (
-            <React.Fragment key={i}>
-            <div className={`aih-msg aih-msg--${m.role}${m.error ? ' aih-msg--error' : ''}`}>
+            <div key={i} className={`aih-msg aih-msg--${m.role}${m.error ? ' aih-msg--error' : ''}`}>
               <div className="aih-bubble">
                 {m.role === 'assistant' ? renderBold(m.content) : m.content}
               </div>
@@ -806,19 +726,6 @@ export function Conversation({
                   })}
                 </div>
               )}
-              {Array.isArray(m.viewIntents) && m.viewIntents.length > 0 && onNavIntent && (
-                <div className="aih-views">
-                  {m.viewIntents.map((intent, j) => (
-                    <button
-                      key={j}
-                      className="aih-view-chip"
-                      onClick={() => onNavIntent(intent)}
-                    >
-                      {viewChipLabel(intent)} <span aria-hidden="true">→</span>
-                    </button>
-                  ))}
-                </div>
-              )}
               {m.undo_token != null && !m.undone && (
                 <button className="aih-undo" onClick={() => undo(i, m.undo_token)} disabled={m.undoing}>
                   {m.undoing ? 'Undoing…' : '↩ Undo'}
@@ -826,24 +733,6 @@ export function Conversation({
               )}
               {m.undone && <span className="aih-undone">Undone</span>}
             </div>
-
-            {/* Where the saved transcript ended and today began. */}
-            {resume && resume.index === i + 1 && gapLabel && (
-              <div className="aih-resume">
-                <span className="aih-resume__rule" />
-                <span className="aih-resume__label">{gapLabel}</span>
-                <span className="aih-resume__rule" />
-                {briefPrompt && atResumePoint && (
-                  <button
-                    className="aih-resume__brief"
-                    onClick={() => send(briefPrompt)}
-                    disabled={busy}
-                    title="A short read on where you're at"
-                  >brief me</button>
-                )}
-              </div>
-            )}
-            </React.Fragment>
           ))}
           {busy && (
             <div className="aih-msg aih-msg--assistant">
@@ -852,11 +741,9 @@ export function Conversation({
           )}
         </div>
 
-        {showRail && (
-          <div className={`aih-rail-wrap${railOpen ? ' aih-rail-wrap--open' : ''}`}>
-            <TaskRail tasks={tasks} highlightIds={justAdded} />
-          </div>
-        )}
+        <div className={`aih-rail-wrap${railOpen ? ' aih-rail-wrap--open' : ''}`}>
+          <TaskRail tasks={tasks} highlightIds={justAdded} />
+        </div>
       </div>
 
       <div className="aih-composer">
@@ -887,9 +774,7 @@ export function Conversation({
         <button onClick={send} disabled={busy || !input.trim() || messages === null} aria-label="Send">➤</button>
       </div>
 
-      {onSelectModule && (
-        <ModuleStrip onSelect={onSelectModule} activeId={tool.id} compact={isConsole} />
-      )}
+      {onSelectModule && <ModuleStrip onSelect={onSelectModule} />}
     </div>
   );
 }

@@ -25,8 +25,6 @@ import CalendarSync from './components/CalendarSync';
 import GoalsStrip from './components/GoalsStrip';
 import LooseThreads from './components/LooseThreads';
 import AIHub from './components/AIHub';
-import Console from './components/Console';
-import { useShell } from './hooks/useShell';
 import CoachApp from './pages/CoachApp';
 import {
   DndContext,
@@ -295,126 +293,6 @@ const CategoriesView = ({ categories, tasks, onUpdate, onDelete, onMarkDone, onA
 };
 
 // Tracks a min-width media query (collapsible columns are desktop-only).
-/**
- * The task list as it appears inside a Console panel.
- *
- * Deliberately the real TaskList with the real form, filters and bulk actions —
- * a conversation-first shell still needs somewhere you can actually scan and
- * work a list of forty things.
- *
- * When a coach pointed at something specific (show_view with task ids or a
- * filter), the panel opens narrowed to exactly that, with a banner saying so
- * and one tap back to everything. Narrowing is presentational: it never
- * changes the underlying tasks.
- */
-function ConsoleTaskPanel({
-  tasks, taskIds, coachFilter, atLimit, categories, hats,
-  onAdd, onUpdate, onDelete, onMarkDone, onReorder,
-  onBulkDone, onBulkDelete, onBulkUpdate, onShowPricing, onPinPomodoro,
-}) {
-  // A coach's narrowing applies on open and can be dropped; it isn't sticky
-  // state, so reopening the panel from the rail shows everything.
-  const [narrowed, setNarrowed] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState('');
-
-  const ids = React.useMemo(
-    () => (Array.isArray(taskIds) && taskIds.length ? new Set(taskIds) : null),
-    [taskIds]
-  );
-  const hasCoachScope = !!ids || !!(coachFilter && Object.keys(coachFilter).length);
-
-  const shown = React.useMemo(() => {
-    let list = tasks;
-
-    if (narrowed && hasCoachScope) {
-      if (ids) {
-        list = list.filter((t) => ids.has(t.id));
-      } else {
-        const today = new Date();
-        const p = (n) => String(n).padStart(2, '0');
-        const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
-        const weekEnd = new Date(today);
-        weekEnd.setDate(weekEnd.getDate() + 7);
-        const weekEndStr = `${weekEnd.getFullYear()}-${p(weekEnd.getMonth() + 1)}-${p(weekEnd.getDate())}`;
-
-        if (coachFilter.due === 'overdue') list = list.filter((t) => t.due && t.due < todayStr);
-        if (coachFilter.due === 'today') list = list.filter((t) => t.due === todayStr);
-        if (coachFilter.due === 'week') {
-          list = list.filter((t) => t.due && t.due >= todayStr && t.due <= weekEndStr);
-        }
-        if (coachFilter.priority) list = list.filter((t) => (t.priority || '') === coachFilter.priority);
-        if (coachFilter.category) {
-          const want = coachFilter.category.toLowerCase();
-          list = list.filter((t) => (t.category || '').toLowerCase() === want);
-        }
-      }
-    }
-
-    // The panel's own filter bar still applies on top.
-    if (filter === 'category' && selectedCategory) {
-      list = list.filter((t) => (t.category || 'Uncategorized') === selectedCategory);
-    }
-    if (filter === 'priority' && selectedPriority) {
-      list = list.filter((t) => (t.priority || '') === selectedPriority);
-    }
-    return list;
-  }, [tasks, narrowed, hasCoachScope, ids, coachFilter, filter, selectedCategory, selectedPriority]);
-
-  const scopeLabel = () => {
-    if (ids) return `the ${ids.size} task${ids.size === 1 ? '' : 's'} from your conversation`;
-    const bits = [];
-    if (coachFilter?.due === 'overdue') bits.push('overdue');
-    if (coachFilter?.due === 'today') bits.push('due today');
-    if (coachFilter?.due === 'week') bits.push('due this week');
-    if (coachFilter?.priority) bits.push(coachFilter.priority);
-    if (coachFilter?.category) bits.push(`in ${coachFilter.category}`);
-    return bits.length ? bits.join(' · ') : 'a narrowed list';
-  };
-
-  return (
-    <>
-      {hasCoachScope && narrowed && (
-        <div className="console-scope">
-          <span>Showing {scopeLabel()}.</span>
-          <button onClick={() => setNarrowed(false)}>Show everything</button>
-        </div>
-      )}
-      {atLimit ? (
-        <div className="limit-banner">
-          Task limit reached.{' '}
-          <button className="limit-upgrade-btn" onClick={onShowPricing}>Upgrade to add more</button>
-        </div>
-      ) : (
-        <TaskForm onAdd={onAdd} categories={categories} hats={hats} />
-      )}
-      <TaskFilters
-        filter={filter}
-        setFilter={setFilter}
-        categories={categories}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-        selectedPriority={selectedPriority}
-        setSelectedPriority={setSelectedPriority}
-      />
-      <TaskList
-        tasks={shown}
-        onUpdate={onUpdate}
-        onDelete={onDelete}
-        onMarkDone={onMarkDone}
-        onReorder={onReorder}
-        onPinPomodoro={onPinPomodoro}
-        viewMode="active"
-        hats={hats}
-        onBulkDone={onBulkDone}
-        onBulkDelete={onBulkDelete}
-        onBulkUpdate={onBulkUpdate}
-      />
-    </>
-  );
-}
-
 function useMinWidth(px) {
   const [ok, setOk] = useState(() =>
     typeof window !== 'undefined' &&
@@ -463,10 +341,6 @@ function TaskApp() {
   const [showCalendarSync, setShowCalendarSync] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [calendarConnectNotice, setCalendarConnectNotice] = useState(null);
-
-  // Which shell: the classic task-first layout, or the conversation-first
-  // Console. Both render the same components against the same state.
-  const { isConsole, toggle: toggleShell } = useShell();
 
   // Collapsible main column (desktop only — mobile stacks the panels)
   const isWideLayout = useMinWidth(901);
@@ -873,103 +747,6 @@ function TaskApp() {
 
   const atLimit = subscription?.at_limit;
 
-  // ── Console shell ────────────────────────────────────────────────────────
-  // Conversation-first: the coach owns the screen and these three panels are
-  // summoned over it. They're passed as thunks so TimeboxView — the heaviest
-  // view in the app — only mounts when the panel is actually opened, and they
-  // reuse the very same components and handlers as the classic shell, so the
-  // two layouts can't drift apart.
-  if (isConsole) {
-    const consolePanels = {
-      tasks: ({ taskIds, filter: coachFilter }) => (
-        <ConsoleTaskPanel
-          tasks={getVisibleTasks()}
-          taskIds={taskIds}
-          coachFilter={coachFilter}
-          atLimit={atLimit}
-          categories={getCategories()}
-          hats={hats}
-          onAdd={addTask}
-          onUpdate={updateTask}
-          onDelete={deleteTask}
-          onMarkDone={markDone}
-          onReorder={reorderTasks}
-          onBulkDone={bulkMarkDone}
-          onBulkDelete={bulkDelete}
-          onBulkUpdate={bulkUpdate}
-          onShowPricing={openPricing}
-          onPinPomodoro={(task) => { setPomodoroTask(task); setPomodoroOpen(true); }}
-        />
-      ),
-      day: ({ date }) => (
-        <TimeboxView
-          initialDate={date}
-          tasks={getVisibleTasks()}
-          hats={hats}
-          onUpdate={updateTask}
-          onAddTask={addTask}
-          onApplyTaskUpdates={applyTaskUpdates}
-          onMarkDone={markDone}
-          maxHistoryDays={subscription?.tier === 'premium' ? 90 : 14}
-          onSyncToCalendar={subscription?.tier === 'premium' ? handleSyncToCalendar : null}
-          onCalendarDeleteEvent={subscription?.tier === 'premium' ? handleCalendarDeleteEvent : null}
-          calendarConnected={calendarConnected}
-          onPinPomodoro={subscription?.tier && subscription.tier !== 'free'
-            ? (task) => { setPomodoroTask(task); setPomodoroOpen(true); }
-            : null}
-        />
-      ),
-      goals: () => (
-        <GoalsStrip
-          goals={goals}
-          hats={hats}
-          selectedHatIds={selectedHatIds}
-          onCreate={createGoal}
-          onCheckin={checkinGoal}
-          onAchieve={achieveGoal}
-          onArchive={archiveGoal}
-          onToggleMilestone={toggleMilestone}
-          onAddMilestone={addMilestone}
-          onRemoveMilestone={removeMilestone}
-          onRenameGoal={renameGoal}
-          onRenameMilestone={renameMilestone}
-          onMilestoneDue={setMilestoneDue}
-          onReorderMilestones={reorderMilestones}
-          onFetchPastGoals={fetchPastGoals}
-          onRestoreGoal={restoreGoal}
-          onDeleteGoal={deleteGoalForever}
-          tasks={getVisibleTasks()}
-          onAddLinkedTask={addLinkedTask}
-        />
-      ),
-    };
-
-    return (
-      <>
-        <Console
-          hatId={selectedHatIds.size === 1 ? [...selectedHatIds][0] : null}
-          tasks={tasks}
-          panels={consolePanels}
-          onExitShell={toggleShell}
-          onTasksChanged={() => {
-            fetchTasks();
-            fetchDoneTasks();
-            fetchGoals();
-            refreshSubscription();
-          }}
-        />
-        {pomodoroOpen && (
-          <PomodoroTimer
-            pinnedTask={pomodoroTask}
-            onClose={() => setPomodoroOpen(false)}
-            onClearPin={() => setPomodoroTask(null)}
-            onSessionComplete={handlePomodoroComplete}
-          />
-        )}
-      </>
-    );
-  }
-
   return (
     <div className="app">
       <Header
@@ -979,7 +756,6 @@ function TaskApp() {
         onShowAnalytics={() => setViewMode(m => m === 'analytics' ? 'active' : 'analytics')}
         analyticsActive={viewMode === 'analytics'}
         onShowCalendarSync={() => setShowCalendarSync(true)}
-        onToggleShell={toggleShell}
       />
       <div className={`app-body${viewMode === 'threads' ? ' app-body--threads' : ''}`}>
         <div className={`container${mainIsCollapsed ? ' container--collapsed' : ''}`}>

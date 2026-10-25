@@ -646,19 +646,51 @@
   color: #fff;
 }
 
-/* Compact form (Console shell): icon-only, so switching space is one tap from
-   the composer instead of a trip back to a landing grid. */
-.aih-modules--compact { padding: 6px 12px; gap: 0; }
-.aih-modules--compact .aih-modules__row { gap: 4px; }
-.aih-modules--compact .aih-module-chip {
-  /* Square-ish and 40px tall: a real touch target even without a label. */
-  width: 40px;
-  min-height: 40px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 11px;
+/* Compact form (Console shell): the strip is how you move between spaces, so
+   it keeps the names. An icon alone doesn't say which coach it is — 🧿 and 🌊
+   mean nothing until you've learned them. It scrolls sideways when the names
+   don't fit, with a visible bar and a fade so it's obvious there's more. */
+.aih-modules--compact {
+  padding: 6px 12px 8px;
+  gap: 0;
+  position: relative;
 }
-.aih-modules--compact .aih-module-chip__icon { font-size: 17px; }
+.aih-modules--compact .aih-modules__row {
+  gap: 6px;
+  padding-bottom: 5px;
+  /* Unlike the landing strip, this one shows its scrollbar. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.aih-modules--compact .aih-modules__row::-webkit-scrollbar { display: block; height: 4px; }
+.aih-modules--compact .aih-modules__row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+}
+.aih-modules--compact .aih-modules__row::-webkit-scrollbar-track { background: transparent; }
+
+.aih-modules--compact .aih-module-chip {
+  /* 38px tall keeps it a comfortable touch target with the label showing. */
+  min-height: 38px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.aih-modules--compact .aih-module-chip__icon { font-size: 15px; }
+
+/* Fade at the trailing edge: the row runs under the composer's padding, and
+   a hard cut reads as "that's all of them". */
+.aih-modules--compact::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 6px;
+  bottom: 8px;
+  width: 26px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, #1c1209 85%);
+}
 
 .aih-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%; }
 .aih-suggest__card {
@@ -1073,4 +1105,15 @@
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-color: var(--accent);
   color: color-mix(in srgb, var(--accent) 75%, #000);
+}
+
+/* Compact strip — light theme (the fade must match the page, not the dark chrome) */
+[data-theme="light"] .aih-modules--compact .aih-modules__row {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+[data-theme="light"] .aih-modules--compact .aih-modules__row::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+[data-theme="light"] .aih-modules--compact::after {
+  background: linear-gradient(to right, transparent, #fdfbf7 85%);
 }

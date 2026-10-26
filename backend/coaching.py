@@ -155,7 +155,9 @@ _TASK_AWARENESS = (
 
 def coaching_available() -> bool:
     """True when the feature can run (SDK importable + API key configured)."""
-    return anthropic is not None and bool(os.getenv("ANTHROPIC_API_KEY"))
+    # Shares the task assistant's key handling, so a key that works for one
+    # can't silently fail for the other.
+    return anthropic is not None and bool(_ai_chat.api_key())
 
 
 def detect_crisis(text: str) -> bool:
@@ -576,7 +578,8 @@ class CoachingService:
         # share its clash checks, field rules and undo snapshots.
         self._editor = _ai_chat.TaskChatService(db, Task, Hat, ChatUndo,
                                                 check_task_limit)
-        self.client = anthropic.Anthropic() if anthropic is not None else None
+        self.client = (anthropic.Anthropic(api_key=_ai_chat.api_key())
+                       if anthropic is not None else None)
         # (description, hat_id) saved during the current turn — duplicate guard.
         self._run_created = set()
 

@@ -87,10 +87,10 @@ class ChatThreadTests(unittest.TestCase):
         self.ctx.pop()
 
     def _fake_chat(self, script):
-        ai_chat.anthropic = SimpleNamespace(Anthropic=lambda: FakeClient(script))
+        ai_chat.anthropic = SimpleNamespace(Anthropic=lambda *a, **kw: FakeClient(script))
 
     def _fake_coach(self, script):
-        coaching.anthropic = SimpleNamespace(Anthropic=lambda: FakeClient(script))
+        coaching.anthropic = SimpleNamespace(Anthropic=lambda *a, **kw: FakeClient(script))
 
     def test_empty_thread(self):
         res = self.client.get('/api/chat/thread/assistant', headers=self.auth)

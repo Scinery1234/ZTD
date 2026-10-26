@@ -204,7 +204,7 @@ class AIChatRouteTests(unittest.TestCase):
 
     def _enable_fake_model(self, script):
         os.environ['ANTHROPIC_API_KEY'] = 'test-key'
-        ai_chat.anthropic = SimpleNamespace(Anthropic=lambda: FakeClient(script))
+        ai_chat.anthropic = SimpleNamespace(Anthropic=lambda *a, **kw: FakeClient(script))
 
     def test_requires_auth(self):
         res = self.client.post('/api/chat', json={'message': 'hi'})

@@ -75,9 +75,51 @@ _EDITABLE_FIELDS = ("description", "category", "priority", "recurring", "due",
                     "hat_id", "scheduled_time", "scheduled_date", "duration")
 
 
+def api_key() -> str | None:
+    """The Anthropic key, cleaned of what pasting into a dashboard adds.
+
+    The SDK sends the environment value verbatim as the x-api-key header, so a
+    trailing newline, a stray space, or the quotes someone copied along with
+    the key all reach the API as part of the key and come back as
+
+        401 authentication_error: invalid x-api-key
+
+    which reads like a bad key rather than a bad paste, and survives being
+    "changed" because the next paste carries the same whitespace. Strip it
+    here so the common mistake simply works.
+    """
+    raw = os.getenv("ANTHROPIC_API_KEY")
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    # Only a matched surrounding pair — a quote inside a key would be real.
+    for q in ('"', "'"):
+        if len(cleaned) >= 2 and cleaned.startswith(q) and cleaned.endswith(q):
+            cleaned = cleaned[1:-1].strip()
+            break
+    return cleaned or None
+
+
+def key_diagnostics() -> dict:
+    """What's wrong with the configured key, without revealing it.
+
+    Booleans and a length only: enough to tell a truncated paste from a quoted
+    one from a missing variable, with no key material. /api/health is public.
+    """
+    raw = os.getenv("ANTHROPIC_API_KEY")
+    cleaned = api_key()
+    return {
+        "api_key_set": cleaned is not None,
+        "api_key_len": len(cleaned) if cleaned else 0,
+        "api_key_prefix_ok": bool(cleaned and cleaned.startswith("sk-ant-")),
+        "api_key_had_whitespace": bool(raw and raw != raw.strip()),
+        "api_key_had_quotes": bool(cleaned and raw and raw.strip() != cleaned),
+    }
+
+
 def chat_available() -> bool:
     """True when the feature can run (SDK importable + API key configured)."""
-    return anthropic is not None and bool(os.getenv("ANTHROPIC_API_KEY"))
+    return anthropic is not None and bool(api_key())
 
 
 def _parse_due(value):
@@ -364,7 +406,7 @@ class TaskChatService:
         self.check_task_limit = check_task_limit
         self.CoachMemory = CoachMemory   # persistent cross-conversation memory
         self.ChatThread = ChatThread     # cross-conversation awareness
-        self.client = anthropic.Anthropic() if anthropic is not None else None
+        self.client = anthropic.Anthropic(api_key=api_key()) if anthropic is not None else None
         # (description, hat_id) pairs created during the current run — guards
         # against the model re-issuing an identical add later in the tool loop.
         self._run_created = set()

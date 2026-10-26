@@ -1629,10 +1629,15 @@ def health():
         sdk_installed = True
     except ImportError:
         sdk_installed = False
-    return jsonify({'status': 'ok', 'ai': {
-        'sdk_installed': sdk_installed,
-        'api_key_set': bool(os.getenv('ANTHROPIC_API_KEY')),
-    }})
+    # A set-but-rejected key answers 401 from the API rather than 503 here, so
+    # report enough to tell a truncated paste from a quoted or padded one.
+    # Booleans and a length only — never any key material; this route is public.
+    try:
+        ai_info = {'sdk_installed': sdk_installed, **_chat_module().key_diagnostics()}
+    except Exception:
+        ai_info = {'sdk_installed': sdk_installed,
+                   'api_key_set': bool(os.getenv('ANTHROPIC_API_KEY'))}
+    return jsonify({'status': 'ok', 'ai': ai_info})
 
 
 # === Admin endpoint (no Stripe required) ===
@@ -1900,6 +1905,24 @@ def calendar_delete_event(task_id):
 
 
 # === AI Chat Endpoints ===
+
+def _chat_module():
+    """The ai_chat module, imported the same guarded way as _chat_service.
+
+    Defined here rather than inline so /api/health can read the key
+    diagnostics without duplicating the import dance.
+    """
+    try:
+        import ai_chat as _mod
+    except ImportError:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            'ai_chat', os.path.join(BASE_DIR, 'ai_chat.py')
+        )
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+    return _mod
+
 
 def _chat_service():
     """Build a TaskChatService bound to this app's models/helpers, or None if the

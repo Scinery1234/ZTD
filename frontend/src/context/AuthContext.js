@@ -113,8 +113,8 @@ export function AuthProvider({ children }) {
     return resolvedUser;
   };
 
-  const register = async (name, email, password) => {
-    const res = await api.register(name, email, password);
+  const register = async (name, email, password, website = '', phone_number = '') => {
+    const res = await api.register(name, email, password, website, phone_number);
     const token = res?.token || res?.access_token;
     const u = res?.user;
     if (!token) {

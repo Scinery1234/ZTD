@@ -6,7 +6,7 @@ import './AuthPages.css';
 function RegisterPage({ onSwitch, onGuest }) {
   const { register } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', website: '', phone_number: '' });
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,7 +51,7 @@ function RegisterPage({ onSwitch, onGuest }) {
     setInfo('Creating your account…');
     try {
       await Promise.race([
-        register(name, email, password),
+        register(name, email, password, form.website, form.phone_number),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Registration timed out. Please try again.')), 20000)
         ),
@@ -83,6 +83,11 @@ function RegisterPage({ onSwitch, onGuest }) {
         {info && !error && <div className="auth-info">{info}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          {/* Honeypot fields — invisible to humans, bots fill them */}
+          <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} aria-hidden="true" tabIndex="-1">
+            <input type="text" name="website" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} autoComplete="off" tabIndex="-1" />
+            <input type="text" name="phone_number" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} autoComplete="off" tabIndex="-1" />
+          </div>
           <div className="auth-field">
             <label>Name</label>
             <input

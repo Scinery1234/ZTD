@@ -1677,6 +1677,20 @@ def calendar_auth_start(provider):
     if provider not in ('google', 'microsoft'):
         return jsonify({'error': 'Provider must be google or microsoft'}), 400
 
+    # Without these the login link is built with no client_id and the user lands
+    # on the provider's own error page (Microsoft: AADSTS900144), which says
+    # nothing about what to fix. Say it here, naming the setting.
+    prefix = provider.upper()
+    missing = [name for name in (f'{prefix}_CLIENT_ID', f'{prefix}_CLIENT_SECRET')
+               if not (os.getenv(name) or '').strip()]
+    if missing:
+        label = 'Google' if provider == 'google' else 'Microsoft'
+        return jsonify({
+            'error': f'{label} calendar sync isn\'t set up on this server yet: '
+                     f'{" and ".join(missing)} {"is" if len(missing) == 1 else "are"} not set.',
+            'not_configured': True,
+        }), 503
+
     base_url = os.getenv('FRONTEND_URL', 'http://localhost:5001').rstrip('/')
     redirect_uri = f"{base_url}/api/calendar/callback/{provider}"
     state = _make_signed_token(str(user_id), 'cal-oauth-state')

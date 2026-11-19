@@ -1713,7 +1713,9 @@ def calendar_auth_start(provider):
         client_credential=os.getenv('MICROSOFT_CLIENT_SECRET', ''),
     )
     auth_url = app_ms.get_authorization_request_url(
-        scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
+        # Not 'offline_access': msal adds it (and openid/profile) itself and raises
+        # ValueError if it's passed in. The refresh token still comes back.
+        scopes=['https://graph.microsoft.com/Calendars.ReadWrite'],
         redirect_uri=redirect_uri,
         state=state,
     )
@@ -1785,7 +1787,9 @@ def calendar_auth_callback(provider):
             )
             result = app_ms.acquire_token_by_authorization_code(
                 code=code,
-                scopes=['https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access'],
+                # Not 'offline_access': msal adds it (and openid/profile) itself and raises
+                # ValueError if it's passed in. The refresh token still comes back.
+                scopes=['https://graph.microsoft.com/Calendars.ReadWrite'],
                 redirect_uri=redirect_uri,
             )
             if 'access_token' not in result:

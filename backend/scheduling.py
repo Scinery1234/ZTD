@@ -17,9 +17,55 @@ try:
 except ImportError:  # pragma: no cover - dateparser ships with the app
     dateparser = None
 
+try:
+    import pytz
+except ImportError:  # pragma: no cover - pytz is pinned in requirements.txt
+    pytz = None
+
 DEFAULT_DURATION = 30  # minutes, mirrors the Task model default
 
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def local_now(tz_name=None):
+    """What time it is for the user, as (naive local datetime, canonical tz name).
+
+    The server runs in UTC, so its own clock is wrong for anyone elsewhere: for
+    an Australian user it reports yesterday for roughly the first eleven hours
+    of every day, and "9am" scheduled "later today" lands on tomorrow. The
+    browser knows the real zone and sends its IANA name with each message; this
+    turns that into the user's wall-clock time.
+
+    The name is user-controlled and ends up in a prompt, so it is only used if
+    it's a zone pytz recognises, and what's returned is pytz's own spelling of
+    it — never the raw input. Anything else falls back to UTC, and the second
+    value is None so callers can say the zone is a guess instead of pretending.
+    """
+    if pytz is not None and isinstance(tz_name, str) and tz_name in pytz.all_timezones_set:
+        tz = pytz.timezone(tz_name)
+        return datetime.now(tz).replace(tzinfo=None), tz.zone
+    return datetime.utcnow(), None
+
+
+def clock_line(now, tz_name=None):
+    """The sentence that tells the model when "now" is.
+
+    Always states both the date and the time, and the zone — or says plainly
+    that the zone is unknown. Without the time the model can't tell "this
+    morning" from "tonight"; without the zone it can't tell whose clock it is.
+    """
+    stamp = f"{now.strftime('%Y-%m-%d')} ({now.strftime('%A')}) at {now.strftime('%H:%M')}"
+    if tz_name:
+        offset = pytz.timezone(tz_name).localize(now).strftime("%z") if pytz else ""
+        offset = f"UTC{offset[:3]}:{offset[3:]}" if offset else ""
+        where = f"{tz_name}{', ' + offset if offset else ''}"
+        return (f"The current date and time for the user is {stamp} ({where}). "
+                "You always know this — never say you can't tell the date or time. "
+                "Resolve 'today', 'tonight', 'tomorrow', 'this afternoon' and "
+                "weekday names from it.")
+    return (f"The current date and time is {stamp} UTC. The user's timezone is not "
+            "known, so their local time may differ by up to a day: if the exact "
+            "date or time matters for what they asked, ask what their local time is.")
 
 
 def parse_hhmm(value):

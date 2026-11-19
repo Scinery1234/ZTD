@@ -130,6 +130,18 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+// The browser's IANA timezone ("Australia/Sydney"). The AI needs it to know what
+// time it is for this user: the server runs in UTC, which for an Australian is
+// yesterday for the first eleven hours of every day. Sent with every AI message
+// rather than stored, so it follows the user when they travel.
+const userTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const api = {
   // Auth
   register: (name, email, password) =>
@@ -235,7 +247,12 @@ export const api = {
     apiFetch('/chat', {
       method: 'POST',
       timeoutMs: AI_TIMEOUT_MS,
-      body: JSON.stringify({ message, ...(hat_id != null ? { hat_id } : {}), history: history || [] }),
+      body: JSON.stringify({
+        message,
+        ...(hat_id != null ? { hat_id } : {}),
+        history: history || [],
+        timezone: userTimezone(),
+      }),
     }),
   chatUndo: (undo_token) =>
     apiFetch('/chat/undo', {
@@ -253,6 +270,7 @@ export const api = {
         message,
         ...(hat_id != null ? { hat_id } : {}),
         history: history || [],
+        timezone: userTimezone(),
       }),
     }),
 

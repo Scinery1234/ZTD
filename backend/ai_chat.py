@@ -122,12 +122,16 @@ def chat_available() -> bool:
     return anthropic is not None and bool(api_key())
 
 
-def _parse_due(value):
-    """Normalize a natural-language due date to YYYY-MM-DD (mirrors the REST route)."""
+def _parse_due(value, now=None):
+    """Normalize a natural-language due date to YYYY-MM-DD (mirrors the REST route).
+
+    `now` is the user's local time. Without it "tomorrow" is relative to the
+    server's UTC clock, which is a day out for anyone far enough east or west.
+    """
     text = (value or "").strip()
     if not text:
         return None
-    parsed = dateparser.parse(text)
+    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": now} if now else None)
     return parsed.strftime("%Y-%m-%d") if parsed else text
 
 
@@ -410,11 +414,18 @@ class TaskChatService:
         # (description, hat_id) pairs created during the current run — guards
         # against the model re-issuing an identical add later in the tool loop.
         self._run_created = set()
+        # The user's local "now", reset at the start of every turn.
+        self._now, self._tz = scheduling.local_now(None)
 
     # ---- public entry point ----
-    def run(self, user, hat_id, message, history):
-        """Execute one chat turn. Returns a JSON-serializable dict."""
+    def run(self, user, hat_id, message, history, tz_name=None):
+        """Execute one chat turn. Returns a JSON-serializable dict.
+
+        `tz_name` is the browser's IANA timezone; it sets what "now" means for
+        this turn (the prompt, relative dates, and today-vs-tomorrow scheduling).
+        """
         self._run_created = set()   # fresh duplicate-guard scope for this turn
+        self._now, self._tz = scheduling.local_now(tz_name)
         hats = self.Hat.query.filter_by(user_id=user.id).order_by(self.Hat.position, self.Hat.id).all()
         default_hat_id = self._resolve_default_hat(user.id, hat_id, hats)
 
@@ -540,7 +551,7 @@ class TaskChatService:
         return "\n".join(lines)
 
     def _system_prompt(self, user, hats, default_hat_id):
-        today = datetime.today().strftime("%Y-%m-%d (%A)")
+        clock = scheduling.clock_line(self._now, self._tz)
         hat_lines = "\n".join(f"  - id {h.id}: {h.name}" for h in hats) or "  (none)"
         snapshot = self._task_snapshot(user.id)
         memory = (memory_prompt_block(self.CoachMemory, user.id)
@@ -553,7 +564,7 @@ class TaskChatService:
             "between hats/categories, reprioritise, combine, delete, and manage "
             "subtasks (checklists) — one task or many at once — through the "
             "provided tools.\n\n"
-            f"Today is {today}.\n"
+            f"{clock}\n"
             "The user's workspaces ('hats') are:\n"
             f"{hat_lines}\n"
             f"New tasks default to hat id {default_hat_id} unless the user clearly "
@@ -721,7 +732,7 @@ class TaskChatService:
             sched_date = None
             duration = scheduling.parse_duration(item.get("duration"))
             if sched_time:
-                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time)
+                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time, self._now)
                 if not item.get("allow_clash"):
                     clash = scheduling.find_clash(
                         self.Task, user.id, sched_date, sched_time,
@@ -744,7 +755,7 @@ class TaskChatService:
                 category=(item.get("category") or "").strip(),
                 priority=(item.get("priority") or "").strip(),
                 recurring=(item.get("recurring") or "").strip(),
-                due=_parse_due(item.get("due")),
+                due=_parse_due(item.get("due"), self._now),
                 position=max_pos + 1,
                 scheduled_time=sched_time,
                 scheduled_date=sched_date,
@@ -794,7 +805,7 @@ class TaskChatService:
                 if new_time:
                     duration = (scheduling.parse_duration(upd.get("duration"))
                                 or task.duration or scheduling.DEFAULT_DURATION)
-                    new_date = scheduling.resolve_date(upd.get("scheduled_date"), new_time)
+                    new_date = scheduling.resolve_date(upd.get("scheduled_date"), new_time, self._now)
                     if not upd.get("allow_clash"):
                         clash = scheduling.find_clash(
                             self.Task, user_id, new_date, new_time, duration,
@@ -813,7 +824,7 @@ class TaskChatService:
                 if field not in upd:
                     continue
                 if field == "due":
-                    task.due = _parse_due(upd.get("due"))
+                    task.due = _parse_due(upd.get("due"), self._now)
                 elif field == "hat_id":
                     hid = upd.get("hat_id")
                     if hid:
@@ -824,7 +835,7 @@ class TaskChatService:
                 elif field == "scheduled_time":
                     task.scheduled_time = new_time
                     task.scheduled_date = (
-                        scheduling.resolve_date(upd.get("scheduled_date"), new_time)
+                        scheduling.resolve_date(upd.get("scheduled_date"), new_time, self._now)
                         if new_time else None)
                 elif field == "scheduled_date":
                     pass  # handled with scheduled_time

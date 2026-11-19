@@ -1969,7 +1969,8 @@ def ai_chat():
     history = data.get('history') or []
 
     try:
-        result = service.run(user, hat_id, message, history)
+        result = service.run(user, hat_id, message, history,
+                             tz_name=data.get('timezone'))
         append_chat_thread(user_id, 'assistant', [
             {'role': 'user', 'content': message},
             {'role': 'assistant', 'content': result['reply'],
@@ -2055,7 +2056,8 @@ def ai_coach():
     history = data.get('history') or []
 
     try:
-        result = service.run(user, coach_id, message, history, hat_id)
+        result = service.run(user, coach_id, message, history, hat_id,
+                             tz_name=data.get('timezone'))
         append_chat_thread(user_id, coach_id, [
             {'role': 'user', 'content': message},
             {'role': 'assistant', 'content': result['reply'],

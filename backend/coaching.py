@@ -165,11 +165,13 @@ def detect_crisis(text: str) -> bool:
     return any(kw in low for kw in CRISIS_KEYWORDS)
 
 
-def _parse_due(value):
+def _parse_due(value, now=None):
+    # `now` is the user's local time, so "tomorrow" isn't relative to the
+    # server's UTC clock (a day out for anyone far enough east or west).
     text = (value or "").strip()
     if not text or dateparser is None:
         return text or None
-    parsed = dateparser.parse(text)
+    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": now} if now else None)
     return parsed.strftime("%Y-%m-%d") if parsed else text
 
 
@@ -582,10 +584,20 @@ class CoachingService:
                        if anthropic is not None else None)
         # (description, hat_id) saved during the current turn — duplicate guard.
         self._run_created = set()
+        # The user's local "now", reset at the start of every turn.
+        self._now, self._tz = scheduling.local_now(None)
 
     # ---- public entry point ----
-    def run(self, user, coach_id, message, history, hat_id=None):
-        """Execute one coaching turn. Returns a JSON-serializable dict."""
+    def run(self, user, coach_id, message, history, hat_id=None, tz_name=None):
+        """Execute one coaching turn. Returns a JSON-serializable dict.
+
+        `tz_name` is the browser's IANA timezone; it sets what "now" means for
+        this turn. The task editor the coaches delegate to is given the same
+        clock, so a task edited mid-conversation resolves "tomorrow" the same
+        way the prompt describes it.
+        """
+        self._now, self._tz = scheduling.local_now(tz_name)
+        self._editor._now, self._editor._tz = self._now, self._tz
         coach = COACHES.get(coach_id)
         if coach is None:
             raise ValueError(f"Unknown coach: {coach_id}")
@@ -700,7 +712,7 @@ class CoachingService:
         return "\n".join(lines)
 
     def _system_prompt(self, user, coach, coach_id=""):
-        today = datetime.today().strftime("%Y-%m-%d (%A)")
+        clock = scheduling.clock_line(self._now, self._tz)
         snapshot = self._task_snapshot(user.id)
         memory = (memory_prompt_block(self.CoachMemory, user.id)
                   if self.CoachMemory is not None else "")
@@ -714,7 +726,7 @@ class CoachingService:
             f"{_TASK_AWARENESS}"
             f"{goals_block}"
             f"{scheduling.SCHEDULING_GUIDANCE}"
-            f"\n\nToday is {today}."
+            f"\n\n{clock}"
             f"\nThe user's current MadeHappen tasks (⏰/scheduled = a planned "
             f"slot on their calendar):\n{snapshot}"
             f"{memory}"
@@ -818,7 +830,7 @@ class CoachingService:
             sched_date = None
             duration = scheduling.parse_duration(item.get("duration"))
             if sched_time:
-                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time)
+                sched_date = scheduling.resolve_date(item.get("scheduled_date"), sched_time, self._now)
                 if not item.get("allow_clash"):
                     clash = scheduling.find_clash(
                         self.Task, user.id, sched_date, sched_time,
@@ -848,7 +860,7 @@ class CoachingService:
                 category="",
                 priority=(item.get("priority") or "").strip(),
                 recurring="",
-                due=_parse_due(item.get("due")),
+                due=_parse_due(item.get("due"), self._now),
                 position=max_pos + 1,
                 scheduled_time=sched_time,
                 scheduled_date=sched_date,

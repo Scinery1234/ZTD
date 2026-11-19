@@ -266,13 +266,16 @@ class CalendarVisibilityTests(SchedulingServiceBase):
 
     def test_coach_prompt_shows_calendar_slot_and_today(self):
         from backend.coaching import COACHES
-        from datetime import datetime as _dt
         self._gym()
         prompt = self.coach._system_prompt(self.user, COACHES['exec'])
         self.assertIn('Gym session', prompt)
         self.assertIn('scheduled: 07:00', prompt)
         self.assertIn(f'on {self.date}', prompt)
-        self.assertIn(f"Today is {_dt.today().strftime('%Y-%m-%d')}", prompt)
+        # The prompt states the date AND the time, not just the date.
+        now = self.coach._now
+        self.assertIn(now.strftime('%Y-%m-%d'), prompt)
+        self.assertIn(now.strftime('%A'), prompt)
+        self.assertIn(now.strftime('%H:%M'), prompt)
 
 
 if __name__ == '__main__':
